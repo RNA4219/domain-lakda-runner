@@ -1,0 +1,27 @@
+{
+  "name": "domain-lakda-runner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": "24.6.0", "npm": "11.5.1" },
+  "bin": { "lakda": "./dist/cli.js" },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "check:docs": "node scripts/check-docs.mjs",
+    "test": "playwright test",
+    "test:headed": "playwright test --project=chromium --headed",
+    "check": "npm run check:docs && npm run typecheck && npm run lint && npm run build && npm test",
+    "pack:check": "npm pack --dry-run"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.61.1",
+    "@types/node": "24.13.3",
+    "ajv": "8.20.0",
+    "eslint": "10.7.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.63.0"
+  }
+}
