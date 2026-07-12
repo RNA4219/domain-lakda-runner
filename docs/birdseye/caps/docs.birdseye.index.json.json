@@ -1,0 +1,18 @@
+{
+  "id": "docs/birdseye/index.json",
+  "role": "doc",
+  "public_api": [],
+  "summary": "docs/birdseye/index.json",
+  "deps_out": [
+    "README.md",
+    "REQUIREMENTS.md",
+    "SPECIFICATION.md",
+    "docs/birdseye/caps/"
+  ],
+  "deps_in": [
+    "docs/BIRDSEYE.md"
+  ],
+  "risks": [],
+  "tests": [],
+  "generated_at": "00002"
+}

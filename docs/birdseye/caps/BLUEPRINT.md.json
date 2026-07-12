@@ -1,0 +1,16 @@
+{
+  "id": "BLUEPRINT.md",
+  "role": "doc",
+  "public_api": [],
+  "summary": "BLUEPRINT.md",
+  "deps_out": [
+    "REQUIREMENTS.md",
+    "SPECIFICATION.md"
+  ],
+  "deps_in": [
+    "README.md"
+  ],
+  "risks": [],
+  "tests": [],
+  "generated_at": "00002"
+}

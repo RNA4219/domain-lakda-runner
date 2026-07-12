@@ -1,0 +1,15 @@
+{
+  "id": "RUNBOOK.md",
+  "role": "doc",
+  "public_api": [],
+  "summary": "RUNBOOK.md",
+  "deps_out": [
+    "SPECIFICATION.md"
+  ],
+  "deps_in": [
+    "README.md"
+  ],
+  "risks": [],
+  "tests": [],
+  "generated_at": "00002"
+}

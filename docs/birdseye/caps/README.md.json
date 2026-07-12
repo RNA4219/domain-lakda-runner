@@ -1,0 +1,22 @@
+{
+  "id": "README.md",
+  "role": "doc",
+  "public_api": [],
+  "summary": "README.md",
+  "deps_out": [
+    "BLUEPRINT.md",
+    "CHANGELOG.md",
+    "EVALUATION.md",
+    "GUARDRAILS.md",
+    "REQUIREMENTS.md",
+    "RUNBOOK.md",
+    "SPECIFICATION.md",
+    "docs/BIRDSEYE.md"
+  ],
+  "deps_in": [
+    "docs/birdseye/index.json"
+  ],
+  "risks": [],
+  "tests": [],
+  "generated_at": "00002"
+}

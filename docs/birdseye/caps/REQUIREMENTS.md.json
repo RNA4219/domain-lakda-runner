@@ -1,0 +1,19 @@
+{
+  "id": "REQUIREMENTS.md",
+  "role": "doc",
+  "public_api": [],
+  "summary": "REQUIREMENTS.md",
+  "deps_out": [
+    "SPECIFICATION.md"
+  ],
+  "deps_in": [
+    "BLUEPRINT.md",
+    "EVALUATION.md",
+    "README.md",
+    "docs/birdseye/index.json",
+    "docs/tasks/TASK.20260712-00.md"
+  ],
+  "risks": [],
+  "tests": [],
+  "generated_at": "00002"
+}

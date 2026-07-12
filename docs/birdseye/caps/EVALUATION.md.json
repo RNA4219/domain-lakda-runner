@@ -1,0 +1,18 @@
+{
+  "id": "EVALUATION.md",
+  "role": "doc",
+  "public_api": [],
+  "summary": "EVALUATION.md",
+  "deps_out": [
+    "REQUIREMENTS.md",
+    "SPECIFICATION.md"
+  ],
+  "deps_in": [
+    "README.md",
+    "docs/acceptance/AC-20260713-01.fixture.json",
+    "docs/tasks/TASK.20260712-00.md"
+  ],
+  "risks": [],
+  "tests": [],
+  "generated_at": "00002"
+}

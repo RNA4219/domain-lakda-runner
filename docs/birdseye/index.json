@@ -1,0 +1,164 @@
+{
+  "generated_at": "00002",
+  "nodes": {
+    "README.md": {
+      "role": "overview",
+      "caps": "docs/birdseye/caps/README.md.json",
+      "mtime": "00001"
+    },
+    "REQUIREMENTS.md": {
+      "role": "requirements",
+      "caps": "docs/birdseye/caps/REQUIREMENTS.md.json",
+      "mtime": "00002"
+    },
+    "SPECIFICATION.md": {
+      "role": "specification",
+      "caps": "docs/birdseye/caps/SPECIFICATION.md.json",
+      "mtime": "00003"
+    },
+    "BLUEPRINT.md": {
+      "role": "blueprint",
+      "caps": "docs/birdseye/caps/BLUEPRINT.md.json",
+      "mtime": "00004"
+    },
+    "GUARDRAILS.md": {
+      "role": "policy",
+      "caps": "docs/birdseye/caps/GUARDRAILS.md.json",
+      "mtime": "00005"
+    },
+    "RUNBOOK.md": {
+      "role": "operations",
+      "caps": "docs/birdseye/caps/RUNBOOK.md.json",
+      "mtime": "00006"
+    },
+    "EVALUATION.md": {
+      "role": "quality",
+      "caps": "docs/birdseye/caps/EVALUATION.md.json",
+      "mtime": "00007"
+    },
+    "CHANGELOG.md": {
+      "role": "history",
+      "caps": "docs/birdseye/caps/CHANGELOG.md.json",
+      "mtime": "00008"
+    },
+    "docs/tasks/TASK.20260712-00.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260712-00.md.json",
+      "mtime": "00009"
+    },
+    "docs/acceptance/AC-20260713-01.fixture.json": {
+      "role": "acceptance",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260713-01.fixture.json.json",
+      "mtime": "00010"
+    },
+    "docs/BIRDSEYE.md": {
+      "role": "guide",
+      "caps": "docs/birdseye/caps/docs.BIRDSEYE.md.json",
+      "mtime": "00011"
+    },
+    "docs/birdseye/index.json": {
+      "role": "index",
+      "caps": "docs/birdseye/caps/docs.birdseye.index.json.json",
+      "mtime": "00012"
+    },
+    "docs/birdseye/caps/": {
+      "role": "collection",
+      "caps": "docs/birdseye/caps/docs.birdseye.caps..json",
+      "mtime": "00013"
+    }
+  },
+  "edges": [
+    [
+      "README.md",
+      "REQUIREMENTS.md"
+    ],
+    [
+      "README.md",
+      "SPECIFICATION.md"
+    ],
+    [
+      "README.md",
+      "BLUEPRINT.md"
+    ],
+    [
+      "README.md",
+      "GUARDRAILS.md"
+    ],
+    [
+      "README.md",
+      "RUNBOOK.md"
+    ],
+    [
+      "README.md",
+      "EVALUATION.md"
+    ],
+    [
+      "README.md",
+      "CHANGELOG.md"
+    ],
+    [
+      "README.md",
+      "docs/BIRDSEYE.md"
+    ],
+    [
+      "REQUIREMENTS.md",
+      "SPECIFICATION.md"
+    ],
+    [
+      "BLUEPRINT.md",
+      "REQUIREMENTS.md"
+    ],
+    [
+      "BLUEPRINT.md",
+      "SPECIFICATION.md"
+    ],
+    [
+      "EVALUATION.md",
+      "REQUIREMENTS.md"
+    ],
+    [
+      "EVALUATION.md",
+      "SPECIFICATION.md"
+    ],
+    [
+      "RUNBOOK.md",
+      "SPECIFICATION.md"
+    ],
+    [
+      "docs/tasks/TASK.20260712-00.md",
+      "REQUIREMENTS.md"
+    ],
+    [
+      "docs/tasks/TASK.20260712-00.md",
+      "EVALUATION.md"
+    ],
+    [
+      "docs/acceptance/AC-20260713-01.fixture.json",
+      "EVALUATION.md"
+    ],
+    [
+      "docs/BIRDSEYE.md",
+      "docs/birdseye/index.json"
+    ],
+    [
+      "docs/BIRDSEYE.md",
+      "docs/birdseye/caps/"
+    ],
+    [
+      "docs/birdseye/index.json",
+      "docs/birdseye/caps/"
+    ],
+    [
+      "docs/birdseye/index.json",
+      "README.md"
+    ],
+    [
+      "docs/birdseye/index.json",
+      "REQUIREMENTS.md"
+    ],
+    [
+      "docs/birdseye/index.json",
+      "SPECIFICATION.md"
+    ]
+  ]
+}

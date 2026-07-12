@@ -1,0 +1,13 @@
+{
+  "id": "docs/acceptance/AC-20260713-01.fixture.json",
+  "role": "doc",
+  "public_api": [],
+  "summary": "docs/acceptance/AC-20260713-01.fixture.json",
+  "deps_out": [
+    "EVALUATION.md"
+  ],
+  "deps_in": [],
+  "risks": [],
+  "tests": [],
+  "generated_at": "00002"
+}

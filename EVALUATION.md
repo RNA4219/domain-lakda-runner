@@ -53,7 +53,7 @@
 | integration | Chromium、artifact lifecycle、replay | PR または専用 runner |
 | security | secret redaction、allowlist、loopback、prompt injection | PR 必須 |
 | golden | 欠陥検出、false positive、critical cases | 受入時・リリース候補 |
-| local-llm | 実 GGUF、latency、raw hash、再現性 | 明示 opt-in。決定的CIから分離 |
+| local-llm | 実 GGUF、latency、raw hash、再現性 | 明示 opt-in。`npm run acceptance:real-llm`で固定corpusを実行。決定的CIから分離 |
 
 ## 実装準備の受入（AC-20260712-00）
 
@@ -61,7 +61,7 @@
 - [x] BLUEPRINT、GUARDRAILS、RUNBOOK、EVALUATION、Task Seed が相互リンクする。
 - [ ] source、test、CI、dependency の変更がないことを実装開始前に確認する。
 - [ ] M1–M4 の依存と受入証跡の保存先が Task Seed にある。
-- [ ] Birdseye/Codemap はコード生成後に workflow-cookbook の更新コマンドで生成する。
+- [x] Birdseye/Codemap はコード生成後に workflow-cookbook の更新コマンドで生成する。
 
 ## トレーサビリティ
 

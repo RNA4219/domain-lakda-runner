@@ -2,7 +2,7 @@
 task_id: 20260712-00
 intent_id: INT-LAKDA-001
 owner: RNA4219
-status: complete
+status: in_progress
 last_reviewed_at: 2026-07-13
 next_review_due: 2026-08-12
 ---
@@ -21,15 +21,16 @@ next_review_due: 2026-08-12
 
 ## Constraints
 
-- QEG record/Gate、HATE audit record、`lakda export qeg`、`doctor --fix` は実装しない。
+- QEG record/Gate、HATE audit record、LakdaのQEG直接export、`doctor --fix` は実装しない。
 - DOCX と調査報告書は原資料として内容を変更しない。
 - `main` に小さな検証済みコミットを直接積む。
 
 ## Acceptance
 
 - [x] 正本、Workflow 文書、Task Seed、受入記録がリンク・JSON・REQ/AC 対応検査を通過する。
-- [x] `npm run check` と `npm run pack:check` がローカルで通過する。
-- [ ] push 後にGitHub Actionsが緑である。
+- [x] `npm run check`、`npm run pack:check`、`npm run acceptance:fixture` がローカルで通過する。
+- [x] Birdseye/Codemapをdry-run後に生成し、Capsuleを更新する。
+- [ ] 実Qwen4B受入、push後のGitHub Actions成功、completion recordの確定。
 
 ## Evidence
 

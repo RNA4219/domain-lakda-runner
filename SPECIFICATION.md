@@ -57,7 +57,7 @@ LLM は `llm-explore` でのみ action selection に参加する。deterministic
 
 ## 3. 設定契約
 
-既定設定ファイルは repository root の `lakda.config.json` とする。CLI option は同名の設定値を上書きする。環境変数は secret と endpoint のみ許可し、一般設定の暗黙上書きには使用しない。
+既定設定ファイルは repository root の `lakda.config.json` とし、[schemas/lakda-config-v1.schema.json](schemas/lakda-config-v1.schema.json) に適合しなければならない。CLI option は同名の設定値を上書きする。環境変数は secret と endpoint のみ許可し、一般設定の暗黙上書きには使用しない。
 
 ```json
 {
@@ -71,6 +71,30 @@ LLM は `llm-explore` でのみ action selection に参加する。deterministic
   "maxActions": 100,
   "workers": 2,
   "outputDir": ".lakda/runs",
+  "actionCatalog": [
+    { "id": "goto-root", "kind": "goto", "path": "/" },
+    { "id": "search", "kind": "fill", "locator": { "testId": "search" }, "inputProfileId": "safe-search" },
+    { "id": "submit", "kind": "click", "locator": { "role": "button", "name": "Search" } }
+  ],
+  "inputProfiles": { "safe-search": "fixture query" },
+  "profiles": {
+    "smoke": { "actionIds": ["goto-root", "search", "submit"] },
+    "seededRandom": { "candidateIds": ["goto-root", "search", "submit"], "count": 3 }
+  },
+  "classifier": {
+    "majorRequestUrlPatterns": ["/api/"],
+    "consoleErrorAllowPatterns": ["known fixture noise"]
+  },
+  "personas": {
+    "guest": {},
+    "member": {
+      "validationPath": "/account",
+      "loginUrlPattern": "/login",
+      "requiredLocator": { "testId": "member-menu" }
+    }
+  },
+  "obligations": [{ "expectedUrl": "/results" }],
+  "fixtureReset": { "url": "/__fixture/reset" },
   "safety": {
     "allowHosts": ["127.0.0.1", "localhost"],
     "denyActionKinds": ["delete", "deactivate", "billing", "transfer"],
@@ -115,6 +139,12 @@ LLM は `llm-explore` でのみ action selection に参加する。deterministic
 - `workers` は1〜4、`maxActions` は1以上、`durationMs` は1以上とする。
 - `maxRetries` の上限は2とし、0〜2だけを許可する。
 - LLM endpoint は `127.0.0.1` または `localhost` の loopback に限定する。
+- `actionCatalog` は実行可能な唯一のaction集合である。`goto`/`navigate` はallow host内の`path`だけを持ち、`click`/`fill`/`check`/`select`/`press` は`testId`または完全一致する`role`/`name` locatorだけを持つ。CSS/XPath、任意の`value`、LLM由来のselector/pathは受け付けない。
+- `fill`と`select`の値は`inputProfiles`からだけ解決する。LLMはprofileの値を受け取らず、candidateに紐づくprofile IDを変更できない。
+- `profiles.smoke.actionIds` は明示した順でsmoke planを構成し、`profiles.seededRandom` はcandidate poolとcountを制限する。いずれも`actionCatalog`のstable IDだけを参照する。
+- `classifier.majorRequestUrlPatterns` はUI-004の主要requestを絞り込み、`classifier.consoleErrorAllowPatterns` はUI-003の既知ノイズを抑制する。patternは設定読込時に正規表現として検証する。
+- non-guest persona は`validationPath`、`loginUrlPattern`、`requiredLocator`を必須とし、run開始前と各action後に検証する。
+- `mutates=true`のactionはloopback HTTP POSTの`fixtureReset`をrun前後に必須とする。shell hookは存在しない。
 - `llm.modelPath` はローカルの読み取り可能なGGUFを指し、`llm-explore`前にLakdaがSHA-256を計算して`modelSha256`と照合する。
 - secret は設定ファイルへ直接記載しない。
 
@@ -153,7 +183,7 @@ type RunOptions = {
   durationMs: number;
   maxActions: number;
   workers: number;
-  outDir: string;
+  outputDir: string;
 };
 
 type RunResult = {
@@ -200,9 +230,9 @@ type LlmDecision =
 
 ### 5.2 `llm-explore`
 
-1 action ごとに次を行う。
+1 action ごとに次を行う。action sequenceは開始時には空であり、実行済みの安全actionだけを追記して終了時に保存する。
 
-1. Executor が現在URL、主要な可視 role、前回action、機械failure、未達riskを機械要約する。
+1. Executor が現在URL、固定selectorで抽出した最大20件の可視role/text、前回action、機械failure、未達riskを機械要約する。
 2. Generator が実行可能な候補へ安定IDを付ける。
 3. Safety Filter がallow host、deny action、rate limit、resource limitに反する候補を削除する。
 4. 候補IDと要約だけをLLMへ送る。trace、HAR、cookie、secret、raw DOM全体は送らない。

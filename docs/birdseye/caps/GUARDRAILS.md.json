@@ -1,0 +1,13 @@
+{
+  "id": "GUARDRAILS.md",
+  "role": "doc",
+  "public_api": [],
+  "summary": "GUARDRAILS.md",
+  "deps_out": [],
+  "deps_in": [
+    "README.md"
+  ],
+  "risks": [],
+  "tests": [],
+  "generated_at": "00002"
+}
