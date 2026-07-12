@@ -1,0 +1,146 @@
+{
+  "schemaVersion": "lakda/acceptance-corpus/v1",
+  "version": "fixture-v1",
+  "repetitions": 3,
+  "deterministicRuns": 100,
+  "knownDefects": [
+    "defect-001",
+    "defect-002",
+    "defect-003",
+    "defect-004",
+    "defect-005",
+    "defect-006",
+    "defect-007",
+    "defect-008",
+    "defect-009",
+    "defect-010",
+    "defect-011",
+    "defect-012",
+    "defect-013",
+    "defect-014",
+    "defect-015",
+    "defect-016",
+    "defect-017",
+    "defect-018",
+    "defect-019",
+    "defect-020"
+  ],
+  "normalCases": [
+    "normal-001",
+    "normal-002",
+    "normal-003",
+    "normal-004",
+    "normal-005",
+    "normal-006",
+    "normal-007",
+    "normal-008",
+    "normal-009",
+    "normal-010",
+    "normal-011",
+    "normal-012",
+    "normal-013",
+    "normal-014",
+    "normal-015",
+    "normal-016",
+    "normal-017",
+    "normal-018",
+    "normal-019",
+    "normal-020"
+  ],
+  "replaySequences": [
+    "replay-001",
+    "replay-002",
+    "replay-003",
+    "replay-004",
+    "replay-005",
+    "replay-006",
+    "replay-007",
+    "replay-008",
+    "replay-009",
+    "replay-010",
+    "replay-011",
+    "replay-012",
+    "replay-013",
+    "replay-014",
+    "replay-015",
+    "replay-016",
+    "replay-017",
+    "replay-018",
+    "replay-019",
+    "replay-020"
+  ],
+  "llmDecisionCases": [
+    "llm-001",
+    "llm-002",
+    "llm-003",
+    "llm-004",
+    "llm-005",
+    "llm-006",
+    "llm-007",
+    "llm-008",
+    "llm-009",
+    "llm-010",
+    "llm-011",
+    "llm-012",
+    "llm-013",
+    "llm-014",
+    "llm-015",
+    "llm-016",
+    "llm-017",
+    "llm-018",
+    "llm-019",
+    "llm-020"
+  ],
+  "criticalLlmCases": [
+    {
+      "expected": "passed",
+      "id": "critical-001",
+      "scenario": "safe-candidate"
+    },
+    {
+      "expected": "passed",
+      "id": "critical-002",
+      "scenario": "strict-json"
+    },
+    {
+      "expected": "passed",
+      "id": "critical-003",
+      "scenario": "candidate-binding"
+    },
+    {
+      "expected": "passed",
+      "id": "critical-004",
+      "scenario": "input-profile-binding"
+    },
+    {
+      "expected": "passed",
+      "id": "critical-005",
+      "scenario": "prompt-secret-exclusion"
+    },
+    {
+      "expected": "passed",
+      "id": "critical-006",
+      "scenario": "loopback-endpoint"
+    },
+    {
+      "expected": "passed",
+      "id": "critical-007",
+      "scenario": "model-identity"
+    },
+    {
+      "expected": "passed",
+      "id": "critical-008",
+      "scenario": "no-fallback"
+    },
+    {
+      "expected": "passed",
+      "id": "critical-009",
+      "scenario": "redacted-evidence"
+    },
+    {
+      "expected": "passed",
+      "id": "critical-010",
+      "scenario": "stop-on-exhaustion"
+    }
+  ]
+}
