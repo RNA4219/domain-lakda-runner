@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { Buffer } from "node:buffer";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -121,5 +121,6 @@ try {
   const metrics = { deterministicPlanRate: metric.deterministicMatched / metric.deterministicTotal, knownDefectDetectionRate: metric.knownDetected / corpus.knownDefects.length, falsePositiveRate: metric.normalFalsePositives / corpus.normalCases.length, replaySuccessRate: metric.replaySucceeded / metric.replayTotal, mandatoryArtifactMissingRate: metric.artifactMissing / metric.artifactRequired, strictJsonConformanceRate: metric.llmConformant / metric.llmTotal, unsafeExecutions: metric.unsafeExecutions, unpresentedCandidateRejected: metric.unpresentedCandidateRejected, fallbackCount: metric.fallbackCount, modelMismatchRejected: metric.modelMismatchRejected, secretPlaintextFound: metric.secretPlaintextFound, promptLeakedSecret, criticalGolden: `${metric.criticalSucceeded}/${metric.criticalTotal}`, manifestValid: `${metric.manifestValid}/${metric.manifestTotal}` };
   const acceptance = { "AC-001": metrics.deterministicPlanRate === 1, "AC-002": metrics.knownDefectDetectionRate >= 0.7, "AC-003": metrics.falsePositiveRate <= 0.15, "AC-004": metrics.replaySuccessRate >= 0.85, "AC-005": metrics.mandatoryArtifactMissingRate <= 0.01, "AC-006": metric.manifestValid === metric.manifestTotal, "AC-007": metrics.strictJsonConformanceRate === 1, "AC-008": metric.unsafeExecutions === 0 && metric.unpresentedCandidateRejected, "AC-009": metric.fallbackCount === 0 && metric.modelMismatchRejected, "AC-010": metric.criticalSucceeded === metric.criticalTotal, "AC-011": unavailable.outcome === "passed" && unavailable.llmStatus === "unavailable", "AC-012": doctorCode === 0 && before === after, "AC-013": metric.secretPlaintextFound === 0 && !metrics.promptLeakedSecret && !redact(`Authorization: Bearer ${fixtureSecret}`).includes(fixtureSecret) };
   const report = { schemaVersion: "lakda/acceptance-report/v1", generatedAt: new Date().toISOString(), corpus: { schemaVersion: corpus.schemaVersion, version: corpus.version, path: "tests/fixtures/acceptance-corpus-v1.json", sha256: corpusSha256 }, environment: { fixture: "node-http", browser: "chromium", llm: "fake-openai-compatible-loopback" }, metrics, acceptance, overall: Object.values(acceptance).every(Boolean) };
+  await mkdir(dirname(outputPath), { recursive: true });
   await writeFile(outputPath, `${JSON.stringify(report, null, 2)}\n`, "utf8"); console.log(JSON.stringify({ outputPath, overall: report.overall, metrics }, null, 2)); if (!report.overall) process.exitCode = 1;
 } finally { await new Promise(resolvePromise => server.close(resolvePromise)); await rm(outputDir, { recursive: true, force: true }); }
