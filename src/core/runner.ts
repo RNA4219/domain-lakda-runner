@@ -1,14 +1,24 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
-
+import { join, resolve } from "node:path";
 import { chromium, type BrowserContext, type Locator as PlaywrightLocator, type Page } from "playwright";
-import { ArtifactCollector, readJson } from "./artifacts.js";
+import { ActionBudget } from "./action-budget.js";
+import { ArtifactCollector } from "./artifacts.js";
+import { inspectArtifactPolicy, removeSensitiveArtifacts } from "./artifact-policy.js";
+import { readJson, writeText } from "./artifact-store.js";
 import { loadConfig } from "./config.js";
+import { exportHate } from "./hate.js";
 import { LocalLlmClient, LlmContractError, probeLlm } from "./llm.js";
-import { createActionPlan, validateActionPlan } from "./plan.js";
+import { applyArtifactPolicy, aggregateOutcomes, type OutcomeDecision } from "./outcome.js";
+import { createActionPlan, validateActionPlan, workerSeed } from "./plan.js";
 import { assertSafeAction, safeActions } from "./safety.js";
-import type { Action, ActionPlan, LakdaConfig, Locator, LlmStatus, RunOutcome, RunResult } from "./types.js";
+import type { Action, ActionPlan, LakdaConfig, Locator, LlmStatus, RunBatchResult, RunOutcome, RunResult, WorkerRunEntry } from "./types.js";
+
+export type RunRuntimeContext = { workerIndex?: number; batchId?: string; actionBudget?: ActionBudget };
+
+type LiveSelection = { kind: "action"; action: Action } | { kind: "stop" } | { kind: "hold" };
+type LiveSelector = (page: Page, priorAction: Action | undefined) => Promise<LiveSelection>;
+type ExecutionResult = OutcomeDecision;
 
 export function exitCode(outcome: RunOutcome): 0 | 1 | 2 { return outcome === "passed" ? 0 : outcome === "error" ? 1 : 2; }
 
@@ -23,7 +33,9 @@ function configuredAuthStatePath(config: LakdaConfig): string {
 }
 
 function timebox<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  return Promise.race([promise, new Promise<T>((_resolve, reject) => setTimeout(() => reject(new Error("action timeout")), timeoutMs))]);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<T>((_resolve, reject) => { timer = setTimeout(() => reject(new Error("action timeout")), timeoutMs); });
+  return Promise.race([promise, timeout]).finally(() => { if (timer) clearTimeout(timer); });
 }
 
 function locatorFor(page: Page, locator: Locator, actionId: string): PlaywrightLocator {
@@ -35,7 +47,7 @@ function locatorFor(page: Page, locator: Locator, actionId: string): PlaywrightL
 async function redactBeforeScreenshot(page: Page): Promise<void> {
   try {
     await page.addStyleTag({ content: '[data-lakda-sensitive], input[type="password"], input[name*="token" i], input[name*="secret" i] { color: transparent !important; text-shadow: 0 0 12px #000 !important; background: #000 !important; }' });
-  } catch { /* screenshot path must not mask a primary run error */ }
+  } catch { /* screenshot masking cannot replace the primary run result */ }
 }
 
 async function executeAction(page: Page, action: Action, plan: ActionPlan, config: LakdaConfig, timeoutMs: number): Promise<void> {
@@ -54,9 +66,7 @@ async function executeAction(page: Page, action: Action, plan: ActionPlan, confi
 
 async function resetFixture(config: LakdaConfig): Promise<void> {
   if (!config.fixtureReset) return;
-  const response = await fetch(new URL(config.fixtureReset.url, config.baseUrl).toString(), {
-    method: "POST", redirect: "error", signal: AbortSignal.timeout(5_000),
-  });
+  const response = await fetch(new URL(config.fixtureReset.url, config.baseUrl).toString(), { method: "POST", redirect: "error", signal: AbortSignal.timeout(5_000) });
   if (!response.ok) throw new Error(`fixture reset failed: HTTP ${response.status}`);
 }
 
@@ -83,7 +93,7 @@ async function obligationsMet(page: Page, config: LakdaConfig): Promise<boolean>
   return true;
 }
 
-function attachRules(page: Page, context: BrowserContext, collector: ArtifactCollector, config: LakdaConfig): void {
+function attachPageRules(page: Page, collector: ArtifactCollector, config: LakdaConfig): void {
   page.on("pageerror", error => collector.addFailure("UI-001", error.message));
   page.on("crash", () => collector.addFailure("UI-002", "page crash"));
   page.on("console", message => {
@@ -97,22 +107,40 @@ function attachRules(page: Page, context: BrowserContext, collector: ArtifactCol
     if (status >= 500 && major) collector.addFailure("UI-004", `${status} ${response.url()}`);
     if ([401, 403, 404].includes(status) && config.safety.allowHosts.includes(host)) collector.addFailure("UI-005", `${status} ${response.url()}`);
   });
-  context.on("page", newPage => newPage.on("crash", () => collector.addFailure("UI-002", "page crash")));
 }
 
-type LiveSelection = { kind: "action"; action: Action } | { kind: "stop" } | { kind: "hold" };
-type LiveSelector = (page: Page, priorAction: Action | undefined) => Promise<LiveSelection>;
+function attachRules(page: Page, context: BrowserContext, collector: ArtifactCollector, config: LakdaConfig): void {
+  attachPageRules(page, collector, config);
+  context.on("page", newPage => attachPageRules(newPage, collector, config));
+}
 
 async function visibleRoleSummary(page: Page): Promise<string[]> {
   const texts = await page.locator("button, a, input, select, [role]").allTextContents();
   return texts.map(value => value.trim()).filter(Boolean).slice(0, 20);
 }
 
-async function executePlan(config: LakdaConfig, plan: ActionPlan, collector: ArtifactCollector, forcedOutcome?: RunOutcome, selector?: LiveSelector): Promise<RunOutcome> {
+async function writeDomSnapshot(page: Page, collector: ArtifactCollector, actionIndex: number, actionId: string): Promise<void> {
+  const html = await page.evaluate(() => {
+    const root = document.documentElement.cloneNode(true) as HTMLElement;
+    root.querySelectorAll("script").forEach(element => { element.textContent = ""; });
+    root.querySelectorAll("input, textarea, select, option").forEach(element => {
+      element.removeAttribute("value");
+      element.removeAttribute("selected");
+      if (element instanceof HTMLTextAreaElement) element.textContent = "[REDACTED]";
+    });
+    root.querySelectorAll("[name*=\"password\" i], [name*=\"token\" i], [name*=\"secret\" i], [id*=\"password\" i], [id*=\"token\" i], [id*=\"secret\" i]").forEach(element => { element.textContent = "[REDACTED]"; element.removeAttribute("value"); });
+    root.querySelectorAll("[data-lakda-sensitive]").forEach(element => { element.textContent = "[REDACTED]"; });
+    return `<!doctype html>${root.outerHTML}`;
+  });
+  const safeId = actionId.replace(/[^A-Za-z0-9._-]/g, "-");
+  await writeText(join(collector.paths.runDir, "artifacts", "dom", `${String(actionIndex).padStart(4, "0")}-${safeId}.html`), html);
+}
+
+async function executePlan(config: LakdaConfig, plan: ActionPlan, collector: ArtifactCollector, runtime: RunRuntimeContext, forcedOutcome?: RunOutcome, selector?: LiveSelector): Promise<ExecutionResult> {
   let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
   let context: BrowserContext | undefined;
   let page: Page | undefined;
-  let finalOutcome: RunOutcome = "error";
+  let final: ExecutionResult = { outcome: "error", terminationReason: "executor_error" };
   const requiresReset = plan.actions.some(action => action.mutates) || Boolean(selector && config.actionCatalog.some(action => action.mutates));
   try {
     if (requiresReset) await resetFixture(config);
@@ -131,41 +159,54 @@ async function executePlan(config: LakdaConfig, plan: ActionPlan, collector: Art
       } catch (error) { collector.addFailure("UI-007", error instanceof Error ? error.message : "authentication validation failed"); }
     }
     const deadline = Date.now() + config.durationMs;
-    let index = 0; let priorAction: Action | undefined;
+    let index = 0; let snapshotIndex = 0; let priorAction: Action | undefined;
     while (index < config.maxActions) {
       let action = plan.actions[index];
       if (!action && selector) {
+        if (runtime.actionBudget && !runtime.actionBudget.canConsume()) return { outcome: "partial", terminationReason: "rate_limit" };
         const next = await selector(page, priorAction);
-        if (next.kind === "hold") { finalOutcome = "partial"; return finalOutcome; }
+        if (next.kind === "hold") return { outcome: "partial", terminationReason: "hold" };
         if (next.kind === "stop") break;
         action = next.action;
         plan.actions.push(action);
       }
       if (!action) break;
       assertSafeAction(action, config);
-      if (Date.now() >= deadline) { finalOutcome = "partial"; return finalOutcome; }
+      if (Date.now() >= deadline) return { outcome: "partial", terminationReason: "duration_limit" };
+      if (runtime.actionBudget && !runtime.actionBudget.tryConsume()) return { outcome: "partial", terminationReason: "rate_limit" };
       try {
         await executeAction(page, action, plan, config, Math.min(30_000, Math.max(1, deadline - Date.now())));
         await verifyPersona(page, config, collector);
-      } catch (error) { collector.addFailure("UI-006", error instanceof Error ? error.message : "action timeout"); break; }
+      } catch (error) {
+        collector.addFailure("UI-006", error instanceof Error ? error.message : "action timeout");
+        break;
+      }
+      if (config.artifacts.domSnapshots) {
+        try { await writeDomSnapshot(page, collector, ++snapshotIndex, action.id); }
+        catch (error) { collector.addFailure("UI-008", error instanceof Error ? error.message : "DOM snapshot failure"); return { outcome: "error", terminationReason: "artifact_failure" }; }
+      }
       priorAction = action;
       index += 1;
     }
-    if (forcedOutcome) { finalOutcome = forcedOutcome; return finalOutcome; }
-    if (!await obligationsMet(page, config)) { finalOutcome = "partial"; return finalOutcome; }
-    finalOutcome = collector.failures.length ? "failed" : "passed";
-    return finalOutcome;
+    if (forcedOutcome) return { outcome: forcedOutcome, terminationReason: forcedOutcome === "passed" ? "completed" : "machine_failure" };
+    if (selector && index >= config.maxActions && config.obligations.length > 0 && !await obligationsMet(page, config)) return { outcome: "partial", terminationReason: "max_actions" };
+    if (!await obligationsMet(page, config)) return { outcome: "partial", terminationReason: "obligations_unmet" };
+    if (collector.failures.length) return { outcome: "failed", terminationReason: "machine_failure" };
+    final = { outcome: "passed", terminationReason: "completed" };
+    return final;
   } catch (error) {
     collector.addFailure("UI-008", error instanceof Error ? error.message : "executor infrastructure error");
-    finalOutcome = "error";
-    return finalOutcome;
+    final = { outcome: "error", terminationReason: "executor_error" };
+    return final;
   } finally {
     if (context) {
-      const nonPass = finalOutcome === "failed" || finalOutcome === "partial" || finalOutcome === "error" || collector.failures.length > 0;
+      const nonPass = final.outcome !== "passed" || collector.failures.length > 0;
       if (nonPass && page) {
-        try { await redactBeforeScreenshot(page); await page.screenshot({ path: collector.paths.screenshot, fullPage: true }); } catch (error) { collector.addFailure("UI-008", error instanceof Error ? error.message : "screenshot failure"); }
-        try { await context.tracing.stop({ path: collector.paths.trace }); } catch (error) { collector.addFailure("UI-008", error instanceof Error ? error.message : "trace failure"); }
-      } else { await context.tracing.stop().catch(() => undefined); }
+        try { await redactBeforeScreenshot(page); await page.screenshot({ path: collector.paths.screenshot, fullPage: true }); }
+        catch (error) { collector.addFailure("UI-008", error instanceof Error ? error.message : "screenshot failure"); }
+        try { await context.tracing.stop({ path: collector.paths.trace }); }
+        catch (error) { collector.addFailure("UI-008", error instanceof Error ? error.message : "trace failure"); }
+      } else await context.tracing.stop().catch(() => undefined);
       await context.close().catch(() => undefined);
     }
     await browser?.close().catch(() => undefined);
@@ -174,32 +215,26 @@ async function executePlan(config: LakdaConfig, plan: ActionPlan, collector: Art
     }
   }
 }
-export async function runLakda(config: LakdaConfig, replayInput?: string): Promise<RunResult> {
-  const collector = await ArtifactCollector.create(config, config.mode);
-  let plan: ActionPlan;
+
+export async function runLakda(config: LakdaConfig, replayInput?: string, runtime: RunRuntimeContext = {}): Promise<RunResult> {
+  const collector = await ArtifactCollector.create(config, config.mode, runtime);
+  let plan: ActionPlan = { schemaVersion: "lakda/action-plan/v1", mode: config.mode, seed: config.seed, baseUrl: config.baseUrl ?? "", actions: [] };
   let llmStatus: LlmStatus = "not_requested";
-  let outcome!: RunOutcome;
+  let execution!: ExecutionResult;
   try {
     if (replayInput) {
-      const raw = await readJson(replayInput);
-      plan = validateActionPlan(raw, config);
+      plan = validateActionPlan(await readJson(replayInput), config);
       plan.mode = "regression-replay";
-      outcome = await executePlan(config, plan, collector);
+      execution = await executePlan(config, plan, collector, runtime);
     } else if (config.mode === "llm-explore") {
       const available = safeActions(config.actionCatalog, config);
       const client = new LocalLlmClient(config);
       try {
         await client.preflight(); llmStatus = "available";
         plan = { schemaVersion: "lakda/action-plan/v1", mode: "llm-explore", seed: config.seed, baseUrl: config.baseUrl!, actions: [] };
-        outcome = await executePlan(config, plan, collector, undefined, async (page, priorAction) => {
+        execution = await executePlan(config, plan, collector, runtime, undefined, async (page, priorAction) => {
           if (available.length === 0) return { kind: "stop" };
-          const { decision, evidence } = await client.decide(available, {
-            currentUrl: page.url(),
-            visibleRoles: await visibleRoleSummary(page),
-            priorAction: priorAction?.id ?? null,
-            machineFailures: collector.failures.map(failure => failure.ruleId),
-            risk: "select only one supplied safe candidate",
-          });
+          const { decision, evidence } = await client.decide(available, { currentUrl: page.url(), visibleRoles: await visibleRoleSummary(page), priorAction: priorAction?.id ?? null, machineFailures: collector.failures.map(failure => failure.ruleId), risk: "select only one supplied safe candidate" });
           collector.addLlmEvidence(evidence);
           if (!("candidateId" in decision)) return { kind: decision.decision };
           const index = available.findIndex(candidate => candidate.id === decision.candidateId);
@@ -212,31 +247,50 @@ export async function runLakda(config: LakdaConfig, replayInput?: string): Promi
         llmStatus = /model|GGUF/i.test(error instanceof Error ? error.message : "") ? "mismatch" : "unavailable";
         if (error instanceof LlmContractError && error.evidence) collector.addLlmEvidence(error.evidence);
         collector.addFailure("UI-008", error instanceof Error ? error.message : "LLM provider error");
-        plan = { schemaVersion: "lakda/action-plan/v1", mode: "llm-explore", seed: config.seed, baseUrl: config.baseUrl!, actions: [] };
-        outcome = "error";
-      }    } else {
+        execution = { outcome: "error", terminationReason: "llm_error" };
+      }
+    } else {
       plan = createActionPlan(config, config.mode);
       llmStatus = config.llm.enabled ? await probeLlm(config) : "not_requested";
-      outcome = await executePlan(config, plan, collector);
+      execution = await executePlan(config, plan, collector, runtime);
     }
   } catch (error) {
     collector.addFailure("UI-008", error instanceof Error ? error.message : "run error");
-    plan = { schemaVersion: "lakda/action-plan/v1", mode: config.mode, seed: config.seed, baseUrl: config.baseUrl ?? "", actions: [] };
-    outcome = "error";
+    execution = { outcome: "error", terminationReason: "executor_error" };
   }
-  if (outcome !== "error" && collector.failures.some(failure => failure.ruleId === "UI-008")) outcome = "error";
-  const code = exitCode(outcome);
-  try {
-    const finalized = await collector.finalize(plan!, outcome, code, llmStatus, config.artifacts.maxRunBytes, config.artifacts.classification);
-    outcome = finalized.outcome;
-    return { runId: collector.metadata.runId, attempt: 1, outcome, exitCode: exitCode(outcome), artifactManifestPath: finalized.manifestPath, actionSequencePath: collector.paths.actionSequence, failures: collector.failures, llmStatus };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "artifact failure";
-    collector.addFailure("UI-008", message);
-    return { runId: collector.metadata.runId, attempt: 1, outcome: "error", exitCode: 1, actionSequencePath: collector.paths.actionSequence, failures: collector.failures, llmStatus };
+
+  if (execution.outcome !== "error" && collector.failures.some(failure => failure.ruleId === "UI-008")) execution = { outcome: "error", terminationReason: "artifact_failure" };
+  const finalized = await collector.finalize(plan, execution.outcome, exitCode(execution.outcome), llmStatus, execution.terminationReason);
+  await exportHate(finalized.runDir, finalized.manifestPath);
+  const policy = await inspectArtifactPolicy(finalized.runDir, config, execution.outcome, config.artifacts.domSnapshots ? plan.actions.length : 0);
+  if (policy.residualSensitivePaths.length > 0) {
+    await removeSensitiveArtifacts(finalized.runDir, policy.residualSensitivePaths);
+    collector.addFailure("UI-008", "artifact security scan failed");
   }
+  const resolved = applyArtifactPolicy(execution, policy);
+  await collector.updateOutcome(resolved.outcome, exitCode(resolved.outcome), resolved.terminationReason);
+  await exportHate(finalized.runDir, finalized.manifestPath, policy.securityByPath);
+  return { runId: collector.metadata.runId, attempt: 1, outcome: resolved.outcome, exitCode: exitCode(resolved.outcome), terminationReason: resolved.terminationReason, workerIndex: collector.metadata.workerIndex, ...(collector.metadata.batchId ? { batchId: collector.metadata.batchId } : {}), artifactManifestPath: finalized.manifestPath, actionSequencePath: collector.paths.actionSequence, failures: collector.failures, llmStatus };
+}
+
+export async function runLakdaBatch(config: LakdaConfig, replayInput?: string): Promise<RunBatchResult> {
+  const batchId = `lakda:batch-${new Date().toISOString().replace(/[:.]/g, "-")}-${Math.random().toString(16).slice(2, 8)}`;
+  const actionBudget = new ActionBudget(config.safety.maxActionsPerMinute);
+  const workerResults: WorkerRunEntry[] = [];
+  for (let workerIndex = 0; workerIndex < config.workers; workerIndex += 1) {
+    const seed = workerSeed(config.seed, workerIndex);
+    const workerConfig: LakdaConfig = { ...config, workers: 1, seed, llm: { ...config.llm, seed } };
+    try {
+      const result = await runLakda(workerConfig, replayInput, { workerIndex, batchId, actionBudget });
+      workerResults.push({ workerIndex, seed, status: "completed", result });
+    } catch (error) {
+      workerResults.push({ workerIndex, seed, status: "error", error: { name: error instanceof Error ? error.name : "Error", message: "worker execution failed" } });
+    }
+  }
+  const outcomes = workerResults.filter((entry): entry is Extract<WorkerRunEntry, { status: "completed" }> => entry.status === "completed").map(entry => entry.result.outcome);
+  const outcome = workerResults.some(entry => entry.status === "error") ? "error" : aggregateOutcomes(outcomes);
+  return { schemaVersion: "lakda/run-batch/v1", batchId, outcome, exitCode: exitCode(outcome), requestedWorkers: config.workers, completedWorkers: workerResults.filter(entry => entry.status === "completed").length, workerResults };
 }
 
 export async function loadRunConfig(overrides: Partial<LakdaConfig>): Promise<LakdaConfig> { return loadConfig(undefined, overrides); }
-
 export async function readActionSequence(input: string): Promise<ActionPlan> { return JSON.parse(await readFile(input, "utf8")) as ActionPlan; }

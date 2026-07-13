@@ -21,6 +21,9 @@
 | AC-011 | LLM停止時も deterministic mode が継続し、`llm_status=unavailable` を記録する。 | integration | 7.2 |
 | AC-012 | `doctor` 前後で tracked file、browser installation、process、port listener に変更がない。 | doctor immutability | 4.1 |
 | AC-013 | secret fixture がartifact/prompt/raw outputに平文で残らず、LLM出力がコード実行されない。 | security suite | 8, 9 |
+| AC-014 | `workers=2..4`を逐次実行し、seed、独立run/HATE、全worker継続、batch集約、RunBatchResultを検証する。 | batch contract | 5.1, 7.2 |
+| AC-015 | 共有Action Budgetのrate limitがLLM/Playwright操作を停止し、partial/rate_limit/exit 2を返す。 | fake clock + batch contract | 7.2, 8 |
+| AC-016 | redacted DOM snapshotをactionごとに保存し、HATE static登録と実bytes security scanを検証する。 | DOM/security contract | 2.1, 8, 9 |
 
 ## LLM 固有受入
 
@@ -50,7 +53,7 @@
 |---|---|---|
 | unit | config、candidate validator、classifier、exit code | 毎回。LLM は fixture |
 | contract | OpenAI 互換 client、HATE/v1 manifest、CLI JSON | PR 必須。fake server 固定 |
-| integration | Chromium、artifact lifecycle、replay | PR または専用 runner |
+| integration | Chromium、artifact lifecycle、replay、sequential worker batch | PR または専用 runner |
 | security | secret redaction、allowlist、loopback、prompt injection | PR 必須 |
 | golden | 欠陥検出、false positive、critical cases | 受入時・リリース候補 |
 | local-llm | 実 GGUF、latency、raw hash、再現性 | 明示 opt-in。`npm run acceptance:real-llm`で固定corpusを実行。決定的CIから分離 |
@@ -75,7 +78,7 @@
 | REQ-FN-007 | 7.1 | AC-002, AC-003 |
 | REQ-FN-008〜010 | 8 | AC-005, AC-006 |
 | REQ-FN-011 | 4.1 | AC-012 |
-| REQ-FN-012 | 7.2 | AC-001〜AC-013 |
+| REQ-FN-012 | 7.2 | AC-001〜AC-016 |
 | REQ-LLM-001 | 3, 6.1 | AC-010 |
 | REQ-LLM-002〜003 | 5.2, 5.3, 9 | AC-007, AC-008 |
 | REQ-LLM-004〜005 | 6.2, 6.3 | AC-010 |
@@ -92,19 +95,24 @@
 | REQ-NF-003〜004 | 6.3, 8 | AC-005, AC-006 |
 | REQ-NF-005 | 3 | post-v1 性能評価 |
 | REQ-NF-006 | 6.3 | post-v1 重複排除評価 |
+| REQ-FN-013 | 2.1、8 | AC-016 |
+| REQ-FN-014 | 5.1、7.2 | AC-014 |
+| REQ-FN-015 | 8.1、9 | AC-016 |
+| REQ-SEC-008 | 2.1、8、9 | AC-015、AC-016 |
+| REQ-NF-007 | 5.1、7.2 | AC-014、AC-015 |
 
 
 ### 要件IDの明示カバレッジ
 
 自動検査で範囲表記を取りこぼさないよう、全要件IDを明示する。各IDは上表の仕様節・受入列または post-v1 評価へ対応する。
 
-`REQ-FN-001` `REQ-FN-002` `REQ-FN-003` `REQ-FN-004` `REQ-FN-005` `REQ-FN-006` `REQ-FN-007` `REQ-FN-008` `REQ-FN-009` `REQ-FN-010` `REQ-FN-011` `REQ-FN-012`
+`REQ-FN-001` `REQ-FN-002` `REQ-FN-003` `REQ-FN-004` `REQ-FN-005` `REQ-FN-006` `REQ-FN-007` `REQ-FN-008` `REQ-FN-009` `REQ-FN-010` `REQ-FN-011` `REQ-FN-012` `REQ-FN-013` `REQ-FN-014` `REQ-FN-015`
 
 `REQ-LLM-001` `REQ-LLM-002` `REQ-LLM-003` `REQ-LLM-004` `REQ-LLM-005` `REQ-LLM-006` `REQ-LLM-007` `REQ-LLM-008` `REQ-LLM-009`
 
-`REQ-NF-001` `REQ-NF-002` `REQ-NF-003` `REQ-NF-004` `REQ-NF-005` `REQ-NF-006`
+`REQ-NF-001` `REQ-NF-002` `REQ-NF-003` `REQ-NF-004` `REQ-NF-005` `REQ-NF-006` `REQ-NF-007`
 
-`REQ-SEC-001` `REQ-SEC-002` `REQ-SEC-003` `REQ-SEC-004` `REQ-SEC-005` `REQ-SEC-006` `REQ-SEC-007`
+`REQ-SEC-001` `REQ-SEC-002` `REQ-SEC-003` `REQ-SEC-004` `REQ-SEC-005` `REQ-SEC-006` `REQ-SEC-007` `REQ-SEC-008`
 post-v1 の要件も未定義のまま放置せず、対応する性能・重複排除評価を実装 Task の受入へ追加してから範囲に入れる。
 
 

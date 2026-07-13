@@ -1,8 +1,8 @@
 ---
 document_id: LAKDA-SPEC-001
 status: normative
-version: 1.0.0-draft
-last_updated: 2026-07-12
+version: 1.1.0-draft
+last_updated: 2026-07-13
 requirements: REQUIREMENTS.md
 ---
 
@@ -32,9 +32,12 @@ requirements: REQUIREMENTS.md
 |---|---|---|
 | Generator | deterministic action plan または LLM 候補集合を生成する | browser 操作、Gate 判定 |
 | Executor | safety policy を通過した action だけを Playwright で実行する | LLM 出力の直接実行、allowlist 回避 |
-| Collector | event、artifact、run metadata を回収しhashを計算する | outcome、Gate の独自推測 |
+| Collector | 証跡をArtifact Storeへredaction保存し、run metadataを更新する | outcome、Policy、HATE manifest、Gateの独自推測 |
 | Classifier | 機械 rule を評価し、LLM 補助情報を非権威データとして付与する | LLM 単独の pass/fail |
-| HATE Exporter | HATE/v1 artifact manifest を生成・schema検証する | audit record、QEG record、gate verdict の生成 |
+| Artifact Store | filesystem、JSON、列挙、hash、portable pathを一元化する | outcome、browser操作、Gate判定 |
+| Artifact Policy | 必須artifact、profile、容量、実bytes security scanを検査する | browser操作、outcomeの単独決定 |
+| Outcome Policy | 実行結果とArtifact Policyからoutcome/termination reasonを純粋関数で決定する | artifact保存、Gate判定 |
+| HATE Exporter | 検査済みartifact情報からHATE/v1 artifact manifestを生成・schema検証する | audit record、QEG record、gate verdict の生成 |
 
 ```mermaid
 flowchart LR
@@ -55,6 +58,11 @@ flowchart LR
 
 LLM は `llm-explore` でのみ action selection に参加する。deterministic mode では Generator が plan を実行前に確定する。
 
+## 2.1 v0.2 実行境界
+
+Collectorは証跡の収集・保存だけを行い、最終結果を決めない。Artifact Storeはfilesystem操作、JSON/text保存、redaction、列挙、SHA-256、portable pathを提供する。Artifact Policyは保存済み実bytesを再scanし、必須artifact、profile指定artifact、容量を検査する。Outcome Policyは機械判定結果とPolicy reportを受けて`outcome`と`terminationReason`を決める。HATE ExporterはPolicy検査後の情報だけを受け取り、HATE/v1 manifestの生成・検証を行う。
+
+text artifactはredaction後に保存し、保存後のbytesをsecret/PII scanする。残存検出時は対象artifactを削除し、安全なfailure記録を残して`error/artifact_failure`とする。容量超過は有効な必須証跡が残る場合に`partial/artifact_limit`とする。binary artifactのsecurity scanは`not_applicable`とする。
 ## 3. 設定契約
 
 既定設定ファイルは repository root の `lakda.config.json` とし、[schemas/lakda-config-v1.schema.json](schemas/lakda-config-v1.schema.json) に適合しなければならない。CLI option は同名の設定値を上書きする。環境変数は secret と endpoint のみ許可し、一般設定の暗黙上書きには使用しない。
@@ -186,11 +194,19 @@ type RunOptions = {
   outputDir: string;
 };
 
+type TerminationReason =
+  | "completed" | "machine_failure" | "hold" | "obligations_unmet"
+  | "duration_limit" | "max_actions" | "rate_limit" | "artifact_limit"
+  | "artifact_failure" | "executor_error" | "llm_error";
+
 type RunResult = {
   runId: string;
   attempt: number;
   outcome: RunOutcome;
   exitCode: 0 | 1 | 2;
+  terminationReason: TerminationReason;
+  workerIndex: number;
+  batchId?: string;
   artifactManifestPath?: string;
   actionSequencePath?: string;
   failures: Array<{
@@ -199,6 +215,20 @@ type RunResult = {
     severity: "warning" | "failure";
   }>;
   llmStatus: "not_requested" | "available" | "unavailable" | "mismatch";
+};
+
+type WorkerRunEntry =
+  | { workerIndex: number; seed: number; status: "completed"; result: RunResult }
+  | { workerIndex: number; seed: number; status: "error"; error: { name: string; message: string } };
+
+type RunBatchResult = {
+  schemaVersion: "lakda/run-batch/v1";
+  batchId: string;
+  outcome: RunOutcome;
+  exitCode: 0 | 1 | 2;
+  requestedWorkers: number;
+  completedWorkers: number;
+  workerResults: WorkerRunEntry[];
 };
 
 type LlmDecision =
@@ -364,7 +394,8 @@ HTTP errorはresponse statusで判定し、network transport failureとは分離
 | `artifact-manifest.json` | 完了した全run |
 | `trace.zip` | `failed / partial` で必須 |
 | `screenshot/*.png` | `failed / partial` で最低1枚必須 |
-| video / HAR / DOM snapshot | v1ではconfig明示時のみ |
+| video / HAR | config明示時のみ |
+| `artifacts/dom/*.html` | `domSnapshots=true` の成功action後。redacted HTMLのみ |
 
 ```text
 .lakda/runs/<run-id>/
@@ -378,6 +409,9 @@ HTTP errorはresponse statusで判定し、network transport failureとは分離
 ```
 
 artifactは保存前にredactionし、その後にSHA-256を計算する。hash対象は保存されたbytesとする。
+`domSnapshots=true`のsnapshotはbrowser内でDOMをcloneしてscript本文、form値、password/token/secret要素、`data-lakda-sensitive`内容を除去し、ホスト側redaction後に保存する。raw DOMはディスクへ書かない。snapshotが残りの`maxRunBytes`へ収まらない場合は保存せず`artifact_limit/partial`、sanitizationまたは保存失敗は`artifact_failure/error`とする。HATE manifestでは`kind=static`、`redaction_status=redacted`とする。
+
+Artifact Storeの公開関数はCollectorとHATE Exporterの両方から利用するが、CollectorとHATE Exporterは相互importしない。HATE audit recordはLakdaが生成せず、HATE側がartifact検証後に生成する。
 
 ### 8.2 HATE manifest例
 
@@ -445,7 +479,7 @@ LLM responseはデータとして扱い、`eval`、`Function` constructor、dyna
 | REQ-FN-007 | 7.1 | AC-002、AC-003 |
 | REQ-FN-008、REQ-FN-009、REQ-FN-010 | 8 | AC-005、AC-006 |
 | REQ-FN-011 | 4.1 | AC-012 |
-| REQ-FN-012 | 7.2 | AC-001〜AC-013 |
+| REQ-FN-012 | 7.2 | AC-001〜AC-016 |
 | REQ-LLM-001 | 3、6.1 | AC-010 |
 | REQ-LLM-002、REQ-LLM-003 | 5.2、5.3、9 | AC-007、AC-008 |
 | REQ-LLM-004 | 6.3 | AC-010 |
@@ -464,6 +498,11 @@ LLM responseはデータとして扱い、`eval`、`Function` constructor、dyna
 | REQ-NF-003、REQ-NF-004 | 6.3、8 | AC-005、AC-006 |
 | REQ-NF-005 | 3 | post-v1性能評価 |
 | REQ-NF-006 | 6.3 | post-v1重複排除評価 |
+| REQ-FN-013 | 2.1、8 | AC-016 |
+| REQ-FN-014 | 5.1、7.2 | AC-014 |
+| REQ-FN-015 | 8.1、9 | AC-016 |
+| REQ-SEC-008 | 2.1、8、9 | AC-015、AC-016 |
+| REQ-NF-007 | 5.1、7.2 | AC-014、AC-015 |
 
 ## 11. 文書とexampleの検証条件
 

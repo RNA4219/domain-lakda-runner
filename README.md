@@ -13,15 +13,15 @@
 7. [docs/tasks/](docs/tasks/) — 実装Task Seed
 8. [docs/BIRDSEYE.md](docs/BIRDSEYE.md) — 依存関係の軽量索引
 9. [CHANGELOG.md](CHANGELOG.md) — 変更履歴
-10. [docs/completion-record.md](docs/completion-record.md) — v1 PoCの完了証跡
+10. [docs/completion-record.md](docs/completion-record.md) — v0.2/v1 PoCの完了証跡
 
 `deep-research-report (11).md` は参考資料、`domain-lakda-runner 要件定義報告書.docx` は原資料です。両者は変更せず、正本2文書を優先します。
 
 ## 現在の状態
 
-- フェーズ: v1 PoC 完了（実機Qwen 4B受入・main CI成功）
-- 実装対象: Chromium、smoke、seeded-random、regression-replay、`llm-explore`、persona、artifact、HATE/v1 manifest
-- 非対象: QEG record/Gate、Firefox/WebKit、route crawl、form fuzz、visual baseline
+- フェーズ: v0.2.0 PoC 実装中（責務分離・逐次worker・DOM redaction）
+- 実装対象: Chromium、smoke、seeded-random、regression-replay、`llm-explore`、persona、artifact、HATE/v1 manifest、workers=1..4逐次batch、Action Budget、redacted DOM snapshot
+- 非対象: QEG record/Gate生成、Firefox/WebKit、route crawl、form fuzz、visual baseline、並列worker、Classifier/Auth/Doctor/LLM transportの追加分割
 - 連携経路: `Lakda → HATE/v1 artifact-manifest → hate export qeg → QEG validate/gate`
 
 ## 開発

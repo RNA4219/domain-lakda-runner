@@ -1,2 +1,2 @@
-export const LAKDA_VERSION = "0.1.0";
-export type { LlmDecision, RunMode, RunOptions, RunOutcome, RunResult } from "./core/types.js";
+export const LAKDA_VERSION = "0.2.0";
+export type { LlmDecision, RunBatchResult, RunMode, RunOptions, RunOutcome, RunResult, TerminationReason, WorkerRunEntry } from "./core/types.js";

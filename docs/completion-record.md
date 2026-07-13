@@ -1,4 +1,4 @@
-# domain-lakda-runner v1 PoC 完了記録
+# domain-lakda-runner v0.2.0 / v1 PoC 完了記録
 
 - 完了日: 2026-07-13
 - 対象: Chromium、smoke、seeded-random、regression-replay、`llm-explore`、HATE/v1 artifact manifest
@@ -6,6 +6,12 @@
 - 受入記録commit: `977369cee6be063923353aa4535524540582b980`
 - CI: [run 29228033697](https://github.com/RNA4219/domain-lakda-runner/actions/runs/29228033697)、[run 29228572961](https://github.com/RNA4219/domain-lakda-runner/actions/runs/29228572961) は全job成功。
 
+## v0.2.0 責務分離受入
+
+- [Task Seed](tasks/TASK.20260713-05.md): Artifact Store、Artifact/Outcome Policy、Action Budget、逐次worker、DOM redaction、設定正規化。
+- [v0.2 fixture record](acceptance/AC-20260713-03.v02-fixture.json): AC-014〜AC-016を含むfixture全体成功。fake LLM workers=2、共有budget、DOM/HATE static登録を契約テストで検証。
+- [v0.2 実Qwen record](acceptance/AC-20260713-04.v02-real-llm.json): critical 10ケース×2 workerの20 child runs、strict JSON 20/20、safe action 20/20、fallback 0、critical 20/20。
+- `workers=1`は従来の`RunResult`、`workers>1`は`lakda/run-batch/v1` envelopeを返し、child runだけを永続化する。
 ## 受入結果
 
 - [fixture受入record](acceptance/AC-20260713-01.fixture.json): 既知欠陥検出率100%、false positive 0%、replay成功率100%、必須artifact欠落率0%、HATE manifest 215/215。
@@ -18,7 +24,7 @@
 npm run check
 npm run check:hate
 npm run acceptance:fixture -- --out=docs/acceptance/AC-20260713-01.fixture.json
-npm run acceptance:real-llm -- --out=docs/acceptance/AC-20260713-02.real-llm.json
+npm run acceptance:real-llm -- --critical-only --workers=2 --out=docs/acceptance/AC-20260713-04.v02-real-llm.json
 ```
 
 ## 境界確認

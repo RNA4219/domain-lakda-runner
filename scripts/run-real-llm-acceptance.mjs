@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "../dist/core/config.js";
-import { runLakda } from "../dist/core/runner.js";
+import { runLakda, runLakdaBatch } from "../dist/core/runner.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const corpusPath = join(repoRoot, "tests", "fixtures", "acceptance-corpus-v1.json");
@@ -19,9 +19,13 @@ const modelPath = process.env.LAKDA_REAL_LLM_MODEL ?? "C:\\Users\\ryo-n\\Qwen3.5
 const modelSha256 = "00FE7986FF5F6B463E62455821146049DB6F9313603938A70800D1FB69EF11A4";
 const expectedModelId = modelPath;
 const outFlag = process.argv.find(value => value.startsWith("--out="));
-const outputArgument = outFlag ? outFlag.slice("--out=".length) : "docs/acceptance/AC-20260713-02.real-llm.json";
+const outputArgument = outFlag ? outFlag.slice("--out=".length) : "docs/acceptance/AC-20260713-04.v02-real-llm.json";
+const workersFlag = process.argv.find(value => value.startsWith("--workers="));
+const workers = workersFlag ? Number(workersFlag.slice("--workers=".length)) : 1;
+const criticalOnly = process.argv.includes("--critical-only");
+if (!Number.isInteger(workers) || workers < 1 || workers > 4) throw new Error("--workersは1〜4です");
 const outputPath = resolve(outputArgument);
-const executedCommand = `npm run acceptance:real-llm -- --out=${outputArgument}`;
+const executedCommand = `npm run acceptance:real-llm -- --out=${outputArgument} --workers=${workers}${criticalOnly ? " --critical-only" : ""}`;
 const gitCommit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: repoRoot, encoding: "utf8" }).trim();
 const sha256 = value => createHash("sha256").update(value).digest("hex");
 if (!existsSync(modelPath)) throw new Error(`GGUFがありません: ${modelPath}`);
@@ -50,7 +54,7 @@ const acceptanceConfig = config();
 
 function config() {
   return loadConfig(undefined, {
-    baseUrl, outputDir, mode: "llm-explore", maxActions: 1,
+    baseUrl, outputDir, mode: "llm-explore", maxActions: 1, workers,
     actionCatalog: [{ id: "navigate-root", kind: "navigate", path: "/" }],
     profiles: { smoke: { actionIds: ["navigate-root"] }, seededRandom: { candidateIds: ["navigate-root"], count: 1 } },
     obligations: [{ expectedUrl: "/" }],
@@ -58,8 +62,7 @@ function config() {
   });
 }
 
-async function execute(caseId, critical = false) {
-  const result = await runLakda(config());
+async function recordRun(caseId, critical, result, workerIndex = 0) {
   const runDir = join(outputDir, result.runId.replace(/[^A-Za-z0-9._-]/g, "-"));
   const evidencePath = join(runDir, "artifacts", "llm-decisions.jsonl");
   const actionPath = join(runDir, "action-sequence.json");
@@ -75,13 +78,24 @@ async function execute(caseId, critical = false) {
   if (result.llmStatus === "available") metrics.modelAvailable += 1;
   if (result.llmStatus !== "available") metrics.implicitFallbacks += 1;
   if (critical) { metrics.criticalTotal += 1; if (accepted && selected && result.outcome === "passed") metrics.criticalPassed += 1; }
-  runEvidenceHashes.push(sha256(JSON.stringify({ caseId, critical, runId: result.runId, outcome: result.outcome, llmStatus: result.llmStatus, accepted, selected, evidenceSha256: sha256(evidence), actionSequenceSha256: sha256(actionSequence) })));
-  if (!(accepted && selected && result.outcome === "passed" && result.llmStatus === "available")) metrics.errors.push({ caseId, outcome: result.outcome, llmStatus: result.llmStatus, accepted, selected, failures: result.failures.map(failure => failure.ruleId) });
+  runEvidenceHashes.push(sha256(JSON.stringify({ caseId, critical, workerIndex, runId: result.runId, outcome: result.outcome, terminationReason: result.terminationReason, llmStatus: result.llmStatus, accepted, selected, evidenceSha256: sha256(evidence), actionSequenceSha256: sha256(actionSequence) })));
+  if (!(accepted && selected && result.outcome === "passed" && result.llmStatus === "available")) metrics.errors.push({ caseId, workerIndex, outcome: result.outcome, llmStatus: result.llmStatus, accepted, selected, failures: result.failures.map(failure => failure.ruleId) });
+}
+
+async function execute(caseId, critical = false) {
+  const runResult = workers > 1 ? await runLakdaBatch(config()) : await runLakda(config());
+  if (workers === 1) { await recordRun(caseId, critical, runResult); return; }
+  for (const entry of runResult.workerResults) {
+    if (entry.status === "completed") await recordRun(`${caseId}-worker-${entry.workerIndex}`, critical, entry.result, entry.workerIndex);
+    else { metrics.total += 1; metrics.implicitFallbacks += 1; if (critical) metrics.criticalTotal += 1; metrics.errors.push({ caseId, workerIndex: entry.workerIndex, error: entry.error.message }); }
+  }
 }
 
 try {
-  for (const caseId of corpus.llmDecisionCases) for (let repetition = 0; repetition < corpus.repetitions; repetition += 1) await execute(`${caseId}-${repetition + 1}`);
-  for (const criticalCase of corpus.criticalLlmCases) for (let repetition = 0; repetition < corpus.repetitions; repetition += 1) await execute(`${criticalCase.id}-${repetition + 1}`, true);
+  const repetitions = criticalOnly ? 1 : corpus.repetitions;
+  const llmCases = criticalOnly ? [] : corpus.llmDecisionCases;
+  for (const caseId of llmCases) for (let repetition = 0; repetition < repetitions; repetition += 1) await execute(`${caseId}-${repetition + 1}`);
+  for (const criticalCase of corpus.criticalLlmCases) for (let repetition = 0; repetition < repetitions; repetition += 1) await execute(`${criticalCase.id}-${repetition + 1}`, true);
   const report = {
     schemaVersion: "lakda/real-llm-acceptance-report/v1",
     generatedAt: new Date().toISOString(),
@@ -96,6 +110,8 @@ try {
       sampling: { seed: acceptanceConfig.seed, temperature: acceptanceConfig.llm.temperature, topP: acceptanceConfig.llm.topP, maxTokens: acceptanceConfig.llm.maxTokens },
       timeouts: { connectMs: acceptanceConfig.llm.connectTimeoutMs, generationMs: acceptanceConfig.llm.requestTimeoutMs },
       browser: "chromium",
+      workers,
+      criticalOnly,
     },
     execution: {
       command: executedCommand,

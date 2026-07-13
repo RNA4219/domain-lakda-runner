@@ -32,6 +32,12 @@ Workflow-cookbook の `GUARDRAILS.md` を上位方針とし、このリポジト
 - `lakda:` ID は HATE 入力内だけで使用し、QEG ID として出力しない。
 - HATE audit record は Lakda が生成しない。artifact 検証後に HATE が生成する。
 
+## v0.2 責務境界
+
+- Artifact Storeへfilesystem、JSON、列挙、hash、portable pathを集約し、CollectorとHATE Exporterを相互importさせない。
+- Artifact Policyが実bytesのsecret/PII scan、必須artifact、profile、容量を検査し、Outcome Policyが最終outcome/termination reasonを決める。
+- batch workerは逐次実行し、共有Action Budget上限到達時はLLM/Playwright操作を行わず`partial/rate_limit`で停止する。
+- DOM snapshotはbrowser内clone後のredacted HTMLだけを保存し、raw DOMを保存しない。snapshot保存失敗は`error/artifact_failure`とする。
 ## テストと停止条件
 
 - 実装は tests-first とし、fake OpenAI 互換 server による決定的契約テストを PR 必須とする。

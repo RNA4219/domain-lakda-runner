@@ -212,7 +212,7 @@ export class LocalLlmClient {
 
   private async complete(payload: object, preflightAttempt: number): Promise<LlmEvidence & { content: string; rawResponseSha256: string }> {
     const promptHash = sha256(JSON.stringify(payload));
-    const requestBody = { model: this.config.llm.expectedModelId, temperature: this.config.llm.temperature, top_p: this.config.llm.topP, seed: this.config.seed, ...payload, chat_template_kwargs: { enable_thinking: false } };
+    const requestBody = { model: this.config.llm.expectedModelId, temperature: this.config.llm.temperature, top_p: this.config.llm.topP, seed: this.config.llm.seed, ...payload, chat_template_kwargs: { enable_thinking: false } };
     let lastRetry = "";
     for (let attempt = 1; attempt <= this.config.llm.maxRetries + 1; attempt += 1) {
       const started = performance.now();
@@ -222,7 +222,7 @@ export class LocalLlmClient {
         const parsed = responseContent(incoming.raw, response.headers.get("content-type") ?? "application/json");
         return {
           content: parsed.content, endpoint: this.config.llm.baseUrl, modelId: this.config.llm.expectedModelId, modelSha256: this.config.llm.modelSha256,
-          runtime: this.config.llm.runtimeEvidence, promptHash, schemaHash, seed: this.config.seed, temperature: this.config.llm.temperature, topP: this.config.llm.topP,
+          runtime: this.config.llm.runtimeEvidence, promptHash, schemaHash, seed: this.config.llm.seed, temperature: this.config.llm.temperature, topP: this.config.llm.topP,
           maxTokens: typeof (payload as { max_tokens?: number }).max_tokens === "number" ? (payload as { max_tokens: number }).max_tokens : this.config.llm.maxTokens,
           attempt, retryReason: lastRetry || undefined, httpStatus: response.status, requestTokens: undefined, responseTokens: parsed.responseTokens,
           ttftMs: incoming.ttftMs, totalLatencyMs: Math.round(performance.now() - started), rawResponseSha256: sha256(incoming.raw), redactedRequestSha256: sha256(redactJson(requestBody)), redactedResponseSha256: sha256(redactJson(parsed.content)), validation: "accepted",

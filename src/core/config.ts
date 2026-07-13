@@ -72,9 +72,15 @@ type PartialConfig = Omit<Partial<LakdaConfig>, "safety" | "llm" | "artifacts" |
 function mergeConfig(input: PartialConfig): LakdaConfig {
   const actionCatalog = input.actionCatalog ?? input.candidates ?? defaultConfig.actionCatalog;
   const inferredSmokeActionIds = (input.actionCatalog || input.candidates) ? actionCatalog.slice(0, 1).map(action => action.id) : defaultConfig.profiles.smoke.actionIds;
+  const resolvedSeed = input.seed ?? defaultConfig.seed;
+  const requestedLlmSeed = input.llm?.seed;
+  if (requestedLlmSeed !== undefined && requestedLlmSeed !== resolvedSeed) throw new Error("llm.seed はtop-level seedと一致させてください");
+  const resolvedFixtureReset = input.fixtureReset ?? defaultConfig.fixtureReset;
+  const fixtureResetConfigured = input.safety?.fixtureResetConfigured ?? Boolean(resolvedFixtureReset);
   return {
     ...defaultConfig,
     ...input,
+    seed: resolvedSeed,
     actionCatalog,
     candidates: actionCatalog,
     inputProfiles: { ...defaultConfig.inputProfiles, ...input.inputProfiles },
@@ -87,9 +93,9 @@ function mergeConfig(input: PartialConfig): LakdaConfig {
     classifier: { ...defaultConfig.classifier, ...input.classifier },
     personas: { ...defaultConfig.personas, ...input.personas },
     obligations: input.obligations ?? defaultConfig.obligations,
-    fixtureReset: input.fixtureReset ?? defaultConfig.fixtureReset,
-    safety: { ...defaultConfig.safety, ...input.safety },
-    llm: { ...defaultConfig.llm, ...input.llm, runtimeEvidence: { ...defaultConfig.llm.runtimeEvidence, ...input.llm?.runtimeEvidence } },
+    fixtureReset: resolvedFixtureReset,
+    safety: { ...defaultConfig.safety, ...input.safety, fixtureResetConfigured },
+    llm: { ...defaultConfig.llm, ...input.llm, seed: resolvedSeed, runtimeEvidence: { ...defaultConfig.llm.runtimeEvidence, ...input.llm?.runtimeEvidence } },
     artifacts: { ...defaultConfig.artifacts, ...input.artifacts },
   } as LakdaConfig;
 }
@@ -113,6 +119,8 @@ export function validateConfig(config: LakdaConfig): void {
   if (config.workers < 1 || config.workers > 4) throw new Error("workers は1〜4です");
   if (config.maxActions < 1 || config.durationMs < 1) throw new Error("maxActions と durationMs は1以上です");
   if (config.llm.maxRetries < 0 || config.llm.maxRetries > 2) throw new Error("llm.maxRetries は0〜2です");
+  if (config.llm.seed !== config.seed) throw new Error("llm.seed はtop-level seedと一致させてください");
+  if (config.safety.fixtureResetConfigured !== Boolean(config.fixtureReset)) throw new Error("fixtureResetConfigured はfixtureResetから導出される値と一致させてください");
   if (config.llm.temperature !== 0 || config.llm.topP !== 1 || config.llm.maxTokens !== 512) throw new Error("v1 のLLM sampling値は temperature=0, topP=1, maxTokens=512 です");
   if (config.llm.connectTimeoutMs !== 5_000 || config.llm.requestTimeoutMs !== 60_000) throw new Error("v1 のLLM timeoutは5秒/60秒です");
   assertLoopbackEndpoint(config.llm.baseUrl);

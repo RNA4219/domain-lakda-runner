@@ -1,6 +1,18 @@
 export type RunMode = "smoke" | "seeded-random" | "regression-replay" | "llm-explore";
 export type RunOutcome = "passed" | "failed" | "partial" | "error";
 export type LlmStatus = "not_requested" | "available" | "unavailable" | "mismatch";
+export type TerminationReason =
+  | "completed"
+  | "machine_failure"
+  | "hold"
+  | "obligations_unmet"
+  | "duration_limit"
+  | "max_actions"
+  | "rate_limit"
+  | "artifact_limit"
+  | "artifact_failure"
+  | "executor_error"
+  | "llm_error";
 
 export type RunOptions = {
   baseUrl: string;
@@ -124,10 +136,27 @@ export type RunResult = {
   attempt: number;
   outcome: RunOutcome;
   exitCode: 0 | 1 | 2;
+  terminationReason: TerminationReason;
+  workerIndex: number;
+  batchId?: string;
   artifactManifestPath?: string;
   actionSequencePath?: string;
   failures: Failure[];
   llmStatus: LlmStatus;
+};
+
+export type WorkerRunEntry =
+  | { workerIndex: number; seed: number; status: "completed"; result: RunResult }
+  | { workerIndex: number; seed: number; status: "error"; error: { name: string; message: string } };
+
+export type RunBatchResult = {
+  schemaVersion: "lakda/run-batch/v1";
+  batchId: string;
+  outcome: RunOutcome;
+  exitCode: 0 | 1 | 2;
+  requestedWorkers: number;
+  completedWorkers: number;
+  workerResults: WorkerRunEntry[];
 };
 
 export type LlmDecision =

@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs as parseNodeArgs } from "node:util";
 import { exportHate } from "./core/hate.js";
 import { loadConfig, parseMode } from "./core/config.js";
-import { authStatePath, runLakda } from "./core/runner.js";
+import { authStatePath, runLakda, runLakdaBatch } from "./core/runner.js";
 import { probeLlm } from "./core/llm.js";
 import { assertLoopbackEndpoint } from "./core/safety.js";
 import { LAKDA_VERSION } from "./index.js";
@@ -98,12 +98,12 @@ export async function runCli(argv: string[]): Promise<number> {
     if (command === "run") {
       const flags = parsed.flags; const baseUrl = stringFlag(flags, "base-url", true)!; const mode = stringFlag(flags, "mode", true)!;
       const config = loadConfig(stringFlag(flags, "config") ?? resolve(process.cwd(), "lakda.config.json"), { ...overrides(flags), baseUrl, mode: parseMode(mode) });
-      const result = await runLakda(config); console.log(JSON.stringify(result, null, 2)); return result.exitCode;
+      const result = config.workers > 1 ? await runLakdaBatch(config) : await runLakda(config); console.log(JSON.stringify(result, null, 2)); return result.exitCode;
     }
     if (command === "replay") {
       const flags = parsed.flags; const inputPath = stringFlag(flags, "input", true)!; const baseUrl = stringFlag(flags, "base-url", true)!;
       const config = loadConfig(stringFlag(flags, "config") ?? resolve(process.cwd(), "lakda.config.json"), { ...overrides(flags), baseUrl, mode: "regression-replay" });
-      const result = await runLakda(config, inputPath); console.log(JSON.stringify(result, null, 2)); return result.exitCode;
+      const result = config.workers > 1 ? await runLakdaBatch(config, inputPath) : await runLakda(config, inputPath); console.log(JSON.stringify(result, null, 2)); return result.exitCode;
     }
     if (command === "export hate") { const runDir = stringFlag(parsed.flags, "run-dir", true)!; const out = stringFlag(parsed.flags, "out", true)!; console.log(JSON.stringify(await exportHate(runDir, out), null, 2)); return 0; }
     if (command === "doctor") return doctor(parsed.flags);

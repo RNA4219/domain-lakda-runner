@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Added
+- v0.2.0向けにArtifact Store、Artifact/Outcome Policy、60秒共有Action Budget、逐次worker batch（`RunBatchResult`）を追加。
+- `domSnapshots`のredacted HTML保存、`fixtureResetConfigured`導出、`llm.seed`同期、package/CLI version 0.2.0を追加。
+
 
 - Chromiumを対象とする安全な決定的実行、replay、artifact/HATE export、ローカルLLM探索のv1 PoC。
 - Workflow-cookbookのBirdseye索引、fixture受入記録、GitHub Actions検証。
