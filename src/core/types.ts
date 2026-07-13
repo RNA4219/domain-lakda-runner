@@ -1,5 +1,6 @@
 export type RunMode = "smoke" | "seeded-random" | "regression-replay" | "llm-explore";
 export type RunOutcome = "passed" | "failed" | "partial" | "error";
+export type ArtifactExpectations = { trace: boolean; screenshot: boolean; video: boolean; har: boolean; domSnapshots: number };
 export type LlmStatus = "not_requested" | "available" | "unavailable" | "mismatch";
 export type TerminationReason =
   | "completed"

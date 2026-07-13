@@ -4,7 +4,7 @@ import type { RunOutcome, TerminationReason } from "./types.js";
 export type OutcomeDecision = { outcome: RunOutcome; terminationReason: TerminationReason };
 
 export function applyArtifactPolicy(current: OutcomeDecision, report: ArtifactPolicyReport): OutcomeDecision {
-  if (report.residualSensitivePaths.length > 0 || report.missingPaths.length > 0 || report.profileMissingPaths.length > 0) {
+  if (report.residualSensitivePaths.length > 0 || report.missingPaths.length > 0 || report.profileMissingPaths.length > 0 || report.unsupportedPaths.length > 0) {
     return { outcome: "error", terminationReason: "artifact_failure" };
   }
   if (report.sizeExceeded && current.outcome !== "error") {

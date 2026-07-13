@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import { redact, sha256 } from "./redaction.js";
@@ -20,6 +20,12 @@ export async function writeJson(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${redact(JSON.stringify(value, null, 2))}
 `, "utf8");
+}
+
+export async function writeJsonAtomic(path: string, value: unknown): Promise<void> {
+  const temporary = `${path}.tmp-${process.pid}-${Date.now()}`;
+  try { await writeJson(temporary, value); await rename(temporary, path); }
+  finally { try { await stat(temporary); await rm(temporary, { force: true }); } catch { /* already renamed or unavailable */ } }
 }
 
 export async function writeText(path: string, value: string): Promise<void> {
@@ -46,9 +52,13 @@ export async function fileDigest(path: string): Promise<{ size: number; sha256: 
   return { size: (await stat(path)).size, sha256: sha256(buffer) };
 }
 
-export async function runSizeExceeds(runDir: string, maximum: number): Promise<boolean> {
+export async function runSizeBytes(runDir: string): Promise<number> {
   const sizes = await Promise.all((await listFiles(runDir)).map(async path => (await stat(path)).size));
-  return sizes.reduce((total, size) => total + size, 0) > maximum;
+  return sizes.reduce((total, size) => total + size, 0);
+}
+
+export async function runSizeExceeds(runDir: string, maximum: number): Promise<boolean> {
+  return (await runSizeBytes(runDir)) > maximum;
 }
 
 export function isRunDirectory(path: string): boolean {
