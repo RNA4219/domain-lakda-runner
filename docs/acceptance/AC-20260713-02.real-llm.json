@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "lakda/real-llm-acceptance-report/v1",
+  "generatedAt": "2026-07-13T06:14:15.290Z",
+  "corpus": {
+    "schemaVersion": "lakda/acceptance-corpus/v1",
+    "version": "fixture-v1",
+    "path": "tests/fixtures/acceptance-corpus-v1.json",
+    "sha256": "00cf6854ca952bcfb49e83d65ec8c9c29582b417a1e94ab457041fb7916fa90c"
+  },
+  "environment": {
+    "endpoint": "http://127.0.0.1:8080/v1",
+    "expectedModelId": "C:\\Users\\ryo-n\\Qwen3.5-4B-Q4_K_M.gguf",
+    "modelPath": "C:\\Users\\ryo-n\\Qwen3.5-4B-Q4_K_M.gguf",
+    "modelSha256": "00FE7986FF5F6B463E62455821146049DB6F9313603938A70800D1FB69EF11A4",
+    "runtime": {
+      "runtimeVersion": "llama-server 9733",
+      "runtimeBuild": "b9733-f449e0553",
+      "chatTemplateHash": "7f0e529032c25183bcd66c7f238da2d377f43be754a94e2725a58c4e16d2ed67"
+    },
+    "chatTemplateKwargs": {
+      "enable_thinking": false
+    },
+    "sampling": {
+      "seed": 4219,
+      "temperature": 0,
+      "topP": 1,
+      "maxTokens": 512
+    },
+    "timeouts": {
+      "connectMs": 5000,
+      "generationMs": 60000
+    },
+    "browser": "chromium"
+  },
+  "execution": {
+    "command": "npm run acceptance:real-llm -- --out=docs/acceptance/AC-20260713-02.real-llm.json",
+    "gitCommit": "3d18a7a546786f271287b6b55079f76fa9a8e318",
+    "runCount": 90,
+    "runEvidenceSetSha256": "96d32b372b59d305c30bb586e9637077a809365626614030ec4adc8f03b3a515",
+    "rawRunDirectoriesRetained": false
+  },
+  "metrics": {
+    "total": 90,
+    "accepted": 90,
+    "passed": 90,
+    "actionSelected": 90,
+    "modelAvailable": 90,
+    "criticalTotal": 30,
+    "criticalPassed": 30,
+    "implicitFallbacks": 0,
+    "errors": []
+  },
+  "acceptance": {
+    "strictJsonConformance": true,
+    "safeActionSelection": true,
+    "successfulExploration": true,
+    "noImplicitFallback": true,
+    "criticalGolden": true
+  },
+  "overall": true,
+  "recordPayloadSha256": "5a37f7181950b29b1b1c389dd19f6c0a8a38f43961696d809e442e311ee5ebbd"
+}
