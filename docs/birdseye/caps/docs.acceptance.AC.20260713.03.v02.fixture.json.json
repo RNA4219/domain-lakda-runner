@@ -1,14 +1,14 @@
 {
-  "id": "docs/acceptance/AC-20260713-02.real-llm.json",
+  "id": "docs/acceptance/AC-20260713-03.v02-fixture.json",
   "role": "doc",
   "public_api": [],
-  "summary": "docs/acceptance/AC-20260713-02.real-llm.json",
+  "summary": "docs/acceptance/AC-20260713-03.v02-fixture.json",
   "deps_out": [
     "EVALUATION.md"
   ],
   "deps_in": [
     "docs/completion-record.md",
-    "docs/tasks/TASK.20260712-04.md"
+    "docs/tasks/TASK.20260713-05.md"
   ],
   "risks": [],
   "tests": [],

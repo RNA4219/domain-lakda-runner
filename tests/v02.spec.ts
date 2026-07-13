@@ -6,6 +6,7 @@ import { ActionBudget } from "../src/core/action-budget.js";
 import { loadConfig } from "../src/core/config.js";
 import { sha256 } from "../src/core/redaction.js";
 import { runLakda, runLakdaBatch } from "../src/core/runner.js";
+import { exportHate } from "../src/core/hate.js";
 import { startFixture } from "./fixtures/server.js";
 
 test("ActionBudget shares a sliding window and expires entries", () => {
@@ -90,4 +91,102 @@ test("config derives fixture reset and synchronizes llm seed", () => {
   expect(config.safety.fixtureResetConfigured).toBeTruthy();
   expect(() => loadConfig(undefined, { baseUrl: "http://127.0.0.1:3000", seed: 99, llm: { seed: 100 } })).toThrow(/llm.seed/);
   expect(() => loadConfig(undefined, { baseUrl: "http://127.0.0.1:3000", safety: { fixtureResetConfigured: true } })).toThrow(/fixtureResetConfigured/);
+});
+
+test("single worker enforces the action budget", async () => {
+  const fixture = await startFixture();
+  const outputDir = await mkdtemp(join(tmpdir(), "lakda-single-budget-"));
+  try {
+    const actions = [
+      { id: "first", kind: "navigate" as const, path: "/" },
+      { id: "second", kind: "navigate" as const, path: "/" },
+    ];
+    const config = loadConfig(undefined, { baseUrl: fixture.baseUrl, outputDir, actionCatalog: actions, profiles: { smoke: { actionIds: ["first", "second"] } }, safety: { maxActionsPerMinute: 1 } });
+    const result = await runLakda(config);
+    expect(result.outcome, JSON.stringify(result)).toBe("partial");
+    expect(result.terminationReason).toBe("rate_limit");
+    expect(result.exitCode).toBe(2);
+  } finally { await fixture.close(); await rm(outputDir, { recursive: true, force: true }); }
+});
+
+test("runtime rejects non-integer worker overrides", () => {
+  expect(() => loadConfig(undefined, { baseUrl: "http://127.0.0.1:3000", workers: 1.5 })).toThrow(/workers/);
+  expect(() => loadConfig(undefined, { baseUrl: "http://127.0.0.1:3000", workers: Number.NaN })).toThrow(/workers/);
+});
+
+
+test("HAR is sanitized and classification survives re-export", async () => {
+  const fixture = await startFixture();
+  const outputDir = await mkdtemp(join(tmpdir(), "lakda-har-"));
+  try {
+    const secretUrl = "/api?token=fixture-secret&email=fixture@example.com";
+    const action = { id: "secret-query", kind: "navigate" as const, path: secretUrl };
+    const result = await runLakda(loadConfig(undefined, { baseUrl: fixture.baseUrl, outputDir, actionCatalog: [action], artifacts: { har: true, classification: "restricted" } }));
+    expect(result.outcome).toBe("passed");
+    const runDir = join(outputDir, result.runId.replace(/[^A-Za-z0-9._-]/g, "-"));
+    const har = await readFile(join(runDir, "artifacts", "network.har"), "utf8");
+    expect(har).not.toContain("fixture-secret");
+    expect(har).not.toContain("fixture@example.com");
+    JSON.parse(har);
+    const manifest = JSON.parse(await readFile(result.artifactManifestPath!, "utf8")) as { artifacts: Array<{ classification: string; path: string; security_checks: { secrets_scan: string; pii_scan: string } }> };
+    expect(new Set(manifest.artifacts.map(artifact => artifact.classification))).toEqual(new Set(["restricted"]));
+    expect(manifest.artifacts.find(artifact => artifact.path === "artifacts/network.har")?.security_checks).toEqual({ secrets_scan: "pass", pii_scan: "pass" });
+    const reexportPath = join(runDir, "exports", "reexport.json");
+    await exportHate(runDir, reexportPath);
+    expect(await readFile(reexportPath, "utf8")).toBe(await readFile(result.artifactManifestPath!, "utf8"));
+  } finally { await fixture.close(); await rm(outputDir, { recursive: true, force: true }); }
+});
+
+
+test("DOM snapshot capacity stops without writing the oversized snapshot", async () => {
+  const fixture = await startFixture(() => ({ body: "<main>snapshot content</main>" }));
+  const outputDir = await mkdtemp(join(tmpdir(), "lakda-dom-limit-"));
+  try {
+    const result = await runLakda(loadConfig(undefined, { baseUrl: fixture.baseUrl, outputDir, artifacts: { domSnapshots: true, maxRunBytes: 1 } }));
+    expect(result.outcome).toBe("partial");
+    expect(result.terminationReason).toBe("artifact_limit");
+    const runDir = join(outputDir, result.runId.replace(/[^A-Za-z0-9._-]/g, "-"));
+    await expect(readdir(join(runDir, "artifacts", "dom"))).rejects.toThrow();
+  } finally { await fixture.close(); await rm(outputDir, { recursive: true, force: true }); }
+});
+
+test("a failed action with no successful DOM snapshot remains machine failed", async () => {
+  const fixture = await startFixture();
+  const outputDir = await mkdtemp(join(tmpdir(), "lakda-dom-failure-"));
+  try {
+    const result = await runLakda(loadConfig(undefined, { baseUrl: fixture.baseUrl, outputDir, artifacts: { domSnapshots: true }, actionCatalog: [{ id: "missing", kind: "navigate" as const, path: "http://127.0.0.1:1/" }] }));
+    expect(result.outcome).toBe("failed");
+    expect(result.terminationReason).toBe("machine_failure");
+  } finally { await fixture.close(); await rm(outputDir, { recursive: true, force: true }); }
+});
+
+
+test("an exhausted runtime budget skips LLM preflight", async () => {
+  let llmRequests = 0;
+  const fixture = await startFixture((url) => { if (url.pathname.startsWith("/v1/")) llmRequests += 1; return { body: "{}", contentType: "application/json" }; });
+  const outputDir = await mkdtemp(join(tmpdir(), "lakda-early-budget-"));
+  try {
+    const modelPath = join(outputDir, "fixture.gguf");
+    await writeFile(modelPath, "fixture model");
+    const config = loadConfig(undefined, { baseUrl: fixture.baseUrl, outputDir, mode: "llm-explore", actionCatalog: [{ id: "root", kind: "navigate" as const, path: "/" }], llm: { enabled: true, baseUrl: fixture.baseUrl + "/v1", expectedModelId: "fixture-model", modelPath, modelSha256: sha256("fixture model").toUpperCase() } });
+    const budget = new ActionBudget(1, () => 0);
+    expect(budget.tryConsume()).toBeTruthy();
+    const result = await runLakda(config, undefined, { actionBudget: budget, clock: () => 0 });
+    expect(result.outcome).toBe("partial");
+    expect(result.terminationReason).toBe("rate_limit");
+    expect(llmRequests).toBe(0);
+  } finally { await fixture.close(); await rm(outputDir, { recursive: true, force: true }); }
+});
+
+test("fixture reset failure preserves executor_error", async () => {
+  const fixture = await startFixture();
+  const outputDir = await mkdtemp(join(tmpdir(), "lakda-reset-error-"));
+  try {
+    const action = { id: "mutate", kind: "click" as const, locator: { testId: "mutate" }, mutates: true };
+    const config = loadConfig(undefined, { baseUrl: fixture.baseUrl, outputDir, fixtureReset: { url: "/failure" }, actionCatalog: [action], profiles: { smoke: { actionIds: ["mutate"] } } });
+    const result = await runLakda(config);
+    expect(result.outcome).toBe("error");
+    expect(result.terminationReason).toBe("executor_error");
+    expect(result.exitCode).toBe(1);
+  } finally { await fixture.close(); await rm(outputDir, { recursive: true, force: true }); }
 });

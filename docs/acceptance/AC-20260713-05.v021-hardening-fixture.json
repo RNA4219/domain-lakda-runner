@@ -1,0 +1,74 @@
+{
+  "schemaVersion": "lakda/acceptance-report/v1",
+  "generatedAt": "2026-07-13T13:40:48.307Z",
+  "corpus": {
+    "schemaVersion": "lakda/acceptance-corpus/v1",
+    "version": "fixture-v1",
+    "path": "tests/fixtures/acceptance-corpus-v1.json",
+    "sha256": "00cf6854ca952bcfb49e83d65ec8c9c29582b417a1e94ab457041fb7916fa90c"
+  },
+  "environment": {
+    "fixture": "node-http",
+    "browser": "chromium",
+    "llm": "fake-openai-compatible-loopback"
+  },
+  "metrics": {
+    "deterministicPlanRate": 1,
+    "knownDefectDetectionRate": 1,
+    "falsePositiveRate": 0,
+    "replaySuccessRate": 1,
+    "mandatoryArtifactMissingRate": 0,
+    "strictJsonConformanceRate": 1,
+    "unsafeExecutions": 0,
+    "unpresentedCandidateRejected": true,
+    "fallbackCount": 0,
+    "modelMismatchRejected": true,
+    "secretPlaintextFound": 0,
+    "promptLeakedSecret": false,
+    "criticalGolden": "30/30",
+    "manifestValid": "215/215"
+  },
+  "acceptance": {
+    "AC-001": true,
+    "AC-002": true,
+    "AC-003": true,
+    "AC-004": true,
+    "AC-005": true,
+    "AC-006": true,
+    "AC-007": true,
+    "AC-008": true,
+    "AC-009": true,
+    "AC-010": true,
+    "AC-011": true,
+    "AC-012": true,
+    "AC-013": true,
+    "AC-014": true,
+    "AC-015": true,
+    "AC-016": true,
+    "AC-017": true,
+    "AC-018": true
+  },
+  "overall": true,
+  "v021": {
+    "tests": "tests/v02.spec.ts",
+    "testCount": 13,
+    "workers": 2,
+    "sequential": true,
+    "sharedActionBudget": "60s sliding window",
+    "earlyExhaustionSkipsLlmAndBrowser": true,
+    "harContent": "omit",
+    "harRedacted": true,
+    "harRawTemporaryDeleted": true,
+    "hateManifestReexportByteIdentical": true,
+    "domSnapshotsRedacted": true,
+    "domCapacityPrecheck": true,
+    "terminationReasonsPreserved": true,
+    "verifiedArtifactBytesStable": true,
+    "configWorkersIntegerValidated": true,
+    "commands": [
+      "npm test -- tests/v02.spec.ts",
+      "npm run acceptance:fixture -- --out=docs/acceptance/AC-20260713-05.v021-hardening-fixture.json"
+    ],
+    "executorFailureReason": "executor_error"
+  }
+}

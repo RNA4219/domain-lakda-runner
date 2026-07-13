@@ -19,8 +19,8 @@
 
 ## 現在の状態
 
-- フェーズ: v0.2.0 PoC 実装中（責務分離・逐次worker・DOM redaction）
-- 実装対象: Chromium、smoke、seeded-random、regression-replay、`llm-explore`、persona、artifact、HATE/v1 manifest、workers=1..4逐次batch、Action Budget、redacted DOM snapshot
+- フェーズ: v0.2.1 PoC hardening 完了（Action Budget・HAR/security・Policy・DOM/異常系）
+- 実装対象: Chromium、smoke、seeded-random、regression-replay、`llm-explore`、persona、artifact、HATE/v1 manifest、workers=1..4逐次batch、Action Budget、HAR/security、redacted DOM snapshot
 - 非対象: QEG record/Gate生成、Firefox/WebKit、route crawl、form fuzz、visual baseline、並列worker、Classifier/Auth/Doctor/LLM transportの追加分割
 - 連携経路: `Lakda → HATE/v1 artifact-manifest → hate export qeg → QEG validate/gate`
 

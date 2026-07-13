@@ -1,5 +1,5 @@
 {
-  "generated_at": "00009",
+  "generated_at": "00013",
   "nodes": {
     "README.md": {
       "role": "overview",
@@ -80,6 +80,36 @@
       "role": "collection",
       "caps": "docs/birdseye/caps/docs.birdseye.caps..json",
       "mtime": "00013"
+    },
+    "docs/tasks/TASK.20260713-05.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260713.05.md.json",
+      "mtime": "00020"
+    },
+    "docs/tasks/TASK.20260713-06.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260713.06.md.json",
+      "mtime": "00021"
+    },
+    "docs/acceptance/AC-20260713-03.v02-fixture.json": {
+      "role": "acceptance",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC.20260713.03.v02.fixture.json.json",
+      "mtime": "00022"
+    },
+    "docs/acceptance/AC-20260713-04.v02-real-llm.json": {
+      "role": "acceptance",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC.20260713.04.v02.real.llm.json.json",
+      "mtime": "00023"
+    },
+    "docs/acceptance/AC-20260713-05.v021-hardening-fixture.json": {
+      "role": "acceptance",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC.20260713.05.v021.hardening.fixture.json.json",
+      "mtime": "00024"
+    },
+    "docs/acceptance/AC-20260713-06.v021-hardening-real-llm.json": {
+      "role": "acceptance",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC.20260713.06.v021.hardening.real.llm.json.json",
+      "mtime": "00025"
     }
   },
   "edges": [
@@ -214,6 +244,94 @@
     [
       "docs/birdseye/index.json",
       "SPECIFICATION.md"
+    ],
+    [
+      "docs/tasks/TASK.20260713-05.md",
+      "REQUIREMENTS.md"
+    ],
+    [
+      "docs/tasks/TASK.20260713-05.md",
+      "EVALUATION.md"
+    ],
+    [
+      "docs/tasks/TASK.20260713-05.md",
+      "docs/acceptance/AC-20260713-03.v02-fixture.json"
+    ],
+    [
+      "docs/tasks/TASK.20260713-05.md",
+      "docs/acceptance/AC-20260713-04.v02-real-llm.json"
+    ],
+    [
+      "docs/completion-record.md",
+      "docs/tasks/TASK.20260713-05.md"
+    ],
+    [
+      "docs/tasks/TASK.20260713-06.md",
+      "REQUIREMENTS.md"
+    ],
+    [
+      "docs/tasks/TASK.20260713-06.md",
+      "EVALUATION.md"
+    ],
+    [
+      "docs/tasks/TASK.20260713-06.md",
+      "docs/acceptance/AC-20260713-05.v021-hardening-fixture.json"
+    ],
+    [
+      "docs/tasks/TASK.20260713-06.md",
+      "docs/acceptance/AC-20260713-06.v021-hardening-real-llm.json"
+    ],
+    [
+      "docs/completion-record.md",
+      "docs/tasks/TASK.20260713-06.md"
+    ],
+    [
+      "docs/acceptance/AC-20260713-03.v02-fixture.json",
+      "EVALUATION.md"
+    ],
+    [
+      "docs/completion-record.md",
+      "docs/acceptance/AC-20260713-03.v02-fixture.json"
+    ],
+    [
+      "docs/tasks/TASK.20260713-05.md",
+      "docs/acceptance/AC-20260713-03.v02-fixture.json"
+    ],
+    [
+      "docs/acceptance/AC-20260713-04.v02-real-llm.json",
+      "EVALUATION.md"
+    ],
+    [
+      "docs/completion-record.md",
+      "docs/acceptance/AC-20260713-04.v02-real-llm.json"
+    ],
+    [
+      "docs/tasks/TASK.20260713-05.md",
+      "docs/acceptance/AC-20260713-04.v02-real-llm.json"
+    ],
+    [
+      "docs/acceptance/AC-20260713-05.v021-hardening-fixture.json",
+      "EVALUATION.md"
+    ],
+    [
+      "docs/completion-record.md",
+      "docs/acceptance/AC-20260713-05.v021-hardening-fixture.json"
+    ],
+    [
+      "docs/tasks/TASK.20260713-06.md",
+      "docs/acceptance/AC-20260713-05.v021-hardening-fixture.json"
+    ],
+    [
+      "docs/acceptance/AC-20260713-06.v021-hardening-real-llm.json",
+      "EVALUATION.md"
+    ],
+    [
+      "docs/completion-record.md",
+      "docs/acceptance/AC-20260713-06.v021-hardening-real-llm.json"
+    ],
+    [
+      "docs/tasks/TASK.20260713-06.md",
+      "docs/acceptance/AC-20260713-06.v021-hardening-real-llm.json"
     ]
   ]
 }

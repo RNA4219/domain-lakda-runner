@@ -116,7 +116,7 @@ export function validateConfig(config: LakdaConfig): void {
   if (config.schemaVersion !== "lakda/v1") throw new Error("schemaVersion は lakda/v1 だけを許可します");
   if (config.browser !== "chromium") throw new Error("v1 は chromium だけを許可します");
   if (!Number.isInteger(config.seed)) throw new Error("seed は整数で指定してください");
-  if (config.workers < 1 || config.workers > 4) throw new Error("workers は1〜4です");
+  if (!Number.isInteger(config.workers) || !Number.isFinite(config.workers) || config.workers < 1 || config.workers > 4) throw new Error("workers は1〜4の整数です");
   if (config.maxActions < 1 || config.durationMs < 1) throw new Error("maxActions と durationMs は1以上です");
   if (config.llm.maxRetries < 0 || config.llm.maxRetries > 2) throw new Error("llm.maxRetries は0〜2です");
   if (config.llm.seed !== config.seed) throw new Error("llm.seed はtop-level seedと一致させてください");
