@@ -1,5 +1,5 @@
 {
-  "generated_at": "00002",
+  "generated_at": "00004",
   "nodes": {
     "README.md": {
       "role": "overview",
@@ -50,6 +50,21 @@
       "role": "acceptance",
       "caps": "docs/birdseye/caps/docs.acceptance.AC-20260713-01.fixture.json.json",
       "mtime": "00010"
+    },
+    "docs/acceptance/AC-20260713-02.real-llm.json": {
+      "role": "acceptance",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260713-02.real-llm.json.json",
+      "mtime": "00014"
+    },
+    "docs/tasks/TASK.20260712-04.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260712-04.md.json",
+      "mtime": "00015"
+    },
+    "docs/completion-record.md": {
+      "role": "completion",
+      "caps": "docs/birdseye/caps/docs.completion-record.md.json",
+      "mtime": "00016"
     },
     "docs/BIRDSEYE.md": {
       "role": "guide",
@@ -135,6 +150,46 @@
     [
       "docs/acceptance/AC-20260713-01.fixture.json",
       "EVALUATION.md"
+    ],
+    [
+      "docs/acceptance/AC-20260713-02.real-llm.json",
+      "EVALUATION.md"
+    ],
+    [
+      "docs/tasks/TASK.20260712-04.md",
+      "REQUIREMENTS.md"
+    ],
+    [
+      "docs/tasks/TASK.20260712-04.md",
+      "EVALUATION.md"
+    ],
+    [
+      "docs/tasks/TASK.20260712-04.md",
+      "docs/acceptance/AC-20260713-01.fixture.json"
+    ],
+    [
+      "docs/tasks/TASK.20260712-04.md",
+      "docs/acceptance/AC-20260713-02.real-llm.json"
+    ],
+    [
+      "README.md",
+      "docs/completion-record.md"
+    ],
+    [
+      "docs/completion-record.md",
+      "docs/tasks/TASK.20260712-04.md"
+    ],
+    [
+      "docs/completion-record.md",
+      "docs/acceptance/AC-20260713-01.fixture.json"
+    ],
+    [
+      "docs/completion-record.md",
+      "docs/acceptance/AC-20260713-02.real-llm.json"
+    ],
+    [
+      "docs/completion-record.md",
+      "CHANGELOG.md"
     ],
     [
       "docs/BIRDSEYE.md",

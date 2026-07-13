@@ -1,8 +1,8 @@
 {
-  "id": "docs/acceptance/AC-20260713-01.fixture.json",
+  "id": "docs/acceptance/AC-20260713-02.real-llm.json",
   "role": "doc",
   "public_api": [],
-  "summary": "docs/acceptance/AC-20260713-01.fixture.json",
+  "summary": "docs/acceptance/AC-20260713-02.real-llm.json",
   "deps_out": [
     "EVALUATION.md"
   ],

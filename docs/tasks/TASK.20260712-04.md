@@ -2,7 +2,7 @@
 task_id: 20260712-04
 intent_id: INT-LAKDA-001
 owner: RNA4219
-status: reviewing
+status: done
 last_reviewed_at: 2026-07-13
 next_review_due: 2026-08-12
 ---
@@ -13,6 +13,7 @@ next_review_due: 2026-08-12
 
 - `in_progress` — v1 PoC実装、fixture corpus、CI、実Qwen検証を実施。
 - `reviewing` (2026-07-13) — 全MustとAC-001〜AC-013の証跡を確認し、最終完了記録とBirdseye更新を待つ。
+- done (2026-07-13) — [完了記録](../completion-record.md)とBirdseyeを更新し、main CI成功を最終確認する。
 
 ## Objective
 

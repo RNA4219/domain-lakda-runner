@@ -1,0 +1,18 @@
+{
+  "id": "docs/tasks/TASK.20260712-04.md",
+  "role": "doc",
+  "public_api": [],
+  "summary": "docs/tasks/TASK.20260712-04.md",
+  "deps_out": [
+    "EVALUATION.md",
+    "REQUIREMENTS.md",
+    "docs/acceptance/AC-20260713-01.fixture.json",
+    "docs/acceptance/AC-20260713-02.real-llm.json"
+  ],
+  "deps_in": [
+    "docs/completion-record.md"
+  ],
+  "risks": [],
+  "tests": [],
+  "generated_at": "00004"
+}

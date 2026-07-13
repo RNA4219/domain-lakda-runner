@@ -11,9 +11,10 @@
     "EVALUATION.md",
     "README.md",
     "docs/birdseye/index.json",
-    "docs/tasks/TASK.20260712-00.md"
+    "docs/tasks/TASK.20260712-00.md",
+    "docs/tasks/TASK.20260712-04.md"
   ],
   "risks": [],
   "tests": [],
-  "generated_at": "00002"
+  "generated_at": "00004"
 }

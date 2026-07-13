@@ -11,12 +11,13 @@
     "REQUIREMENTS.md",
     "RUNBOOK.md",
     "SPECIFICATION.md",
-    "docs/BIRDSEYE.md"
+    "docs/BIRDSEYE.md",
+    "docs/completion-record.md"
   ],
   "deps_in": [
     "docs/birdseye/index.json"
   ],
   "risks": [],
   "tests": [],
-  "generated_at": "00002"
+  "generated_at": "00004"
 }

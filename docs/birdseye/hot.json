@@ -1,5 +1,5 @@
 {
-  "generated_at": "00002",
+  "generated_at": "00004",
   "index_snapshot": "docs/birdseye/index.json",
   "refresh_command": "uv run python -m tools.codemap.update --repo-root C:\\Users\\ryo-n\\Codex_dev\\domain-lakda-runner --targets docs/birdseye/index.json,docs/birdseye/hot.json --emit index+caps",
   "curation_notes": "v1 PoCの正本、受入、運用資料を最小hopで参照するためのホットリスト。",
@@ -45,6 +45,35 @@
       "reason": "実行、検証、運用手順。",
       "caps": "docs/birdseye/caps/RUNBOOK.md.json",
       "edges": []
+    },
+    {
+      "id": "docs/acceptance/AC-20260713-02.real-llm.json",
+      "role": "acceptance",
+      "reason": "実Qwen 4Bの90 run受入証跡。",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260713-02.real-llm.json.json",
+      "edges": [
+        "EVALUATION.md"
+      ]
+    },
+    {
+      "id": "docs/tasks/TASK.20260712-04.md",
+      "role": "task",
+      "reason": "M4の完了状態とAC証跡への導線。",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260712-04.md.json",
+      "edges": [
+        "REQUIREMENTS.md",
+        "EVALUATION.md"
+      ]
+    },
+    {
+      "id": "docs/completion-record.md",
+      "role": "completion",
+      "reason": "v1 PoCの最終受入・CI・責務境界の要約。",
+      "caps": "docs/birdseye/caps/docs.completion-record.md.json",
+      "edges": [
+        "docs/tasks/TASK.20260712-04.md",
+        "docs/acceptance/AC-20260713-02.real-llm.json"
+      ]
     }
   ]
 }

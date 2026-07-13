@@ -1,18 +1,16 @@
 {
-  "id": "EVALUATION.md",
+  "id": "docs/completion-record.md",
   "role": "doc",
   "public_api": [],
-  "summary": "EVALUATION.md",
+  "summary": "docs/completion-record.md",
   "deps_out": [
-    "REQUIREMENTS.md",
-    "SPECIFICATION.md"
-  ],
-  "deps_in": [
-    "README.md",
+    "CHANGELOG.md",
     "docs/acceptance/AC-20260713-01.fixture.json",
     "docs/acceptance/AC-20260713-02.real-llm.json",
-    "docs/tasks/TASK.20260712-00.md",
     "docs/tasks/TASK.20260712-04.md"
+  ],
+  "deps_in": [
+    "README.md"
   ],
   "risks": [],
   "tests": [],

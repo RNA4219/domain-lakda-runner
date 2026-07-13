@@ -5,9 +5,10 @@
   "summary": "CHANGELOG.md",
   "deps_out": [],
   "deps_in": [
-    "README.md"
+    "README.md",
+    "docs/completion-record.md"
   ],
   "risks": [],
   "tests": [],
-  "generated_at": "00002"
+  "generated_at": "00004"
 }
