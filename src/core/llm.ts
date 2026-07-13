@@ -164,8 +164,18 @@ export class LocalLlmClient {
   }
 
   async decide(candidates: Action[], summary: object): Promise<{ decision: LlmDecision; evidence: LlmEvidence }> {
-    const prompt = { candidates: candidates.map(candidate => ({ id: candidate.id, kind: candidate.kind, inputProfileId: candidate.inputProfileId })), summary, instruction: "Return only strict JSON matching the decision schema. Do not invent IDs, URL, selector, code, path, or command." };
-    const response = await this.complete({ messages: [{ role: "system", content: "You select only supplied safe candidate IDs." }, { role: "user", content: JSON.stringify(prompt) }], max_tokens: this.config.llm.maxTokens, stream: true }, 0);
+    const prompt = {
+      candidates: candidates.map(candidate => ({ id: candidate.id, kind: candidate.kind, inputProfileId: candidate.inputProfileId })),
+      summary,
+      instruction: "Return exactly one object. For action, use exactly decision, candidateId, reason, confidence. decision must be action, candidateId must be one supplied ID, reason must be a short string, and confidence must be low, medium, or high. For stop or hold, use exactly decision, reason, confidence. Do not return nested objects, markdown, URLs, selectors, code, paths, commands, or extra keys.",
+    };
+    const response = await this.complete({
+      messages: [
+        { role: "system", content: "Return exactly one compact JSON decision. For action use {\"decision\":\"action\",\"candidateId\":\"a supplied ID\",\"reason\":\"brief\",\"confidence\":\"high\"}. Never nest decision or emit other keys." },
+        { role: "user", content: JSON.stringify(prompt) },
+      ],
+      response_format: { type: "json_object" }, max_tokens: this.config.llm.maxTokens, stream: true,
+    }, 0);
     let parsed: unknown;
     try { parsed = strictJson(response.content); }
     catch (error) { throw this.contractError(response, error instanceof Error ? error.message : "JSON不正"); }

@@ -101,7 +101,7 @@ test("llm-explore consumes only supplied candidates and redacts decision secrets
     config.candidates = config.actionCatalog;
     const result = await runLakda(config);
     expect(result.outcome, JSON.stringify(result)).toBe("passed");
-    expect(decisionPrompt).not.toContain('"path"'); expect(decisionPrompt).not.toContain('"selector"'); expect(decisionPrompt).not.toContain("fixture-secret");
+    expect(decisionPrompt).not.toContain('"path"'); expect(decisionPrompt).not.toContain('"selector"'); expect(decisionPrompt).not.toContain("fixture-secret"); expect(decisionPrompt).toContain('"chat_template_kwargs":{"enable_thinking":false}'); expect(decisionPrompt).toContain('"response_format":{"type":"json_object"}');
     const runDir = join(outputDir, result.runId.replace(/[^A-Za-z0-9._-]/g, "-"));
     const evidence = await readFile(join(runDir, "artifacts", "llm-decisions.jsonl"), "utf8");
     const sequence = await readFile(join(runDir, "action-sequence.json"), "utf8");
