@@ -3,8 +3,10 @@
 - 完了日: 2026-07-13
 - 対象: Chromium、smoke、seeded-random、regression-replay、`llm-explore`、HATE/v1 artifact manifest
 - コード受入commit: `3d18a7a546786f271287b6b55079f76fa9a8e318`
+- v0.2.0実装commit: `00b0fc4d2dc993611c936a80d6a28b7855e9a611`
 - 受入記録commit: `977369cee6be063923353aa4535524540582b980`
 - CI: [run 29228033697](https://github.com/RNA4219/domain-lakda-runner/actions/runs/29228033697)、[run 29228572961](https://github.com/RNA4219/domain-lakda-runner/actions/runs/29228572961) は全job成功。
+- v0.2 CI: [run 29243640000](https://github.com/RNA4219/domain-lakda-runner/actions/runs/29243640000) はpackage-smoke、chromium、quality、docs-contract全job成功。
 
 ## v0.2.0 責務分離受入
 
