@@ -36,6 +36,20 @@ lakda run --base-url <base-url> --mode seeded-random --persona <persona> --seed 
 lakda replay --input .lakda/runs/<run-id>/action-sequence.json --base-url <base-url>
 ```
 
+### ヘッデッド回帰と任意の外部スモーク
+
+ローカルでブラウザ表示を伴う回帰確認を行う場合は、次を実行する。CIではこのテストをskipし、headlessの通常suiteを正本とする。
+
+```text
+npm run test:headed
+```
+
+外部環境へのsmokeは、明示したURLだけをallow hostへ設定して1 actionを実行する。URL未指定時は成功扱いのskipとなり、外部ネットワークへ接続しない。設定に使う環境変数は `LAKDA_EXTERNAL_BASE_URL` だけであり、secretやartifact保存先を環境変数で暗黙上書きしない。
+
+```text
+LAKDA_EXTERNAL_BASE_URL=https://example.test npm run smoke:external
+```
+
 ### LLM探索モード
 
 ```text
