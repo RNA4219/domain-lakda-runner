@@ -29,13 +29,24 @@ function endpoint(config: LakdaConfig, path: string): string {
   return new URL(path.replace(/^\//, ""), `${base.toString().replace(/\/$/, "")}/`).toString();
 }
 
-async function fileSha256(path: string): Promise<string> {
-  await stat(path);
+const modelSha256Cache = new Map<string, { size: number; mtimeMs: number; sha256: string }>();
+
+async function fileSha256(path: string, attempt = 0): Promise<string> {
+  const before = await stat(path);
+  const cached = modelSha256Cache.get(path);
+  if (cached && cached.size === before.size && cached.mtimeMs === before.mtimeMs) return cached.sha256;
   const hash = createHash("sha256");
   const stream = createReadStream(path);
   stream.on("data", chunk => hash.update(chunk));
   await once(stream, "end");
-  return hash.digest("hex").toUpperCase();
+  const after = await stat(path);
+  if (after.size !== before.size || after.mtimeMs !== before.mtimeMs) {
+    if (attempt >= 1) throw new LlmContractError("GGUFがhash計算中に変更されました");
+    return fileSha256(path, attempt + 1);
+  }
+  const sha256 = hash.digest("hex").toUpperCase();
+  modelSha256Cache.set(path, { size: after.size, mtimeMs: after.mtimeMs, sha256 });
+  return sha256;
 }
 
 function sleep(ms: number): Promise<void> { return new Promise(resolve => setTimeout(resolve, ms)); }
