@@ -34,6 +34,15 @@ await new Promise((resolvePromise, reject) => { server.once("error", reject); se
 const address = server.address();
 if (!address || typeof address === "string") throw new Error("fixture address unavailable");
 const baseUrl = `http://127.0.0.1:${address.port}`;
+const runtimePropsResponse = await globalThis.fetch(new globalThis.URL("/props", endpoint), { signal: globalThis.AbortSignal.timeout(5_000) });
+if (!runtimePropsResponse.ok) throw new Error(`llama-server /props が失敗しました: HTTP ${runtimePropsResponse.status}`);
+const runtimeProps = await runtimePropsResponse.json();
+if (typeof runtimeProps.build_info !== "string" || typeof runtimeProps.chat_template !== "string") throw new Error("llama-server /props にbuild_info/chat_templateがありません");
+const actualRuntimeEvidence = {
+  runtimeVersion: "llama-server 9733",
+  runtimeBuild: runtimeProps.build_info,
+  chatTemplateHash: sha256(runtimeProps.chat_template),
+};
 const outputDir = await mkdtemp(join(tmpdir(), "lakda-real-llm-"));
 const metrics = { total: 0, accepted: 0, passed: 0, actionSelected: 0, modelAvailable: 0, criticalTotal: 0, criticalPassed: 0, implicitFallbacks: 0, errors: [] };
 const runEvidenceHashes = [];
@@ -45,7 +54,7 @@ function config() {
     actionCatalog: [{ id: "navigate-root", kind: "navigate", path: "/" }],
     profiles: { smoke: { actionIds: ["navigate-root"] }, seededRandom: { candidateIds: ["navigate-root"], count: 1 } },
     obligations: [{ expectedUrl: "/" }],
-    llm: { enabled: true, baseUrl: endpoint, expectedModelId, modelPath, modelSha256 },
+    llm: { enabled: true, baseUrl: endpoint, expectedModelId, modelPath, modelSha256, runtimeEvidence: actualRuntimeEvidence },
   });
 }
 
@@ -83,6 +92,7 @@ try {
       modelPath,
       modelSha256,
       runtime: acceptanceConfig.llm.runtimeEvidence,
+      chatTemplateKwargs: { enable_thinking: false },
       sampling: { seed: acceptanceConfig.seed, temperature: acceptanceConfig.llm.temperature, topP: acceptanceConfig.llm.topP, maxTokens: acceptanceConfig.llm.maxTokens },
       timeouts: { connectMs: acceptanceConfig.llm.connectTimeoutMs, generationMs: acceptanceConfig.llm.requestTimeoutMs },
       browser: "chromium",

@@ -306,6 +306,8 @@ preflight は疎通確認であり、AC-007〜AC-010 の品質受入を代替し
 | retry | 初回に加えて最大2回（最大3 attempt） |
 | context upper bound | 8,192 tokens |
 
+Qwen 3.5系のdecision requestは `chat_template_kwargs.enable_thinking=false` を固定し、推論本文ではなく `message.content` のstrict JSONだけを判定対象とする。実行時のchat template本体はloopback `/props` から取得してSHA-256を計算し、GGUF SHA-256・engine build・この固定kwargsとともに証跡へ保存する。
+
 retry対象はconnection resetとHTTP 500/502/503/504だけに限る。generation deadline到達、clean EOF、壊れたSSE、HTTP 4xx、schema不正、semantic failure、model mismatchはretryしない。retryは同じprompt、schema、seed、sampling値を使用し、1秒、2秒のbackoffを置く。TTFTはstream内で最初の非空content deltaを受信した時点から測定する。別endpointまたは別modelへのfallbackは禁止する。
 
 ### 6.3 LLM証跡

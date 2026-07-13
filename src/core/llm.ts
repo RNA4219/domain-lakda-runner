@@ -202,7 +202,7 @@ export class LocalLlmClient {
 
   private async complete(payload: object, preflightAttempt: number): Promise<LlmEvidence & { content: string; rawResponseSha256: string }> {
     const promptHash = sha256(JSON.stringify(payload));
-    const requestBody = { model: this.config.llm.expectedModelId, temperature: this.config.llm.temperature, top_p: this.config.llm.topP, seed: this.config.seed, ...payload };
+    const requestBody = { model: this.config.llm.expectedModelId, temperature: this.config.llm.temperature, top_p: this.config.llm.topP, seed: this.config.seed, ...payload, chat_template_kwargs: { enable_thinking: false } };
     let lastRetry = "";
     for (let attempt = 1; attempt <= this.config.llm.maxRetries + 1; attempt += 1) {
       const started = performance.now();
