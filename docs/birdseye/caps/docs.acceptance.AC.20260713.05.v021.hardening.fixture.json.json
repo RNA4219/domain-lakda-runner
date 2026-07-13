@@ -1,14 +1,14 @@
 {
-  "id": "docs/acceptance/AC-20260713-01.fixture.json",
+  "id": "docs/acceptance/AC-20260713-05.v021-hardening-fixture.json",
   "role": "doc",
   "public_api": [],
-  "summary": "docs/acceptance/AC-20260713-01.fixture.json",
+  "summary": "docs/acceptance/AC-20260713-05.v021-hardening-fixture.json",
   "deps_out": [
     "EVALUATION.md"
   ],
   "deps_in": [
     "docs/completion-record.md",
-    "docs/tasks/TASK.20260712-04.md"
+    "docs/tasks/TASK.20260713-06.md"
   ],
   "risks": [],
   "tests": [],

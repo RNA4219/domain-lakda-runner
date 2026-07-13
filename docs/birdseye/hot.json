@@ -1,5 +1,5 @@
 {
-  "generated_at": "00009",
+  "generated_at": "00012",
   "index_snapshot": "docs/birdseye/index.json",
   "refresh_command": "uv run python -m tools.codemap.update --repo-root C:\\Users\\ryo-n\\Codex_dev\\domain-lakda-runner --targets docs/birdseye/index.json,docs/birdseye/hot.json --emit index+caps",
   "curation_notes": "v1 PoCの正本、受入、運用資料を最小hopで参照するためのホットリスト。",
@@ -73,6 +73,36 @@
       "edges": [
         "docs/tasks/TASK.20260712-04.md",
         "docs/acceptance/AC-20260713-02.real-llm.json"
+      ]
+    },
+    {
+      "id": "docs/tasks/TASK.20260713-06.md",
+      "role": "task",
+      "reason": "v0.2.1 hardening実装と受入recordへの導線。",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260713.06.md.json",
+      "edges": [
+        "REQUIREMENTS.md",
+        "EVALUATION.md",
+        "docs/acceptance/AC-20260713-05.v021-hardening-fixture.json",
+        "docs/acceptance/AC-20260713-06.v021-hardening-real-llm.json"
+      ]
+    },
+    {
+      "id": "docs/acceptance/AC-20260713-05.v021-hardening-fixture.json",
+      "role": "acceptance",
+      "reason": "v0.2.1 hardening実装と受入recordへの導線。",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC.20260713.05.v021.hardening.fixture.json.json",
+      "edges": [
+        "EVALUATION.md"
+      ]
+    },
+    {
+      "id": "docs/acceptance/AC-20260713-06.v021-hardening-real-llm.json",
+      "role": "acceptance",
+      "reason": "v0.2.1 hardening実装と受入recordへの導線。",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC.20260713.06.v021.hardening.real.llm.json.json",
+      "edges": [
+        "EVALUATION.md"
       ]
     }
   ]

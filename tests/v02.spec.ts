@@ -177,3 +177,16 @@ test("an exhausted runtime budget skips LLM preflight", async () => {
     expect(llmRequests).toBe(0);
   } finally { await fixture.close(); await rm(outputDir, { recursive: true, force: true }); }
 });
+
+test("fixture reset failure preserves executor_error", async () => {
+  const fixture = await startFixture();
+  const outputDir = await mkdtemp(join(tmpdir(), "lakda-reset-error-"));
+  try {
+    const action = { id: "mutate", kind: "click" as const, locator: { testId: "mutate" }, mutates: true };
+    const config = loadConfig(undefined, { baseUrl: fixture.baseUrl, outputDir, fixtureReset: { url: "/failure" }, actionCatalog: [action], profiles: { smoke: { actionIds: ["mutate"] } } });
+    const result = await runLakda(config);
+    expect(result.outcome).toBe("error");
+    expect(result.terminationReason).toBe("executor_error");
+    expect(result.exitCode).toBe(1);
+  } finally { await fixture.close(); await rm(outputDir, { recursive: true, force: true }); }
+});

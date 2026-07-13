@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "lakda/real-llm-acceptance-report/v1",
+  "generatedAt": "2026-07-13T13:43:39.021Z",
+  "corpus": {
+    "schemaVersion": "lakda/acceptance-corpus/v1",
+    "version": "fixture-v1",
+    "path": "tests/fixtures/acceptance-corpus-v1.json",
+    "sha256": "00cf6854ca952bcfb49e83d65ec8c9c29582b417a1e94ab457041fb7916fa90c"
+  },
+  "environment": {
+    "endpoint": "http://127.0.0.1:8080/v1",
+    "expectedModelId": "C:\\Users\\ryo-n\\Qwen3.5-4B-Q4_K_M.gguf",
+    "modelPath": "C:\\Users\\ryo-n\\Qwen3.5-4B-Q4_K_M.gguf",
+    "modelSha256": "00FE7986FF5F6B463E62455821146049DB6F9313603938A70800D1FB69EF11A4",
+    "runtime": {
+      "runtimeVersion": "llama-server 9733",
+      "runtimeBuild": "b9733-f449e0553",
+      "chatTemplateHash": "7f0e529032c25183bcd66c7f238da2d377f43be754a94e2725a58c4e16d2ed67"
+    },
+    "chatTemplateKwargs": {
+      "enable_thinking": false
+    },
+    "sampling": {
+      "seed": 4219,
+      "temperature": 0,
+      "topP": 1,
+      "maxTokens": 512
+    },
+    "timeouts": {
+      "connectMs": 5000,
+      "generationMs": 60000
+    },
+    "browser": "chromium",
+    "workers": 2,
+    "criticalOnly": true
+  },
+  "execution": {
+    "command": "npm run acceptance:real-llm -- --out=docs/acceptance/AC-20260713-06.v021-hardening-real-llm.json --workers=2 --critical-only",
+    "gitCommit": "6fad63bbce5f6876688ca4a5b4ce20078d609d83",
+    "runCount": 20,
+    "runEvidenceSetSha256": "61a7f264d63fc9cb7e285491b51e3a1aba9943d163a6b020b6f604ab71cbd357",
+    "rawRunDirectoriesRetained": false
+  },
+  "metrics": {
+    "total": 20,
+    "accepted": 20,
+    "passed": 20,
+    "actionSelected": 20,
+    "modelAvailable": 20,
+    "criticalTotal": 20,
+    "criticalPassed": 20,
+    "implicitFallbacks": 0,
+    "errors": []
+  },
+  "acceptance": {
+    "strictJsonConformance": true,
+    "safeActionSelection": true,
+    "successfulExploration": true,
+    "noImplicitFallback": true,
+    "criticalGolden": true
+  },
+  "overall": true,
+  "recordPayloadSha256": "c175eec992b3a4a6ed004112e4b1963fa81a6dae07abf47bc9511c6bdf45f3f3"
+}

@@ -4,7 +4,7 @@
 
 この文書は実装と受入の契約であり、Lakda の `RunResult.outcome` や QEG の Gate verdict を代替しない。実装準備の判定は `ready | hold | blocked` とし、実行時の終了コードは [SPECIFICATION.md](SPECIFICATION.md) に従う。
 
-## v1 受入条件
+## v1 / v0.2.1 受入条件
 
 | ID | 受入条件 | 検証方法 | 対応仕様 |
 |---|---|---|---|
@@ -22,8 +22,10 @@
 | AC-012 | `doctor` 前後で tracked file、browser installation、process、port listener に変更がない。 | doctor immutability | 4.1 |
 | AC-013 | secret fixture がartifact/prompt/raw outputに平文で残らず、LLM出力がコード実行されない。 | security suite | 8, 9 |
 | AC-014 | `workers=2..4`を逐次実行し、seed、独立run/HATE、全worker継続、batch集約、RunBatchResultを検証する。 | batch contract | 5.1, 7.2 |
-| AC-015 | 共有Action Budgetのrate limitがLLM/Playwright操作を停止し、partial/rate_limit/exit 2を返す。 | fake clock + batch contract | 7.2, 8 |
-| AC-016 | redacted DOM snapshotをactionごとに保存し、HATE static登録と実bytes security scanを検証する。 | DOM/security contract | 2.1, 8, 9 |
+| AC-015 | 共有Action Budgetのrate limitがLLM/Playwright操作を停止し、partial/rate_limit/exit 2を返す。batch先頭から早期枯渇した場合もpreflightとbrowser起動を0件にする。 | fake clock + batch contract | 2.1, 7.2, 8 |
+| AC-016 | redacted DOM snapshotをactionごとに保存し、HATE static登録と実bytes security scanを検証する。容量超過、browser未起動、snapshot保存失敗のtermination reasonを検証する。 | DOM/security contract | 2.1, 8, 9 |
+| AC-017 | HARを`content=omit`の一時captureから構造化redactionして保存し、raw HAR削除、secret/PII scan、classification、HATE再export一致を検証する。 | HAR/security contract | 2.1, 8, 9 |
+| AC-018 | Policy確定順序、atomic metadata/failure、VerifiedArtifact bytes不変、passed以外のartifact期待値、fixture reset/executor/rate limitのtermination reason、workers整数検証を検証する。 | policy/abnormal contract | 2.1, 3, 7.2, 8.3 |
 
 ## LLM 固有受入
 
@@ -78,7 +80,7 @@
 | REQ-FN-007 | 7.1 | AC-002, AC-003 |
 | REQ-FN-008〜010 | 8 | AC-005, AC-006 |
 | REQ-FN-011 | 4.1 | AC-012 |
-| REQ-FN-012 | 7.2 | AC-001〜AC-016 |
+| REQ-FN-012 | 7.2 | AC-001〜AC-018 |
 | REQ-LLM-001 | 3, 6.1 | AC-010 |
 | REQ-LLM-002〜003 | 5.2, 5.3, 9 | AC-007, AC-008 |
 | REQ-LLM-004〜005 | 6.2, 6.3 | AC-010 |
@@ -100,6 +102,9 @@
 | REQ-FN-015 | 8.1、9 | AC-016 |
 | REQ-SEC-008 | 2.1、8、9 | AC-015、AC-016 |
 | REQ-NF-007 | 5.1、7.2 | AC-014、AC-015 |
+| REQ-SEC-009 | 2.1、8、9 | AC-017 |
+| REQ-FN-016 | 2.1、8.3、8.4 | AC-018 |
+| REQ-FN-017 | 2.1、3、7.2、8.1 | AC-016、AC-018 |
 
 
 ### 要件IDの明示カバレッジ
