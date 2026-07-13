@@ -17,6 +17,7 @@ const corpusSha256 = createHash("sha256").update(corpusBytes).digest("hex");
 const endpoint = process.env.LAKDA_REAL_LLM_ENDPOINT ?? "http://127.0.0.1:8080/v1";
 const modelPath = process.env.LAKDA_REAL_LLM_MODEL ?? "C:\\Users\\ryo-n\\Qwen3.5-4B-Q4_K_M.gguf";
 const modelSha256 = "00FE7986FF5F6B463E62455821146049DB6F9313603938A70800D1FB69EF11A4";
+const expectedModelId = modelPath;
 const outFlag = process.argv.find(value => value.startsWith("--out="));
 const outputArgument = outFlag ? outFlag.slice("--out=".length) : "docs/acceptance/AC-20260713-02.real-llm.json";
 const outputPath = resolve(outputArgument);
@@ -44,7 +45,7 @@ function config() {
     actionCatalog: [{ id: "navigate-root", kind: "navigate", path: "/" }],
     profiles: { smoke: { actionIds: ["navigate-root"] }, seededRandom: { candidateIds: ["navigate-root"], count: 1 } },
     obligations: [{ expectedUrl: "/" }],
-    llm: { enabled: true, baseUrl: endpoint, expectedModelId: "Qwen3.5-4B-Q4_K_M.gguf", modelPath, modelSha256 },
+    llm: { enabled: true, baseUrl: endpoint, expectedModelId, modelPath, modelSha256 },
   });
 }
 
@@ -78,7 +79,7 @@ try {
     corpus: { schemaVersion: corpus.schemaVersion, version: corpus.version, path: "tests/fixtures/acceptance-corpus-v1.json", sha256: corpusSha256 },
     environment: {
       endpoint,
-      expectedModelId: "Qwen3.5-4B-Q4_K_M.gguf",
+      expectedModelId,
       modelPath,
       modelSha256,
       runtime: acceptanceConfig.llm.runtimeEvidence,
