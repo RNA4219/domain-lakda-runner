@@ -106,7 +106,7 @@ test("llm-explore consumes only supplied candidates and redacts decision secrets
     const evidence = await readFile(join(runDir, "artifacts", "llm-decisions.jsonl"), "utf8");
     const sequence = await readFile(join(runDir, "action-sequence.json"), "utf8");
     expect(evidence).not.toContain("fixture-secret"); expect(evidence).toContain('"validation":"accepted"');
-    expect(sequence).toContain('"id": "first"'); expect(sequence).toContain('"id": "second"');
+    expect(JSON.parse(sequence).actions.map((action: { id: string }) => action.id)).toEqual(["first", "second"]);
   } finally { await fixture.close(); await rm(outputDir, { recursive: true, force: true }); }
 });
 

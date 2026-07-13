@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { homedir } from "node:os";
+
 import { chromium, type BrowserContext, type Locator as PlaywrightLocator, type Page } from "playwright";
 import { ArtifactCollector, readJson } from "./artifacts.js";
 import { loadConfig } from "./config.js";
@@ -13,7 +13,7 @@ import type { Action, ActionPlan, LakdaConfig, Locator, LlmStatus, RunOutcome, R
 export function exitCode(outcome: RunOutcome): 0 | 1 | 2 { return outcome === "passed" ? 0 : outcome === "error" ? 1 : 2; }
 
 export function authStatePath(persona: string): string {
-  const base = process.env.LOCALAPPDATA ? resolve(process.env.LOCALAPPDATA, "lakda", "auth") : resolve(homedir(), ".lakda", "auth");
+  const base = resolve(process.cwd(), ".lakda", "auth");
   if (!/^[A-Za-z0-9._-]+$/.test(persona)) throw new Error("persona は英数字、.、_、-だけを許可します");
   return resolve(base, `${persona}.json`);
 }

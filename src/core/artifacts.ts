@@ -5,6 +5,7 @@ import { execFileSync } from "node:child_process";
 import type { ActionPlan, Failure, LakdaConfig, LlmEvidence, LlmStatus, RunOutcome } from "./types.js";
 import { redact, sha256 } from "./redaction.js";
 import { buildAndValidateManifest } from "./hate.js";
+import { canonicalJson } from "./plan.js";
 
 export type RunMetadata = {
   schemaVersion: "lakda/run-metadata/v1";
@@ -76,7 +77,7 @@ export class ArtifactCollector {
     this.metadata.exitCode = exitCode;
     this.metadata.llmStatus = llmStatus;
     await writeJson(this.paths.metadata, this.metadata);
-    await writeJson(this.paths.actionSequence, plan);
+    await writeCanonicalJson(this.paths.actionSequence, plan);
     await writeFile(this.paths.console, `${this.consoleLines.join("\n")}${this.consoleLines.length ? "\n" : ""}`, "utf8");
     await writeJson(this.paths.failures, { failures: this.failures });
     await writeFile(this.paths.llm, `${this.llmEvidence.map(value => JSON.stringify(value)).join("\n")}${this.llmEvidence.length ? "\n" : ""}`, "utf8");
@@ -92,6 +93,11 @@ export class ArtifactCollector {
     }
     return { manifestPath: this.paths.manifest, outcome };
   }
+}
+
+export async function writeCanonicalJson(path: string, value: unknown): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, `${canonicalJson(value)}\n`, "utf8");
 }
 
 export async function writeJson(path: string, value: unknown): Promise<void> {

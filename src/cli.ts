@@ -41,7 +41,8 @@ function args(argv: string[]): { positionals: string[]; flags: Flags } {
 function stringFlag(flags: Flags, key: string, required = false): string | undefined { const value = flags[key]; if (required && typeof value !== "string") throw new Error(`--${key} は必須です`); return typeof value === "string" ? value : undefined; }
 function overrides(flags: Flags) {
   const baseUrl = stringFlag(flags, "base-url"); const mode = stringFlag(flags, "mode"); const seed = stringFlag(flags, "seed");
-  return { baseUrl, mode: mode ? parseMode(mode) : undefined, seed: seed ? Number(seed) : undefined, headed: flags.headed === true, outputDir: stringFlag(flags, "output-dir"), persona: stringFlag(flags, "persona") };
+  const values = { baseUrl, mode: mode ? parseMode(mode) : undefined, seed: seed ? Number(seed) : undefined, outputDir: stringFlag(flags, "output-dir"), persona: stringFlag(flags, "persona"), ...(flags.headed === true ? { headed: true } : {}) };
+  return Object.fromEntries(Object.entries(values).filter(([, value]) => value !== undefined));
 }
 
 async function doctor(flags: Flags): Promise<number> {

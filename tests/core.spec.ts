@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { test, expect } from "@playwright/test";
 import { loadConfig } from "../src/core/config.js";
 import { assertHateManifest } from "../src/core/hate.js";
-import { createActionPlan } from "../src/core/plan.js";
+import { canonicalJson, createActionPlan, mulberry32, workerSeed } from "../src/core/plan.js";
 import { runLakda } from "../src/core/runner.js";
 import { startFixture } from "./fixtures/server.js";
 
@@ -30,7 +30,7 @@ test("run saves required artifacts and a schema-valid HATE manifest", async () =
     const manifest = JSON.parse(await readFile(result.artifactManifestPath!, "utf8")); assertHateManifest(manifest);
     const runDir = join(outputDir, result.runId.replace(/[^A-Za-z0-9._-]/g, "-"));
     await expect(readFile(join(runDir, "run-metadata.json"), "utf8")).resolves.toContain('"outcome": "passed"');
-    await expect(readFile(join(runDir, "action-sequence.json"), "utf8")).resolves.toContain('"schemaVersion": "lakda/action-plan/v1"');
+    expect(JSON.parse(await readFile(join(runDir, "action-sequence.json"), "utf8")).schemaVersion).toBe("lakda/action-plan/v1");
   } finally { await fixture.close(); await rm(outputDir, { recursive: true, force: true }); }
 });
 
@@ -134,4 +134,15 @@ test("config file is validated against the v1 schema before merge", async () => 
     await writeFile(configPath, JSON.stringify({ schemaVersion: "lakda/v1", unexpected: true }));
     expect(() => loadConfig(configPath)).toThrow(/設定schema/);
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+test("mulberry32 vector, worker seed, and canonical JSON are stable", () => {
+  const random = mulberry32(4219);
+  expect([random(), random(), random()]).toEqual([0.2032677789684385, 0.834809469524771, 0.02527741529047489]);
+  expect(workerSeed(4219, 3)).toBe(4222);
+  expect(canonicalJson({ b: 1, a: { z: 2, y: [3, 1] } })).toBe('{"a":{"y":[3,1],"z":2},"b":1}');
+});
+
+test("auth state is stored below ignored .lakda/auth", async () => {
+  const { authStatePath } = await import("../src/core/runner.js");
+  expect(authStatePath("member").replace(/\\/g, "/")).toContain("/.lakda/auth/member.json");
 });

@@ -24,6 +24,8 @@ const corpus = JSON.parse(corpusBytes.toString("utf8"));
 const corpusSha256 = createHash("sha256").update(corpusBytes).digest("hex");
 const fixtureSecret = "fixture-secret@example.com";
 let promptLeakedSecret = false;
+const defectRules = ["UI-001", "UI-003", "UI-004", "UI-005", "UI-006"];
+function defectRule(defectId) { return defectRules[(Number(defectId.slice(-3)) - 1) % defectRules.length]; }
 
 const server = createServer(async (request, response) => {
   const chunks = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
@@ -40,7 +42,13 @@ const server = createServer(async (request, response) => {
     }
     response.writeHead(200, { "content-type": "application/json" }); response.end(JSON.stringify({ choices: [{ message: { content } }], usage: { completion_tokens: 12 } })); return;
   }
-  if (url.pathname.startsWith("/defect/")) { response.writeHead(500, { "content-type": "text/html" }); response.end("<h1>fixture defect</h1>"); return; }
+  if (url.pathname.startsWith("/defect/")) {
+    const rule = defectRule(url.pathname.slice("/defect/".length));
+    if (rule === "UI-001") { response.writeHead(200, { "content-type": "text/html" }); response.end("<script>throw new Error('fixture pageerror')</script>"); return; }
+    if (rule === "UI-003") { response.writeHead(200, { "content-type": "text/html" }); response.end("<script>console.error('fixture console error')</script>"); return; }
+    if (rule === "UI-004") { response.writeHead(500, { "content-type": "text/html" }); response.end("<h1>fixture 5xx</h1>"); return; }
+    if (rule === "UI-005") { response.writeHead(401, { "content-type": "text/html" }); response.end("<h1>fixture unauthorized</h1>"); return; }
+  }
   response.writeHead(200, { "content-type": "text/html" }); response.end("<h1>fixture normal</h1>");
 });
 await new Promise((resolvePromise, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", resolvePromise); });
@@ -71,8 +79,12 @@ try {
     if (Buffer.from(JSON.stringify(createActionPlan(deterministic))).equals(Buffer.from(JSON.stringify(createActionPlan(deterministic))))) metric.deterministicMatched += 1;
   }
   for (const defectId of corpus.knownDefects) {
-    const result = await runLakda(config({ candidates: [{ id: defectId, kind: "navigate", path: `/defect/${defectId}` }] }));
-    await audit(result); if (result.failures.some(failure => failure.ruleId === "UI-004")) metric.knownDetected += 1;
+    const expectedRule = defectRule(defectId);
+    const overrides = expectedRule === "UI-006"
+      ? { durationMs: 50, candidates: [{ id: defectId, kind: "click", locator: { testId: "missing" } }] }
+      : { candidates: [{ id: defectId, kind: "navigate", path: `/defect/${defectId}` }] };
+    const result = await runLakda(config(overrides));
+    await audit(result); if (result.failures.some(failure => failure.ruleId === expectedRule)) metric.knownDetected += 1;
   }
   for (const normalId of corpus.normalCases) {
     const result = await runLakda(config({ candidates: [{ id: normalId, kind: "navigate", path: `/normal/${normalId}` }] }));
