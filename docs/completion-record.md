@@ -1,5 +1,8 @@
 # domain-lakda-runner v0.2.1 / v1 PoC 完了記録
 
+> [!IMPORTANT]
+> v0.2.1 release evidence契約は2026-07-14に是正した。旧20-run記録は`worker-smoke`相当でAC-014の補助に限定され、AC-007/AC-010には不適格である。[coverage訂正](acceptance/AC-20260714-02.v021-evidence-contract-correction.md)を正本とする。実staging manual-bbとQEG final Gateが未完了ならreleaseは`hold`である。
+
 - 完了日: 2026-07-13
 - 対象: Chromium、smoke、seeded-random、regression-replay、`llm-explore`、HATE/v1 artifact manifest
 - コード受入commit: `3d18a7a546786f271287b6b55079f76fa9a8e318`
@@ -15,10 +18,10 @@
 
 - [Task Seed](tasks/TASK.20260713-05.md): Artifact Store、Artifact/Outcome Policy、Action Budget、逐次worker、DOM redaction、設定正規化。
 - [v0.2 fixture record](acceptance/AC-20260713-03.v02-fixture.json): AC-014〜AC-016を含むfixture全体成功。fake LLM workers=2、共有budget、DOM/HATE static登録を契約テストで検証。
-- [v0.2.1 fixture record](acceptance/AC-20260713-05.v021-hardening-fixture.json): fixture acceptance全体と`tests/v02.spec.ts`のhardening回帰14件が成功。AC-014〜AC-018はAction Budget、DOM属性redaction/容量、HAR全値redaction/再export、export失敗時のmanifest pathを実行したスイートで検証し、recordには検証時のcommitと`worktreeDirty`を残す。
-- [v0.2 実Qwen record](acceptance/AC-20260713-04.v02-real-llm.json): critical 10ケース×2 workerの20 child runs、strict JSON 20/20、safe action 20/20、fallback 0、critical 20/20。
-- [v0.2.1 実Qwen record](acceptance/AC-20260713-06.v021-hardening-real-llm.json): critical 10ケース×2 workerの20 child runsが成功。strict JSON 20/20、safe action 20/20、fallback 0、critical golden 20/20。
-- [commit 0862714 実Qwen再確認](acceptance/AC-20260714-01.v021-real-llm-0862714.md): 実GGUF・llama-server・Chromiumでcritical 10ケース×2 workerを再実行し、20 child run成功、fallback 0を確認。five-tool証跡上のQEG policy・実アプリmanual BB未完了も明記。
+- [v0.2.1 fixture record](acceptance/AC-20260713-05.v021-hardening-fixture.json): fixture acceptance全体と`tests/v02.spec.ts`のhardening回帰14件が成功。現行IDではAC-014〜AC-016とAC-019/020（記録時の旧AC-017/018）に対応する。recordには検証時のcommitと`worktreeDirty`を残す。
+- [v0.2 実Qwen record](acceptance/AC-20260713-04.v02-real-llm.json): critical 10ケース×2 workerの20 child runs。現行契約では`worker-smoke`相当でAC-014補助のみ。
+- [v0.2.1 実Qwen record](acceptance/AC-20260713-06.v021-hardening-real-llm.json): critical 10ケース×2 workerの20 child runs。現行契約では`worker-smoke`相当でAC-014補助のみ。
+- [commit 0862714 実Qwen再確認](acceptance/AC-20260714-01.v021-real-llm-0862714.md): 20 child runの実機観測。現行契約では`worker-smoke`相当であり、AC-007/010不適格。five-tool証跡上のmanual-bb/QEG未完了も明記。
 - `workers=1`は従来の`RunResult`、`workers>1`は`lakda/run-batch/v1` envelopeを返し、child runだけを永続化する。
 ## 受入結果
 
@@ -31,8 +34,12 @@
 ```text
 npm run check
 npm run check:hate
-npm run acceptance:fixture -- --out=docs/acceptance/AC-20260713-05.v021-hardening-fixture.json
-npm run acceptance:real-llm -- --critical-only --workers=2 --out=docs/acceptance/AC-20260713-06.v021-hardening-real-llm.json
+npm run pack:check
+npm run acceptance:fixture
+npm run acceptance:real-llm:full -- --out=.lakda/reports/full.json --bundle=.lakda/acceptance/full
+npm run acceptance:real-llm:worker-smoke -- --out=.lakda/reports/worker-smoke.json --bundle=.lakda/acceptance/worker-smoke
+npm run acceptance:verify -- --report=.lakda/reports/full.json --bundle=.lakda/acceptance/full --check-revision
+npm run acceptance:verify -- --report=.lakda/reports/worker-smoke.json --bundle=.lakda/acceptance/worker-smoke --check-revision
 ```
 
 ## 境界確認

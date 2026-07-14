@@ -37,13 +37,29 @@ for (const id of [...new Set(requirements.match(/AC-\d{8}-\d{2}|AC-\d{3}/g) ?? [
   if (!specification.includes(id)) failures.push("SPECIFICATION.md: missing " + id);
   if (!evaluation.includes(id)) failures.push("EVALUATION.md: missing " + id);
 }
-for (const requiredPath of ["docs/tasks/TASK.20260713-06.md", "docs/acceptance/AC-20260713-05.v021-hardening-fixture.json", "docs/acceptance/AC-20260713-06.v021-hardening-real-llm.json"]) {
+for (const requiredPath of [
+  "docs/tasks/TASK.20260713-06.md",
+  "docs/tasks/TASK.20260714-07.md",
+  "docs/acceptance/AC-20260713-05.v021-hardening-fixture.json",
+  "docs/acceptance/AC-20260713-06.v021-hardening-real-llm.json",
+  "docs/acceptance/AC-20260714-02.v021-evidence-contract-correction.md",
+  "schemas/real-llm-acceptance-report-v2.schema.json",
+  "schemas/manual-bb-release-record-v1.schema.json",
+  ".github/workflows/release-evidence.yml",
+  "codemap.config.json",
+]) {
   if (!statSync(resolve(root, requiredPath), { throwIfNoEntry: false })) failures.push("missing required evidence " + requiredPath);
 }
 const require = createRequire(import.meta.url);
 const hateSchema = JSON.parse(readFileSync(resolve(root, "vendor/hate/v1/artifact-manifest.schema.json"), "utf8"));
 const Ajv = require("ajv/dist/2020").default;
-const hateValidate = new Ajv({ allErrors: true, strict: false }).compile(hateSchema);
+const hateValidate = new Ajv({ allErrors: true, strict: false }).compile(hateSchema);for (const schemaPath of ["schemas/real-llm-acceptance-report-v2.schema.json", "schemas/manual-bb-release-record-v1.schema.json"]) {
+  try {
+    new Ajv({ allErrors: true, strict: false, validateFormats: false }).compile(JSON.parse(readFileSync(resolve(root, schemaPath), "utf8")));
+  } catch (error) {
+    failures.push(`${schemaPath}: schema compile failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
 for (const path of walk(root)) {
   const text = readFileSync(path, "utf8");
   for (const json of text.matchAll(/^```json\s*\r?\n([\s\S]*?)^```/gm)) {
@@ -56,7 +72,7 @@ for (const id of [...new Set(requirements.match(/REQ-(?:FN|LLM|NF|SEC)-\d+/g) ??
   if (!specification.includes(id)) failures.push(`SPECIFICATION.md: missing ${id}`);
   if (!evaluation.includes(id)) failures.push(`EVALUATION.md: missing ${id}`);
 }
-for (const [label, pattern] of [["opaque citation", /citeturn/], ["direct QEG CLI", /lakda export qeg/]]) {
+for (const [label, pattern] of [["opaque citation", /citeturn/], ["direct QEG CLI", /lakda export qeg/], ["obsolete v2 schema", /lakda\/real-llm-acceptance-report\/v2/]]) {
   if (walk(root).some(path => pattern.test(readFileSync(path, "utf8")))) failures.push(`forbidden ${label}`);
 }
 if (failures.length) {

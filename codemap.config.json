@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "workflow-cookbook/codemap-discovery/v1",
+  "include": [
+    "docs/acceptance/**/*.md",
+    "docs/acceptance/**/*.json"
+  ],
+  "exclude": [
+    ".lakda/**"
+  ],
+  "defaultRole": "acceptance"
+}
