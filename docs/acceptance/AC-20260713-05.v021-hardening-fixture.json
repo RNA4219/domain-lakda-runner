@@ -1,6 +1,15 @@
 {
   "schemaVersion": "lakda/acceptance-report/v1",
-  "generatedAt": "2026-07-13T13:40:48.307Z",
+  "generatedAt": "2026-07-13T23:15:34.225Z",
+  "execution": {
+    "gitCommit": "079a6f09798c4316bbb8e6c717b4dd27b9c028d4",
+    "worktreeDirty": true,
+    "hardeningCommand": "node node_modules/playwright/cli.js test tests/v02.spec.ts"
+  },
+  "hardening": {
+    "suite": "tests/v02.spec.ts",
+    "passed": true
+  },
   "corpus": {
     "schemaVersion": "lakda/acceptance-corpus/v1",
     "version": "fixture-v1",
@@ -29,6 +38,11 @@
     "manifestValid": "215/215"
   },
   "acceptance": {
+    "AC-014": true,
+    "AC-015": true,
+    "AC-016": true,
+    "AC-017": true,
+    "AC-018": true,
     "AC-001": true,
     "AC-002": true,
     "AC-003": true,
@@ -41,34 +55,7 @@
     "AC-010": true,
     "AC-011": true,
     "AC-012": true,
-    "AC-013": true,
-    "AC-014": true,
-    "AC-015": true,
-    "AC-016": true,
-    "AC-017": true,
-    "AC-018": true
+    "AC-013": true
   },
-  "overall": true,
-  "v021": {
-    "tests": "tests/v02.spec.ts",
-    "testCount": 13,
-    "workers": 2,
-    "sequential": true,
-    "sharedActionBudget": "60s sliding window",
-    "earlyExhaustionSkipsLlmAndBrowser": true,
-    "harContent": "omit",
-    "harRedacted": true,
-    "harRawTemporaryDeleted": true,
-    "hateManifestReexportByteIdentical": true,
-    "domSnapshotsRedacted": true,
-    "domCapacityPrecheck": true,
-    "terminationReasonsPreserved": true,
-    "verifiedArtifactBytesStable": true,
-    "configWorkersIntegerValidated": true,
-    "commands": [
-      "npm test -- tests/v02.spec.ts",
-      "npm run acceptance:fixture -- --out=docs/acceptance/AC-20260713-05.v021-hardening-fixture.json"
-    ],
-    "executorFailureReason": "executor_error"
-  }
+  "overall": true
 }

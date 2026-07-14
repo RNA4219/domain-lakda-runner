@@ -13,6 +13,7 @@ export type ArtifactPolicyReport = {
   residualSensitivePaths: string[];
   missingPaths: string[];
   profileMissingPaths: string[];
+  sizeBytes: number;
   sizeExceeded: boolean;
   unsupportedPaths: string[];
 };
@@ -29,6 +30,10 @@ function hasPath(files: string[], suffix: string): boolean {
   return files.some(path => path.endsWith(suffix));
 }
 
+export function isGeneratedExportPath(runDir: string, path: string): boolean {
+  return portablePath(runDir, path).startsWith("exports/");
+}
+
 export async function inspectArtifactPolicy(
   runDir: string,
   config: LakdaConfig,
@@ -36,7 +41,7 @@ export async function inspectArtifactPolicy(
   expected: ArtifactExpectations,
   excludePaths: string[] = [],
 ): Promise<ArtifactPolicyReport> {
-  const files = (await listFiles(runDir)).filter(path => !excludePaths.includes(path));
+  const files = (await listFiles(runDir)).filter(path => !excludePaths.includes(path) && !isGeneratedExportPath(runDir, path));
   const relativeFiles = files.map(path => portablePath(runDir, path));
   const required = ["run-metadata.json", "action-sequence.json", "console.jsonl", "failure-report.json"];
   const missingPaths = required.filter(path => !relativeFiles.includes(path));
@@ -73,7 +78,7 @@ export async function inspectArtifactPolicy(
     if (findings.length) residualSensitivePaths.push(rel);
   }
   const size = (await Promise.all(files.map(async path => (await stat(path)).size))).reduce((total, value) => total + value, 0);
-  return { securityByPath, verifiedArtifacts, residualSensitivePaths, missingPaths, profileMissingPaths, sizeExceeded: size > config.artifacts.maxRunBytes, unsupportedPaths };
+  return { securityByPath, verifiedArtifacts, residualSensitivePaths, missingPaths, profileMissingPaths, sizeBytes: size, sizeExceeded: size > config.artifacts.maxRunBytes, unsupportedPaths };
 }
 
 export async function removeSensitiveArtifacts(runDir: string, relativePaths: string[]): Promise<void> {

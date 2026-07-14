@@ -28,10 +28,14 @@ export async function writeJsonAtomic(path: string, value: unknown): Promise<voi
   finally { try { await stat(temporary); await rm(temporary, { force: true }); } catch { /* already renamed or unavailable */ } }
 }
 
+export function serializeTextArtifact(value: string): string {
+  const redacted = redact(value);
+  return redacted.endsWith("\n") ? redacted : `${redacted}\n`;
+}
+
 export async function writeText(path: string, value: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${redact(value)}
-`, "utf8");
+  await writeFile(path, serializeTextArtifact(value), "utf8");
 }
 
 export async function readJson(path: string): Promise<unknown> {

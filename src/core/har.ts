@@ -6,6 +6,20 @@ type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string
 
 const sensitiveKey = /authorization|cookie|token|secret|password|api[-_]?key|set-cookie/i;
 
+function sanitizeHeader(value: JsonValue): JsonValue | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return sanitize(value);
+  const result: { [key: string]: JsonValue } = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (key.toLowerCase() === "name") result[key] = typeof item === "string" ? redact(item) : "[REDACTED]";
+    else if (key.toLowerCase() === "value") result[key] = "[REDACTED]";
+    else {
+      const clean = sanitize(item, key);
+      if (clean !== undefined) result[key] = clean;
+    }
+  }
+  return result;
+}
+
 function sanitize(value: JsonValue, key = ""): JsonValue | undefined {
   const lower = key.toLowerCase();
   if (lower === "postdata" || lower === "text" || lower === "body" || lower === "cookies" || lower === "requestcookies" || lower === "responsecookies") return undefined;
@@ -14,10 +28,11 @@ function sanitize(value: JsonValue, key = ""): JsonValue | undefined {
     try { const url = new URL(value); url.search = ""; url.hash = ""; return redact(url.toString()); }
     catch { return redact(value); }
   }
+  if (lower === "headers" && Array.isArray(value)) return value.map(sanitizeHeader).filter((item): item is JsonValue => item !== undefined);
   if (lower === "querystring" && Array.isArray(value)) return value.map(item => {
     if (!item || typeof item !== "object" || Array.isArray(item)) return sanitize(item);
     const name = typeof item.name === "string" ? item.name : "";
-    return { name: redact(name), value: sensitiveKey.test(name) ? "[REDACTED]" : redact(typeof item.value === "string" ? item.value : "") };
+    return { name: redact(name), value: "[REDACTED]" };
   }).filter((item): item is JsonValue => item !== undefined);
   if (Array.isArray(value)) return value.map(item => sanitize(item)).filter((item): item is JsonValue => item !== undefined);
   if (value && typeof value === "object") {

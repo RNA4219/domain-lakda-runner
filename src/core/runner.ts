@@ -1,15 +1,15 @@
 import { Buffer } from "node:buffer";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { chromium, type BrowserContext, type Locator as PlaywrightLocator, type Page } from "playwright";
 import { ActionBudget } from "./action-budget.js";
 import { ArtifactCollector } from "./artifacts.js";
 import { inspectArtifactPolicy, removeSensitiveArtifacts } from "./artifact-policy.js";
-import { readJson, runSizeBytes, writeText } from "./artifact-store.js";
+import { readJson, runSizeBytes, serializeTextArtifact, writeText } from "./artifact-store.js";
 import { loadConfig } from "./config.js";
-import { redact } from "./redaction.js";
+
 import { writeSanitizedHar } from "./har.js";
 import { exportHate } from "./hate.js";
 import { LocalLlmClient, LlmContractError, probeLlm } from "./llm.js";
@@ -130,22 +130,45 @@ async function visibleRoleSummary(page: Page): Promise<string[]> {
 async function writeDomSnapshot(page: Page, collector: ArtifactCollector, config: LakdaConfig, actionIndex: number, actionId: string): Promise<void> {
   const html = await page.evaluate(() => {
     const root = document.documentElement.cloneNode(true) as HTMLElement;
+    const sensitiveAttribute = /authorization|cookie|token|secret|password|api[-_]?key/i;
     root.querySelectorAll("script").forEach(element => { element.textContent = ""; });
     root.querySelectorAll("input, textarea, select, option").forEach(element => {
       element.removeAttribute("value");
       element.removeAttribute("selected");
-      if (element instanceof HTMLTextAreaElement) element.textContent = "[REDACTED]";
+      if (element instanceof HTMLTextAreaElement || element instanceof HTMLOptionElement) element.textContent = "[REDACTED]";
     });
-    root.querySelectorAll("[name*=\"password\" i], [name*=\"token\" i], [name*=\"secret\" i], [id*=\"password\" i], [id*=\"token\" i], [id*=\"secret\" i]").forEach(element => { element.textContent = "[REDACTED]"; element.removeAttribute("value"); });
-    root.querySelectorAll("[data-lakda-sensitive]").forEach(element => { element.textContent = "[REDACTED]"; });
+    root.querySelectorAll("[contenteditable], [name*=\"password\" i], [name*=\"token\" i], [name*=\"secret\" i], [id*=\"password\" i], [id*=\"token\" i], [id*=\"secret\" i]").forEach(element => { element.textContent = "[REDACTED]"; element.removeAttribute("value"); });
+    root.querySelectorAll("*").forEach(element => {
+      for (const attribute of [...element.attributes]) {
+        if (sensitiveAttribute.test(attribute.name)) element.setAttribute(attribute.name, "[REDACTED]");
+        if (/^(href|src|action|formaction)$/i.test(attribute.name)) {
+          const value = attribute.value.replace(/[?#][\s\S]*$/, "");
+          element.setAttribute(attribute.name, value || "[REDACTED]");
+        }
+      }
+    });
+    root.querySelectorAll("[data-lakda-sensitive]").forEach(element => {
+      for (const attribute of [...element.attributes]) element.removeAttribute(attribute.name);
+      element.textContent = "[REDACTED]";
+    });
     return `<!doctype html>${root.outerHTML}`;
   });
   const safeId = actionId.replace(/[^A-Za-z0-9._-]/g, "-");
-  const stored = `${redact(html)}\n`;
+  const stored = serializeTextArtifact(html);
   if (await runSizeBytes(collector.paths.runDir) + Buffer.byteLength(stored, "utf8") > config.artifacts.maxRunBytes) throw new ArtifactLimitError();
-  await writeText(join(collector.paths.runDir, "artifacts", "dom", `${String(actionIndex).padStart(4, "0")}-${safeId}.html`), stored);
+  await writeText(join(collector.paths.runDir, "artifacts", "dom", `${String(actionIndex).padStart(4, "0")}-${safeId}.html`), html);
 }
 
+async function removeOptionalDomSnapshots(collector: ArtifactCollector): Promise<boolean> {
+  const directory = join(collector.paths.runDir, "artifacts", "dom");
+  let snapshots: string[];
+  try { snapshots = (await readdir(directory)).filter(path => path.endsWith(".html")); }
+  catch { return false; }
+  if (snapshots.length === 0) return false;
+  await Promise.all(snapshots.map(path => rm(join(directory, path), { force: true })));
+  collector.setDomSnapshotCount(0);
+  return true;
+}
 async function executePlan(config: LakdaConfig, plan: ActionPlan, collector: ArtifactCollector, runtime: RunRuntimeContext, forcedOutcome?: RunOutcome, selector?: LiveSelector): Promise<ExecutionResult> {
   let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
   let context: BrowserContext | undefined;
@@ -293,10 +316,14 @@ export async function runLakda(config: LakdaConfig, replayInput?: string, runtim
   let manifestPath: string | undefined;
   try {
     const finalized = await collector.finalize(plan, execution.outcome, exitCode(execution.outcome), llmStatus, execution.terminationReason);
-    manifestPath = finalized.manifestPath;
+
     let policy = await inspectArtifactPolicy(finalized.runDir, config, execution.outcome, collector.metadata.artifactPolicy.expectations);
     let resolved = applyArtifactPolicy(execution, policy);
     for (let pass = 0; pass < 3; pass += 1) {
+      if (policy.sizeExceeded && await removeOptionalDomSnapshots(collector)) {
+        if (resolved.outcome !== "error") resolved = { outcome: "partial", terminationReason: "artifact_limit" };
+        policy = await inspectArtifactPolicy(finalized.runDir, config, resolved.outcome, collector.metadata.artifactPolicy.expectations);
+      }
       if (policy.residualSensitivePaths.length > 0) {
         await removeSensitiveArtifacts(finalized.runDir, policy.residualSensitivePaths);
         collector.markArtifactFailure();
@@ -312,7 +339,8 @@ export async function runLakda(config: LakdaConfig, replayInput?: string, runtim
       if (pass === 2) throw new Error("artifact policyが最終bytesで収束しません");
     }
     await exportHate(finalized.runDir, finalized.manifestPath, policy.securityByPath);
-    return { runId: collector.metadata.runId, attempt: 1, outcome: resolved.outcome, exitCode: exitCode(resolved.outcome), terminationReason: resolved.terminationReason, workerIndex: collector.metadata.workerIndex, ...(collector.metadata.batchId ? { batchId: collector.metadata.batchId } : {}), artifactManifestPath: finalized.manifestPath, actionSequencePath: collector.paths.actionSequence, failures: collector.failures, llmStatus };
+    manifestPath = finalized.manifestPath;
+    return { runId: collector.metadata.runId, attempt: 1, outcome: resolved.outcome, exitCode: exitCode(resolved.outcome), terminationReason: resolved.terminationReason, workerIndex: collector.metadata.workerIndex, ...(collector.metadata.batchId ? { batchId: collector.metadata.batchId } : {}), artifactManifestPath: manifestPath, actionSequencePath: collector.paths.actionSequence, failures: collector.failures, llmStatus };
   } catch (error) {
     collector.markArtifactFailure();
     collector.addFailure("UI-008", error instanceof Error ? error.message : "artifact finalization failed");

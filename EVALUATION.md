@@ -23,9 +23,9 @@
 | AC-013 | secret fixture がartifact/prompt/raw outputに平文で残らず、LLM出力がコード実行されない。 | security suite | 8, 9 |
 | AC-014 | `workers=2..4`を逐次実行し、seed、独立run/HATE、全worker継続、batch集約、RunBatchResultを検証する。 | batch contract | 5.1, 7.2 |
 | AC-015 | 共有Action Budgetのrate limitがLLM/Playwright操作を停止し、partial/rate_limit/exit 2を返す。batch先頭から早期枯渇した場合もpreflightとbrowser起動を0件にする。 | fake clock + batch contract | 2.1, 7.2, 8 |
-| AC-016 | redacted DOM snapshotをactionごとに保存し、HATE static登録と実bytes security scanを検証する。容量超過、browser未起動、snapshot保存失敗のtermination reasonを検証する。 | DOM/security contract | 2.1, 8, 9 |
-| AC-017 | HARを`content=omit`の一時captureから構造化redactionして保存し、raw HAR削除、secret/PII scan、classification、HATE再export一致を検証する。 | HAR/security contract | 2.1, 8, 9 |
-| AC-018 | Policy確定順序、atomic metadata/failure、VerifiedArtifact bytes不変、passed以外のartifact期待値、fixture reset/executor/rate limitのtermination reason、workers整数検証を検証する。 | policy/abnormal contract | 2.1, 3, 7.2, 8.3 |
+| AC-016 | redacted DOM snapshotをactionごとに保存し、`data-lakda-sensitive`要素の内容・全属性の除去、HATE static登録、実bytes security scanを検証する。保存時・最終必須artifact後の容量超過、browser未起動、snapshot保存失敗のtermination reasonを検証する。 | DOM/security contract | 2.1, 8, 9 |
+| AC-017 | HARを`content=omit`の一時captureから構造化redactionして保存し、すべてのheader値、cookie/Set-Cookie、query値、bodyの保護、raw HAR削除、secret/PII scan、classification、alternate/defaultの再export一致を検証する。 | HAR/security contract | 2.1, 8, 9 |
+| AC-018 | Policy確定順序、atomic metadata/failure、VerifiedArtifact bytes不変、export失敗時の`artifactManifestPath`不返却、passed以外のartifact期待値、fixture reset/executor/rate limitのtermination reason、workers整数検証を検証する。 | policy/abnormal contract | 2.1, 3, 7.2, 8.3 |
 
 ## LLM 固有受入
 

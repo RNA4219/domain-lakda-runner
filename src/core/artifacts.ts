@@ -60,6 +60,10 @@ export class ArtifactCollector {
 
   recordDomSnapshot(): void { this.metadata.artifactPolicy.expectations.domSnapshots += 1; }
 
+  setDomSnapshotCount(count: number): void {
+    this.metadata.artifactPolicy.expectations.domSnapshots = count;
+  }
+
   static async create(config: LakdaConfig, mode: string, context: CollectorContext = {}): Promise<ArtifactCollector> {
     const now = new Date((context.clock ?? Date.now)());
     const runId = `lakda:run-${now.toISOString().replace(/[:.]/g, "-")}-${Math.random().toString(16).slice(2, 8)}`;

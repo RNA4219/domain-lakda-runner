@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import { inspectArtifactPolicy } from "./artifact-policy.js";
+import { inspectArtifactPolicy, isGeneratedExportPath } from "./artifact-policy.js";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -39,7 +39,7 @@ export async function buildAndValidateManifest(
   excludePaths: string[] = [],
   verifiedArtifacts: VerifiedArtifact[] = [],
 ): Promise<object> {
-  const included = (await listFiles(runDir)).filter(path => !path.endsWith("artifact-manifest.json") && !excludePaths.includes(path));
+  const included = (await listFiles(runDir)).filter(path => !isGeneratedExportPath(runDir, path) && !excludePaths.includes(path));
   const verifiedByPath = new Map(verifiedArtifacts.map(artifact => [artifact.path, artifact]));
   const artifacts = await Promise.all(included.map(async path => {
     const rel = portablePath(runDir, path);
