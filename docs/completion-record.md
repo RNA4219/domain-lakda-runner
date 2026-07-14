@@ -18,6 +18,7 @@
 - [v0.2.1 fixture record](acceptance/AC-20260713-05.v021-hardening-fixture.json): fixture acceptance全体と`tests/v02.spec.ts`のhardening回帰14件が成功。AC-014〜AC-018はAction Budget、DOM属性redaction/容量、HAR全値redaction/再export、export失敗時のmanifest pathを実行したスイートで検証し、recordには検証時のcommitと`worktreeDirty`を残す。
 - [v0.2 実Qwen record](acceptance/AC-20260713-04.v02-real-llm.json): critical 10ケース×2 workerの20 child runs、strict JSON 20/20、safe action 20/20、fallback 0、critical 20/20。
 - [v0.2.1 実Qwen record](acceptance/AC-20260713-06.v021-hardening-real-llm.json): critical 10ケース×2 workerの20 child runsが成功。strict JSON 20/20、safe action 20/20、fallback 0、critical golden 20/20。
+- [commit 0862714 実Qwen再確認](acceptance/AC-20260714-01.v021-real-llm-0862714.md): 実GGUF・llama-server・Chromiumでcritical 10ケース×2 workerを再実行し、20 child run成功、fallback 0を確認。five-tool証跡上のQEG policy・実アプリmanual BB未完了も明記。
 - `workers=1`は従来の`RunResult`、`workers>1`は`lakda/run-batch/v1` envelopeを返し、child runだけを永続化する。
 ## 受入結果
 
