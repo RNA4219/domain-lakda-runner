@@ -6,6 +6,7 @@ import {
   copySanitizedEvidence,
   reportPayloadSha256,
   resolveAcceptanceProfile,
+  runEvidenceSetSha256,
   verifyAcceptanceReport,
 } from "../scripts/real-llm-evidence.mjs";
 import { createAcceptanceFixture } from "./helpers/real-llm-acceptance-fixture.js";
@@ -15,6 +16,13 @@ test("real LLM profiles have fixed normative counts and legacy flags are custom"
   expect(resolveAcceptanceProfile(["--profile=worker-smoke"], 3)).toMatchObject({ name: "worker-smoke", workers: 2, repetitions: 1, releaseEligible: true });
   expect(resolveAcceptanceProfile(["--critical-only", "--workers=2"], 3)).toMatchObject({ name: "custom", workers: 2, repetitions: 1, releaseEligible: false });
   expect(() => resolveAcceptanceProfile(["--profile=full", "--workers=2"], 3)).toThrow(/同時指定/);
+});
+
+test("evidence hashes use persisted JSON semantics", () => {
+  const inMemory = { caseId: "case-1", optional: undefined, nested: { value: 1, optional: undefined } };
+  const persisted = JSON.parse(JSON.stringify(inMemory));
+  expect(reportPayloadSha256(inMemory)).toBe(reportPayloadSha256(persisted));
+  expect(runEvidenceSetSha256([inMemory])).toBe(runEvidenceSetSha256([persisted]));
 });
 
 test("v2 report and per-child sanitized bundle are independently verifiable", async () => {

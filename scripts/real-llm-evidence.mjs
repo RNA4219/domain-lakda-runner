@@ -24,6 +24,12 @@ export function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+function persistedCanonicalJson(value) {
+  const serialized = JSON.stringify(value);
+  if (serialized === undefined) throw new Error("証跡payloadをJSONへ永続化できません");
+  return canonicalJson(JSON.parse(serialized));
+}
+
 const acceptanceCorpusPath = join(root, "tests", "fixtures", "acceptance-corpus-v1.json");
 const acceptanceCorpusBytes = await readFile(acceptanceCorpusPath);
 const acceptanceCorpus = JSON.parse(acceptanceCorpusBytes.toString("utf8"));
@@ -66,13 +72,13 @@ export function orderedRuns(runs) {
 }
 
 export function runEvidenceSetSha256(runs) {
-  return sha256(orderedRuns(runs).map(run => canonicalJson(run)).join("\n"));
+  return sha256(orderedRuns(runs).map(run => persistedCanonicalJson(run)).join("\n"));
 }
 
 export function reportPayloadSha256(report) {
   const { recordPayloadSha256: _ignored, ...payload } = report;
   void _ignored;
-  return sha256(canonicalJson(payload));
+  return sha256(persistedCanonicalJson(payload));
 }
 
 function satisfiesRun(report, run) {
@@ -226,14 +232,14 @@ export async function writeBundleManifest(bundleRoot, fields) {
   }
   entries.sort((left, right) => left.path.localeCompare(right.path));
   const manifest = { schemaVersion: "lakda/acceptance-bundle/v1", ...fields, files: entries };
-  manifest.payloadSha256 = sha256(canonicalJson(manifest));
+  manifest.payloadSha256 = sha256(persistedCanonicalJson(manifest));
   const manifestPath = join(bundleRoot, "bundle-manifest.json");
   await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + "\n", "utf8");
   return { manifest, descriptor: { path: "bundle-manifest.json", size: (await stat(manifestPath)).size, sha256: await fileSha256(manifestPath) } };
 }
 
 function equal(left, right) {
-  return canonicalJson(left) === canonicalJson(right);
+  return persistedCanonicalJson(left) === persistedCanonicalJson(right);
 }
 
 export async function verifyAcceptanceReport({ reportPath, bundlePath, checkRevision = false }) {
@@ -296,7 +302,7 @@ export async function verifyAcceptanceReport({ reportPath, bundlePath, checkRevi
     throw new Error("bundle manifest identityがreportと一致しません");
   }
   const { payloadSha256, ...bundlePayload } = bundleManifest;
-  if (payloadSha256 !== sha256(canonicalJson(bundlePayload))) throw new Error("bundle payload hashが一致しません");
+  if (payloadSha256 !== sha256(persistedCanonicalJson(bundlePayload))) throw new Error("bundle payload hashが一致しません");
   const actualFiles = (await listFiles(bundlePath))
     .map(path => relative(bundlePath, path).split(sep).join("/"))
     .filter(path => path !== "bundle-manifest.json")
