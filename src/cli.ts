@@ -16,8 +16,8 @@ import { LAKDA_VERSION } from "./index.js";
 const usage = `lakda ${LAKDA_VERSION}
 
 Commands:
-  lakda run --base-url <url> --mode <smoke|seeded-random|llm-explore> [--seed <int>] [--headed]
-  lakda replay --input <action-sequence.json> --base-url <url>
+  lakda run --base-url <url> --mode <smoke|seeded-random|llm-explore|adaptive-explore> [--seed <int>] [--headed]
+  lakda replay --input <action-sequence-or-adaptive-replay.json> --base-url <url>
   lakda export hate --run-dir <run-dir> --out <artifact-manifest.json>
   lakda doctor [--config <path>]
   lakda auth capture --persona <name> --browser chromium --base-url <url>

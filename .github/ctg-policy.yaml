@@ -1,6 +1,6 @@
 version: ctg/v1
-policy_id: lakda-strict-v021
-description: Strict release-candidate policy for domain-lakda-runner.
+policy_id: lakda-strict-v030-rc1
+description: Strict P6 release-candidate policy for domain-lakda-runner v0.3.0-rc.1.
 
 blocking:
   severity:

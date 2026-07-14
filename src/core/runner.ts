@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { chromium, type BrowserContext, type Locator as PlaywrightLocator, type Page } from "playwright";
 import { ActionBudget } from "./action-budget.js";
+import { isAdaptiveReplayTrace, runAdaptiveExplore } from "../adaptive/coordinator.js";
 import { ArtifactCollector } from "./artifacts.js";
 import { inspectArtifactPolicy, removeSensitiveArtifacts } from "./artifact-policy.js";
 import { readJson, runSizeBytes, serializeTextArtifact, writeText } from "./artifact-store.js";
@@ -266,14 +267,20 @@ export async function runLakda(config: LakdaConfig, replayInput?: string, runtim
   const actionBudget = runtime.actionBudget ?? new ActionBudget(config.safety.maxActionsPerMinute, runtime.clock);
   const resolvedRuntime = { ...runtime, actionBudget };
   const collector = await ArtifactCollector.create(config, config.mode, resolvedRuntime);
-  let plan: ActionPlan = { schemaVersion: "lakda/action-plan/v1", mode: config.mode, seed: config.seed, baseUrl: config.baseUrl ?? "", actions: [] };
+  let plan: ActionPlan = { schemaVersion: "lakda/action-plan/v1", mode: config.mode === "adaptive-explore" ? "smoke" : config.mode, seed: config.seed, baseUrl: config.baseUrl ?? "", actions: [] };
   let llmStatus: LlmStatus = "not_requested";
   let execution!: ExecutionResult;
   try {
     if (replayInput) {
-      plan = validateActionPlan(await readJson(replayInput), config);
-      plan.mode = "regression-replay";
-      execution = !actionBudget.canConsume() ? { outcome: "partial", terminationReason: "rate_limit" } : await executePlan(config, plan, collector, resolvedRuntime);
+      const replay = await readJson(replayInput);
+      if (isAdaptiveReplayTrace(replay)) {
+        if (config.mode !== "adaptive-explore") throw new Error("adaptive replayにはmode=adaptive-exploreの設定が必要です");
+        execution = !actionBudget.canConsume() ? { outcome: "partial", terminationReason: "rate_limit" } : await runAdaptiveExplore(config, collector, resolvedRuntime, replay);
+      } else {
+        plan = validateActionPlan(replay, config);
+        plan.mode = "regression-replay";
+        execution = !actionBudget.canConsume() ? { outcome: "partial", terminationReason: "rate_limit" } : await executePlan(config, plan, collector, resolvedRuntime);
+      }
     } else if (!actionBudget.canConsume()) {
       execution = { outcome: "partial", terminationReason: "rate_limit" };
     } else if (config.mode === "llm-explore") {
@@ -299,6 +306,8 @@ export async function runLakda(config: LakdaConfig, replayInput?: string, runtim
         collector.addFailure("UI-008", error instanceof Error ? error.message : "LLM provider error");
         execution = { outcome: "error", terminationReason: "llm_error" };
       }
+    } else if (config.mode === "adaptive-explore") {
+      execution = await runAdaptiveExplore(config, collector, resolvedRuntime);
     } else {
       plan = createActionPlan(config, config.mode);
       llmStatus = config.llm.enabled ? await probeLlm(config) : "not_requested";

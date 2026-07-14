@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- P7の固定corpus実環境受入、実機Airtest/Poco、認可済みSecurity target、manual-bb/QEG Gateを継続する。
+
+## 0.3.0-rc.1 - 2026-07-15
+
+### Added
+
+- Web・ゲーム・Securityを共通のObservation / ActionCandidate / ExecutionResult / OracleResult / EvidenceArtifact契約で扱う`adaptive-explore`を追加。
+- DOM再観測、状態fingerprint/graph、coverage/plateau停止、seed付き未踏優先探索、backtrack、strict replay、failure shrinkingを追加。
+- Playwright adapter、operator管理のAirtest/PocoおよびSecurity loopback bridge、Security authorization/rate/concurrency/kill-switch/cleanup、ZAP候補分類を追加。
+- 公開package entrypointからadaptive DTO、Adapter SPI、Playwright/Airtest-Poco/Security adapterを利用可能にした。
+
+### Release Status
+
+- P0〜P6のunit/contract/integration/fixture受入を満たすopt-in RC。既存4 modeと`lakda/action-plan/v1`は維持する。
+- Airtest/Poco実機、認可済みSecurity target、実ZAP、AC-AE-015/016、manual-bb/QEG final Gateは`pending_external`であり、production Goを意味しない。
+- 配布物はsecurity-scan対象のnpm tarball。公開registryへのpublish、Git tag、GitHub Releaseは別承認とする。
+
+## 0.2.1
+
 ### Added
 - v0.2.0向けにArtifact Store、Artifact/Outcome Policy、60秒共有Action Budget、逐次worker batch（`RunBatchResult`）を追加。
 - `domSnapshots`のredacted HTML保存、`fixtureResetConfigured`導出、`llm.seed`同期、package/CLI version 0.2.0を追加。

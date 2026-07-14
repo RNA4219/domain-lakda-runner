@@ -47,3 +47,9 @@ npm run acceptance:verify -- --report=.lakda/reports/worker-smoke.json --bundle=
 LakdaはHATE/v1 artifact manifestまでを生成し、QEG record、Gate verdict、QEG用`lakda:` ID、HATE audit recordを生成しない。QEG変換とGate判定は後続のHATE/QEG責務である。
 
 実Qwen受入に用いたlocal llama-serverは、この作業で起動したloopback processである。完了確認後に停止する。
+
+## v0.3.0-rc.1 / P6 opt-in RC
+
+- [P6 RC納品記録](acceptance/AC-20260715-06.p6-rc.md)を正本とする。
+- P0〜P6のlocal/fixture Gate、Code-to-gate strict readiness、HATE pinned schema、package security scanを通過したnpm tarballを生成した。
+- Airtest/Poco実機、認可済みSecurity target、実ZAP、AC-AE-015/016、manual-bb/QEG final Gateは`pending_external`であり、production Goではない。

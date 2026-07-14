@@ -1,0 +1,66 @@
+name: P6 RC package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          repository: RNA4219/harness-auto-test-evidence
+          ref: 3a4b655c2434109e230f8b862a9d5fe14f1c069e
+          path: .upstream-hate
+          sparse-checkout: |
+            schemas/HATE/v1/artifact-manifest.schema.json
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - run: npm run check
+      - run: npm run acceptance:fixture
+      - run: npm run acceptance:adaptive
+      - run: npm run check:hate
+        env:
+          HATE_UPSTREAM_SCHEMA: .upstream-hate/schemas/HATE/v1/artifact-manifest.schema.json
+      - run: npm run pack:check
+      - name: Build P6 RC delivery
+        run: |
+          New-Item -ItemType Directory -Force delivery | Out-Null
+          $tarballName = (npm pack --pack-destination delivery | Select-Object -Last 1).Trim()
+          $tarball = Join-Path (Resolve-Path delivery).Path $tarballName
+          $scanRoot = Join-Path $env:RUNNER_TEMP "lakda-p6-package-scan"
+          New-Item -ItemType Directory -Force $scanRoot | Out-Null
+          tar -xzf $tarball -C $scanRoot
+          $scanPackage = Join-Path $scanRoot "package"
+          node scripts/scan-release-package.mjs "--path=$scanPackage" --out=delivery/package-security-scan.json
+          $sha = (Get-FileHash -Algorithm SHA256 -LiteralPath $tarball).Hash.ToLowerInvariant()
+          $summary = @{
+            schemaVersion = "lakda/p6-rc-delivery/v1"
+            version = "0.3.0-rc.1"
+            package = $tarballName
+            sha256 = $sha
+            status = "release_candidate"
+            externalGate = "pending_external"
+          }
+          $summary | ConvertTo-Json | Set-Content -Encoding utf8 delivery/p6-rc-delivery.json
+          node -e "import('./dist/index.js').then(m => { if (m.LAKDA_VERSION !== '0.3.0-rc.1' || !m.ADAPTIVE_SCHEMA_VERSION) process.exit(1) })"
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: lakda-p6-v0.3.0-rc.1-${{ github.sha }}
+          path: delivery/
+          if-no-files-found: error
+          retention-days: 30

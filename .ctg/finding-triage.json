@@ -3,6 +3,15 @@
   "owner": "RNA4219",
   "entries": [
     {
+      "fingerprint": "c2acc9d628c90f83",
+      "ruleId": "ENV_DIRECT_ACCESS",
+      "path": "scripts/run-adaptive-real-acceptance.mjs",
+      "disposition": "accepted-design",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "The real acceptance runner validates explicit confirmation, required paths, case identity, corpus contract, and environment metadata before loading Lakda or contacting a target."
+    },
+    {
       "fingerprint": "e2a8436463f3c111",
       "ruleId": "ENV_DIRECT_ACCESS",
       "path": "src/external-smoke.ts",
@@ -12,13 +21,22 @@
       "rationale": "The environment value is parsed with URL and passed through Lakda host allowlist validation before browser use."
     },
     {
+      "fingerprint": "f2951c73fcc3499a",
+      "ruleId": "LARGE_MODULE",
+      "path": "scripts/check-docs.mjs",
+      "disposition": "planned-refactor",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "Build-time documentation validation only; split adaptive and legacy contract checks after the P6 RC."
+    },
+    {
       "fingerprint": "61307a72e70e1b51",
       "ruleId": "LARGE_MODULE",
       "path": "scripts/real-llm-evidence.mjs",
       "disposition": "planned-refactor",
       "owner": "RNA4219",
       "dueDate": "2026-08-31",
-      "rationale": "Acceptance-only evidence tooling; split profile/report and bundle verification after v0.2.1 RC."
+      "rationale": "Acceptance-only evidence tooling; split profile/report and bundle verification after the P6 RC."
     },
     {
       "fingerprint": "396df2f9cdcf4ed0",
@@ -27,7 +45,16 @@
       "disposition": "planned-refactor",
       "owner": "RNA4219",
       "dueDate": "2026-08-31",
-      "rationale": "Fixture-only acceptance orchestration; no runtime import path."
+      "rationale": "Fixture-only acceptance orchestration with no runtime import path; retained for reproducible legacy acceptance."
+    },
+    {
+      "fingerprint": "ae47f1e6a467efac",
+      "ruleId": "LARGE_MODULE",
+      "path": "src/adaptive/coordinator.ts",
+      "disposition": "planned-refactor",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "The coordinator is a cohesive state-machine boundary covered by adaptive integration and replay tests; split generators and recovery after the P6 RC contract is frozen."
     },
     {
       "fingerprint": "5f245e8baacca130",
@@ -36,16 +63,16 @@
       "disposition": "planned-refactor",
       "owner": "RNA4219",
       "dueDate": "2026-08-31",
-      "rationale": "Follow-up boundary split is already outside the v0.2.1 responsibility-separation scope."
+      "rationale": "Existing v0.2.1 module covered by deterministic LLM evidence tests; transport split remains outside the P6 RC scope."
     },
     {
-      "fingerprint": "634b2067f4f664fe",
+      "fingerprint": "f440031f883c031b",
       "ruleId": "LARGE_MODULE",
       "path": "src/core/runner.ts",
       "disposition": "planned-refactor",
       "owner": "RNA4219",
       "dueDate": "2026-08-31",
-      "rationale": "Executor split remains the documented next Task Seed; current behavior is covered by deterministic acceptance."
+      "rationale": "Mode dispatch remains regression-covered; executor split is deferred until after the P6 RC compatibility boundary is frozen."
     }
   ]
 }
