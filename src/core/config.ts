@@ -41,7 +41,7 @@ const defaultConfig: LakdaConfig = {
     enabled: false,
     baseUrl: "http://127.0.0.1:8080/v1",
     expectedModelId: "Qwen3.5-4B-Q4_K_M.gguf",
-    runtimeEvidence: { runtimeVersion: "llama-server 9733", runtimeBuild: "f449e0553", chatTemplateHash: "configured-at-run-time" },
+    runtimeEvidence: { runtimeVersion: "not-provided", runtimeBuild: "not-provided", chatTemplateHash: "not-provided" },
     seed: 4219,
     temperature: 0,
     topP: 1,

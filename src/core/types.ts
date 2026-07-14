@@ -167,6 +167,7 @@ export type LlmDecision =
 export type LlmEvidence = {
   endpoint: string;
   modelId?: string;
+  providerModelId?: string;
   modelSha256?: string;
   runtime: LlmConfig["runtimeEvidence"];
   promptHash: string;

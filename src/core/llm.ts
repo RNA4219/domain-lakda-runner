@@ -24,6 +24,8 @@ class RetryableProviderError extends Error { constructor(message: string) { supe
 
 export class LlmContractError extends Error { constructor(message: string, readonly evidence?: LlmEvidence) { super(message); this.name = "LlmContractError"; } }
 
+function portableModelId(value: string): string { return value.split(/[\\\\/]/).at(-1) ?? value; }
+
 function endpoint(config: LakdaConfig, path: string): string {
   const base = assertLoopbackEndpoint(config.llm.baseUrl);
   return new URL(path.replace(/^\//, ""), `${base.toString().replace(/\/$/, "")}/`).toString();
@@ -88,28 +90,29 @@ function strictJson(text: string): unknown {
   return JSON.parse(text) as unknown;
 }
 
-function responseContent(raw: Uint8Array, contentType: string): { content: string; responseTokens?: number } {
+function responseContent(raw: Uint8Array, contentType: string): { content: string; responseTokens?: number; providerModelId?: string } {
   const text = new TextDecoder().decode(raw).trim();
   if (!contentType.includes("text/event-stream")) {
-    const json = JSON.parse(text) as { choices?: Array<{ message?: { content?: string } }>; usage?: { completion_tokens?: number } };
+    const json = JSON.parse(text) as { model?: string; choices?: Array<{ message?: { content?: string } }>; usage?: { completion_tokens?: number } };
     const content = json.choices?.[0]?.message?.content;
     if (typeof content !== "string") throw new LlmContractError("completion contentがありません");
-    return { content, responseTokens: json.usage?.completion_tokens };
+    return { content, responseTokens: json.usage?.completion_tokens, providerModelId: json.model };
   }
-  let content = ""; let tokens: number | undefined; let done = false;
+  let content = ""; let tokens: number | undefined; let providerModelId: string | undefined; let done = false;
   for (const line of text.split(/\r?\n/)) {
     if (!line.startsWith("data:")) continue;
     const payload = line.slice(5).trim();
     if (!payload) continue;
     if (payload === "[DONE]") { done = true; continue; }
-    let event: { choices?: Array<{ delta?: { content?: string } }>; usage?: { completion_tokens?: number } };
+    let event: { model?: string; choices?: Array<{ delta?: { content?: string } }>; usage?: { completion_tokens?: number } };
     try { event = JSON.parse(payload) as typeof event; } catch { throw new LlmContractError("SSE JSONが不正です"); }
     content += event.choices?.[0]?.delta?.content ?? "";
     tokens = event.usage?.completion_tokens ?? tokens;
+    providerModelId = event.model ?? providerModelId;
   }
   if (!done) throw new LlmContractError("SSE [DONE]がありません");
   if (!content) throw new LlmContractError("SSE contentがありません");
-  return { content, responseTokens: tokens };
+  return { content, responseTokens: tokens, providerModelId };
 }
 
 async function readResponse(response: Response, startedAt: number, timeoutMs: number): Promise<{ raw: Uint8Array; ttftMs?: number }> {
@@ -174,7 +177,7 @@ export class LocalLlmClient {
         { role: "system", content: "Return exactly one compact JSON decision. For action use {\"decision\":\"action\",\"candidateId\":\"a supplied ID\",\"reason\":\"brief\",\"confidence\":\"high\"}. Never nest decision or emit other keys." },
         { role: "user", content: JSON.stringify(prompt) },
       ],
-      response_format: { type: "json_object" }, max_tokens: this.config.llm.maxTokens, stream: true,
+      response_format: { type: "json_object" }, stream_options: { include_usage: true }, max_tokens: this.config.llm.maxTokens, stream: true,
     }, 0);
     let parsed: unknown;
     try { parsed = strictJson(response.content); }
@@ -220,8 +223,9 @@ export class LocalLlmClient {
         const response = await this.fetch(endpoint(this.config, "chat/completions"), { method: "POST", body: JSON.stringify(requestBody) }, this.config.llm.connectTimeoutMs);
         const incoming = await readResponse(response, started, this.config.llm.requestTimeoutMs);
         const parsed = responseContent(incoming.raw, response.headers.get("content-type") ?? "application/json");
+        if (parsed.providerModelId && parsed.providerModelId !== this.config.llm.expectedModelId) throw new LlmContractError("completion responseのmodel IDが一致しません");
         return {
-          content: parsed.content, endpoint: this.config.llm.baseUrl, modelId: this.config.llm.expectedModelId, modelSha256: this.config.llm.modelSha256,
+          content: parsed.content, endpoint: this.config.llm.baseUrl, modelId: portableModelId(this.config.llm.expectedModelId), providerModelId: parsed.providerModelId ? portableModelId(parsed.providerModelId) : undefined, modelSha256: this.config.llm.modelSha256,
           runtime: this.config.llm.runtimeEvidence, promptHash, schemaHash, seed: this.config.llm.seed, temperature: this.config.llm.temperature, topP: this.config.llm.topP,
           maxTokens: typeof (payload as { max_tokens?: number }).max_tokens === "number" ? (payload as { max_tokens: number }).max_tokens : this.config.llm.maxTokens,
           attempt, retryReason: lastRetry || undefined, httpStatus: response.status, requestTokens: undefined, responseTokens: parsed.responseTokens,
