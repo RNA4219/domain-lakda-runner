@@ -1,0 +1,554 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lakda.local/schemas/real-llm-acceptance-report-v2.schema.json",
+  "title": "Lakda real LLM acceptance report v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "profile",
+    "subjectRevision",
+    "corpus",
+    "environment",
+    "execution",
+    "coverage",
+    "runs",
+    "metrics",
+    "overall",
+    "recordPayloadSha256"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "lakda/real-llm-acceptance/v2"
+    },
+    "generatedAt": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T"
+    },
+    "profile": {
+      "enum": [
+        "full",
+        "worker-smoke",
+        "custom"
+      ]
+    },
+    "subjectRevision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "corpus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "version",
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "lakda/acceptance-corpus/v1"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "const": "tests/fixtures/acceptance-corpus-v1.json"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha"
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "endpoint",
+        "browser",
+        "workers",
+        "model",
+        "runtime",
+        "sampling",
+        "timeouts"
+      ],
+      "properties": {
+        "endpoint": {
+          "type": "string",
+          "minLength": 1
+        },
+        "browser": {
+          "const": "chromium"
+        },
+        "workers": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
+        },
+        "model": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "expectedModelId",
+            "actualModelId",
+            "expectedModelIdSha256",
+            "actualModelIdSha256",
+            "fileName",
+            "expectedSha256",
+            "actualSha256",
+            "expectedSha256Provided"
+          ],
+          "properties": {
+            "expectedModelId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "actualModelId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "fileName": {
+              "type": "string",
+              "minLength": 1
+            },
+            "expectedSha256": {
+              "$ref": "#/$defs/sha"
+            },
+            "actualSha256": {
+              "$ref": "#/$defs/sha"
+            },
+            "expectedSha256Provided": {
+              "type": "boolean"
+            },
+            "expectedModelIdSha256": {
+              "$ref": "#/$defs/sha"
+            },
+            "actualModelIdSha256": {
+              "$ref": "#/$defs/sha"
+            }
+          }
+        },
+        "runtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "version",
+            "buildInfo",
+            "chatTemplateSha256"
+          ],
+          "properties": {
+            "version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "buildInfo": {
+              "type": "string",
+              "minLength": 1
+            },
+            "chatTemplateSha256": {
+              "$ref": "#/$defs/sha"
+            }
+          }
+        },
+        "sampling": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "seed",
+            "temperature",
+            "topP",
+            "maxTokens"
+          ],
+          "properties": {
+            "seed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "temperature": {
+              "const": 0
+            },
+            "topP": {
+              "const": 1
+            },
+            "maxTokens": {
+              "const": 512
+            }
+          }
+        },
+        "timeouts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "connectMs",
+            "generationMs"
+          ],
+          "properties": {
+            "connectMs": {
+              "const": 5000
+            },
+            "generationMs": {
+              "const": 60000
+            }
+          }
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command",
+        "runCount",
+        "runEvidenceSetSha256",
+        "bundleManifest"
+      ],
+      "properties": {
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "runEvidenceSetSha256": {
+          "$ref": "#/$defs/sha"
+        },
+        "bundleManifest": {
+          "$ref": "#/$defs/file"
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ac007",
+        "ac010",
+        "ac014Supplement"
+      ],
+      "properties": {
+        "ac007": {
+          "$ref": "#/$defs/coverage"
+        },
+        "ac010": {
+          "$ref": "#/$defs/coverage"
+        },
+        "ac014Supplement": {
+          "$ref": "#/$defs/coverage"
+        }
+      }
+    },
+    "runs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/run"
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total",
+        "completed",
+        "accepted",
+        "passed",
+        "actionSelected",
+        "modelAvailable",
+        "criticalTotal",
+        "criticalPassed",
+        "implicitFallbacks",
+        "errors"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "completed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "accepted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "passed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "actionSelected": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "modelAvailable": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "criticalTotal": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "criticalPassed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "implicitFallbacks": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "overall": {
+      "type": "boolean"
+    },
+    "recordPayloadSha256": {
+      "$ref": "#/$defs/sha"
+    }
+  },
+  "$defs": {
+    "sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "size",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^(?!.*(?:^|/)\\.\\.(?:/|$))(?![A-Za-z]:)(?!/).+$"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha"
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eligible",
+        "expected",
+        "actual",
+        "passed"
+      ],
+      "properties": {
+        "eligible": {
+          "type": "boolean"
+        },
+        "expected": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "actual": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "passed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "caseId",
+        "caseKind",
+        "repetition",
+        "workerIndex",
+        "seed",
+        "status",
+        "runId",
+        "outcome",
+        "terminationReason",
+        "llmStatus",
+        "strictJsonAccepted",
+        "selectedExpectedAction",
+        "implicitFallback",
+        "providerModelId",
+        "decision",
+        "files"
+      ],
+      "properties": {
+        "caseId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "caseKind": {
+          "enum": [
+            "normal",
+            "critical"
+          ]
+        },
+        "repetition": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "workerIndex": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "error"
+          ]
+        },
+        "runId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "outcome": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "passed",
+            "failed",
+            "partial",
+            "error",
+            null
+          ]
+        },
+        "terminationReason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "llmStatus": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "not_requested",
+            "available",
+            "unavailable",
+            "mismatch",
+            null
+          ]
+        },
+        "strictJsonAccepted": {
+          "type": "boolean"
+        },
+        "selectedExpectedAction": {
+          "type": "boolean"
+        },
+        "implicitFallback": {
+          "type": "boolean"
+        },
+        "providerModelId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "decision": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "decision",
+                "candidateId",
+                "reason",
+                "confidence",
+                "rawResponseSha256",
+                "promptHash",
+                "schemaHash",
+                "responseTokens",
+                "totalLatencyMs",
+                "retryCount"
+              ],
+              "properties": {
+                "decision": { "const": "action" },
+                "candidateId": { "type": "string", "minLength": 1 },
+                "inputProfileId": { "type": "string", "minLength": 1 },
+                "reason": { "type": "string", "minLength": 1 },
+                "confidence": { "enum": ["low", "medium", "high"] },
+                "rawResponseSha256": { "$ref": "#/$defs/sha" },
+                "promptHash": { "$ref": "#/$defs/sha" },
+                "schemaHash": { "$ref": "#/$defs/sha" },
+                "responseTokens": { "type": "integer", "minimum": 0 },
+                "totalLatencyMs": { "type": "number", "minimum": 0 },
+                "retryCount": { "type": "integer", "minimum": 0, "maximum": 2 }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "files": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "decision",
+                "actionSequence",
+                "hateManifest"
+              ],
+              "properties": {
+                "decision": {
+                  "$ref": "#/$defs/file"
+                },
+                "actionSequence": {
+                  "$ref": "#/$defs/file"
+                },
+                "hateManifest": {
+                  "$ref": "#/$defs/file"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "message"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,4 +1,6 @@
-export type RunMode = "smoke" | "seeded-random" | "regression-replay" | "llm-explore";
+import type { AdaptiveConfig } from "../adaptive/contracts.js";
+
+export type RunMode = "smoke" | "seeded-random" | "regression-replay" | "llm-explore" | "adaptive-explore";
 export type RunOutcome = "passed" | "failed" | "partial" | "error";
 export type ArtifactExpectations = { trace: boolean; screenshot: boolean; video: boolean; har: boolean; domSnapshots: number };
 export type LlmStatus = "not_requested" | "available" | "unavailable" | "mismatch";
@@ -58,7 +60,7 @@ export type Action = {
 
 export type ActionPlan = {
   schemaVersion: "lakda/action-plan/v1";
-  mode: Exclude<RunMode, "llm-explore"> | "llm-explore";
+  mode: "smoke" | "seeded-random" | "regression-replay" | "llm-explore";
   seed: number;
   baseUrl: string;
   actions: Action[];
@@ -92,6 +94,7 @@ export type LakdaConfig = {
   workers: number;
   outputDir: string;
   headed: boolean;
+  adaptive?: AdaptiveConfig;
   /** v1 source of truth for executable actions. */
   actionCatalog: Action[];
   /** Backward-compatible input alias; normalized into actionCatalog. */
@@ -167,6 +170,7 @@ export type LlmDecision =
 export type LlmEvidence = {
   endpoint: string;
   modelId?: string;
+  providerModelId?: string;
   modelSha256?: string;
   runtime: LlmConfig["runtimeEvidence"];
   promptHash: string;

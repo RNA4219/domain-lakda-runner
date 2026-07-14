@@ -1,5 +1,5 @@
 {
-  "generated_at": "00014",
+  "generated_at": "00020",
   "nodes": {
     "README.md": {
       "role": "overview",
@@ -110,6 +110,26 @@
       "role": "acceptance",
       "caps": "docs/birdseye/caps/docs.acceptance.AC.20260713.06.v021.hardening.real.llm.json.json",
       "mtime": "00025"
+    },
+    "docs/acceptance/AC-20260712-00.md": {
+      "role": "acceptance",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260712-00.md.json"
+    },
+    "docs/acceptance/AC-20260714-01.v021-real-llm-0862714.md": {
+      "role": "acceptance",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260714-01.v021-real-llm-0862714.md.json"
+    },
+    "docs/acceptance/AC-20260714-02.v021-evidence-contract-correction.md": {
+      "role": "acceptance",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260714-02.v021-evidence-contract-correction.md.json"
+    },
+    "docs/acceptance/AC-20260714-01.v021-real-llm-0862714.json": {
+      "role": "acceptance",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260714-01.v021-real-llm-0862714.json.json"
+    },
+    "docs/acceptance/AC-20260714-03.v021-real-llm-eef71cb.md": {
+      "role": "acceptance",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260714-03.v021-real-llm-eef71cb.md.json"
     }
   },
   "edges": [

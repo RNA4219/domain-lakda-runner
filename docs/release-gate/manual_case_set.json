@@ -1,0 +1,62 @@
+{
+  "feature_id": "LAKDA-RC-021",
+  "manual_cases": [
+    {
+      "tc_id": "TC-LAKDA-RC-001",
+      "title": "実stagingで決定的smokeを実行できる",
+      "priority": "P0",
+      "primary_view": "black",
+      "techniques": ["state_transition", "production_like_environment"],
+      "preconditions": ["対象revisionがfreeze済み", "staging hostが明示allowlist済み", "認証はGitHub Environmentまたはignore済みlocal auth stateから注入"],
+      "steps": ["許可済みstagingへChromiumで接続する", "smoke profileを実行する", "主要画面と機械oracleの結果を観察する"],
+      "expected_results": ["allowlist外へ遷移しない", "smoke runがcompleted/passedで終了する", "認証値がconsoleまたは証跡に表示されない"],
+      "oracle": {"type": "specified", "refs": ["AC-018", "REQ-SEC-001", "REQ-SEC-003"]},
+      "source_ref": {"type": "acceptance", "refs": ["AC-018"]},
+      "estimate_minutes": 15,
+      "trace_to": ["RISK-RC-01"]
+    },
+    {
+      "tc_id": "TC-LAKDA-RC-002",
+      "title": "実Qwen llm-exploreが候補IDだけでstaging操作を選択する",
+      "priority": "P0",
+      "primary_view": "black",
+      "techniques": ["decision_table", "state_transition"],
+      "preconditions": ["full 90-runとworker-smoke 20-runが対象revisionで完了", "staging fixture resetが設定済み"],
+      "steps": ["llm-exploreを実stagingへ実行する", "選択actionと実ブラウザ状態差分を観察する", "終了outcomeとtermination reasonを確認する"],
+      "expected_results": ["LLMは提示candidate ID以外を実行できない", "実行actionとbrowser状態差分が一致する", "LLM単独でGate verdictを生成しない"],
+      "oracle": {"type": "specified", "refs": ["AC-007", "AC-010", "AC-018"]},
+      "source_ref": {"type": "acceptance", "refs": ["AC-007", "AC-010", "AC-018"]},
+      "estimate_minutes": 20,
+      "trace_to": ["RISK-RC-01"]
+    },
+    {
+      "tc_id": "TC-LAKDA-RC-003",
+      "title": "allowlist外遷移と破壊操作をstagingで拒否する",
+      "priority": "P0",
+      "primary_view": "black",
+      "techniques": ["negative_testing", "decision_table"],
+      "preconditions": ["安全な検証用candidateをstagingに用意", "実データ破壊を伴わない"],
+      "steps": ["allowlist外遷移candidateがExecutor候補へ入らないことを確認する", "破壊語を持つ操作が拒否されることを確認する", "拒否後の画面状態を確認する"],
+      "expected_results": ["allowlist外遷移は0件", "破壊操作は0件", "staging状態が変更されない"],
+      "oracle": {"type": "specified", "refs": ["AC-008", "AC-018"]},
+      "source_ref": {"type": "acceptance", "refs": ["AC-008", "AC-018"]},
+      "estimate_minutes": 15,
+      "trace_to": ["RISK-RC-03"]
+    },
+    {
+      "tc_id": "TC-LAKDA-RC-004",
+      "title": "release evidenceを別processで再検証できる",
+      "priority": "P0",
+      "primary_view": "gray",
+      "techniques": ["independent_reverification", "tamper_testing"],
+      "preconditions": ["sanitized full bundleとworker-smoke bundleを取得", "対象revisionをcheckout"],
+      "steps": ["acceptance verifierで両bundleを検証する", "child HATE manifestと全hashを確認する", "複製したbundleの1 byteを変更して再検証する", "manual-bb execution evidenceをstrict gateへ渡す"],
+      "expected_results": ["未変更bundleは対象revision・件数・hash検証に成功する", "改ざんbundleは検証失敗する", "mock、欠落、件数不足はQEG前提を満たさない"],
+      "oracle": {"type": "specified", "refs": ["AC-017", "AC-018"]},
+      "source_ref": {"type": "acceptance", "refs": ["AC-017", "AC-018"]},
+      "estimate_minutes": 20,
+      "trace_to": ["RISK-RC-02", "RISK-RC-03"]
+    }
+  ],
+  "exploratory_charters": []
+}

@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import type { Action, LakdaConfig, RunMode } from "./types.js";
 import { assertLoopbackEndpoint } from "./safety.js";
+import { validateAdaptiveConfig } from "../adaptive/config.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const configSchema = JSON.parse(readFileSync(resolve(root, "schemas", "lakda-config-v1.schema.json"), "utf8")) as object;
@@ -41,7 +42,7 @@ const defaultConfig: LakdaConfig = {
     enabled: false,
     baseUrl: "http://127.0.0.1:8080/v1",
     expectedModelId: "Qwen3.5-4B-Q4_K_M.gguf",
-    runtimeEvidence: { runtimeVersion: "llama-server 9733", runtimeBuild: "f449e0553", chatTemplateHash: "configured-at-run-time" },
+    runtimeEvidence: { runtimeVersion: "not-provided", runtimeBuild: "not-provided", chatTemplateHash: "not-provided" },
     seed: 4219,
     temperature: 0,
     topP: 1,
@@ -146,6 +147,7 @@ export function validateConfig(config: LakdaConfig): void {
   if (config.actionCatalog.some(action => action.mutates) && config.safety.requireFixtureResetForMutations && !config.fixtureReset) {
     throw new Error("変更操作にはfixtureResetが必要です");
   }
+  if (config.mode === "adaptive-explore") validateAdaptiveConfig(config.adaptive, config);
   if (config.mode === "llm-explore") {
     if (!config.llm.enabled) throw new Error("llm-explore には llm.enabled=true が必要です");
     if (!config.llm.modelPath || !config.llm.modelSha256) throw new Error("llm-explore には modelPath と modelSha256 が必要です");
@@ -153,8 +155,8 @@ export function validateConfig(config: LakdaConfig): void {
 }
 
 export function parseMode(value: string | undefined): RunMode {
-  if (value === "smoke" || value === "seeded-random" || value === "regression-replay" || value === "llm-explore") return value;
-  throw new Error("mode は smoke, seeded-random, regression-replay, llm-explore のいずれかです");
+  if (value === "smoke" || value === "seeded-random" || value === "regression-replay" || value === "llm-explore" || value === "adaptive-explore") return value;
+  throw new Error("mode は smoke, seeded-random, regression-replay, llm-explore, adaptive-explore のいずれかです");
 }
 
 export function normalizedAction(action: Action): Action {

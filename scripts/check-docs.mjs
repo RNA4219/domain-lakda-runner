@@ -8,13 +8,27 @@ const failures = [];
 
 function walk(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
-    if (["node_modules", ".git", "dist"].includes(entry.name)) return [];
+    if (["node_modules", ".git", ".lakda", "coverage", "dist", "playwright-report", "test-results"].includes(entry.name)) return [];
     const path = resolve(directory, entry.name);
     return entry.isDirectory() ? walk(path) : extname(path) === ".md" ? [path] : [];
   });
 }
 
-for (const path of walk(root)) {
+function metadata(text) {
+  const block = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!block) return {};
+  return Object.fromEntries(block[1].split(/\r?\n/).flatMap(line => {
+    const separator = line.indexOf(":");
+    return separator < 0 ? [] : [[line.slice(0, separator).trim(), line.slice(separator + 1).trim()]];
+  }));
+}
+
+function ids(text, pattern) {
+  return [...new Set(text.match(pattern) ?? [])];
+}
+
+const markdownPaths = walk(root);
+for (const path of markdownPaths) {
   const text = readFileSync(path, "utf8");
   if ((text.match(/^```/gm) ?? []).length % 2 !== 0) failures.push(`${basename(path)}: unclosed code fence`);
   for (const match of text.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)) {
@@ -32,19 +46,70 @@ const requirements = readFileSync(resolve(root, "REQUIREMENTS.md"), "utf8");
 const specification = readFileSync(resolve(root, "SPECIFICATION.md"), "utf8");
 const evaluation = readFileSync(resolve(root, "EVALUATION.md"), "utf8");
 const packageJson = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
-if (packageJson.version !== "0.2.1") failures.push("package.json: expected version 0.2.1, got " + packageJson.version);
-for (const id of [...new Set(requirements.match(/AC-\d{8}-\d{2}|AC-\d{3}/g) ?? [])]) {
+if (packageJson.version !== "0.3.0-rc.1") failures.push("package.json: expected version 0.3.0-rc.1, got " + packageJson.version);
+for (const id of ids(requirements, /AC-\d{8}-\d{2}|AC-\d{3}/g)) {
   if (!specification.includes(id)) failures.push("SPECIFICATION.md: missing " + id);
   if (!evaluation.includes(id)) failures.push("EVALUATION.md: missing " + id);
 }
-for (const requiredPath of ["docs/tasks/TASK.20260713-06.md", "docs/acceptance/AC-20260713-05.v021-hardening-fixture.json", "docs/acceptance/AC-20260713-06.v021-hardening-real-llm.json"]) {
+
+for (const requiredPath of [
+  "docs/tasks/TASK.20260713-06.md",
+  "docs/tasks/TASK.20260714-07.md",
+  "docs/tasks/TASK.20260714-08.md",
+  "docs/IMPLEMENTATION-PLAN-ADAPTIVE-EXPLORATION.md",
+  "docs/acceptance/AC-20260713-05.v021-hardening-fixture.json",
+  "docs/acceptance/AC-20260713-06.v021-hardening-real-llm.json",
+  "docs/acceptance/AC-20260714-02.v021-evidence-contract-correction.md",
+  "schemas/real-llm-acceptance-report-v2.schema.json",
+  "schemas/manual-bb-release-record-v1.schema.json",
+  ".github/workflows/release-evidence.yml",
+  "codemap.config.json",
+]) {
   if (!statSync(resolve(root, requiredPath), { throwIfNoEntry: false })) failures.push("missing required evidence " + requiredPath);
 }
+
+
+const adaptivePlanPath = resolve(root, "docs/IMPLEMENTATION-PLAN-ADAPTIVE-EXPLORATION.md");
+const adaptiveTaskSeedPath = resolve(root, "docs/tasks/TASK.20260714-08.md");
+if (statSync(adaptivePlanPath, { throwIfNoEntry: false })) {
+  const adaptivePlan = readFileSync(adaptivePlanPath, "utf8");
+  for (const heading of ["## Plan", "## Patch", "## Tests", "## Commands", "## Notes"]) {
+    if (!adaptivePlan.includes(heading)) failures.push("adaptive implementation plan: missing " + heading);
+  }
+  for (let number = 8; number <= 35; number += 1) {
+    const taskId = "TASK.20260714-" + String(number).padStart(2, "0");
+    if (!adaptivePlan.includes(taskId)) failures.push("adaptive implementation plan: missing " + taskId);
+  }
+  for (let number = 1; number <= 16; number += 1) {
+    const acceptanceId = "AC-AE-" + String(number).padStart(3, "0");
+    if (!adaptivePlan.includes(acceptanceId)) failures.push("adaptive implementation plan: missing " + acceptanceId);
+  }
+}
+if (statSync(adaptiveTaskSeedPath, { throwIfNoEntry: false })) {
+  const adaptiveTaskSeed = readFileSync(adaptiveTaskSeedPath, "utf8");
+  const taskMeta = metadata(adaptiveTaskSeed);
+  if (taskMeta.task_id !== "TASK.20260714-08") failures.push("adaptive Task Seed: incorrect task_id");
+  if (taskMeta.status !== "planned") failures.push("adaptive Task Seed: status must be planned");
+  for (const heading of ["## Objective", "## Scope", "## Requirements", "## Plan", "## Patch", "## Tests", "## Commands", "## Notes"]) {
+    if (!adaptiveTaskSeed.includes(heading)) failures.push("adaptive Task Seed: missing " + heading);
+  }
+  for (const reference of ["SPEC-01-COMMON-CORE.md", "CHECKLIST-01-COMMON-CORE.md", "AC-AE-014"]) {
+    if (!adaptiveTaskSeed.includes(reference)) failures.push("adaptive Task Seed: missing " + reference);
+  }
+}
+
 const require = createRequire(import.meta.url);
 const hateSchema = JSON.parse(readFileSync(resolve(root, "vendor/hate/v1/artifact-manifest.schema.json"), "utf8"));
 const Ajv = require("ajv/dist/2020").default;
 const hateValidate = new Ajv({ allErrors: true, strict: false }).compile(hateSchema);
-for (const path of walk(root)) {
+for (const schemaPath of ["schemas/real-llm-acceptance-report-v2.schema.json", "schemas/manual-bb-release-record-v1.schema.json"]) {
+  try {
+    new Ajv({ allErrors: true, strict: false, validateFormats: false }).compile(JSON.parse(readFileSync(resolve(root, schemaPath), "utf8")));
+  } catch (error) {
+    failures.push(`${schemaPath}: schema compile failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+for (const path of markdownPaths) {
   const text = readFileSync(path, "utf8");
   for (const json of text.matchAll(/^```json\s*\r?\n([\s\S]*?)^```/gm)) {
     let value;
@@ -52,12 +117,111 @@ for (const path of walk(root)) {
     if (value && value.schema_version === "HATE/v1" && !hateValidate(value)) failures.push(basename(path) + ": HATE/v1 example does not match vendor schema");
   }
 }
-for (const id of [...new Set(requirements.match(/REQ-(?:FN|LLM|NF|SEC)-\d+/g) ?? [])]) {
+for (const id of ids(requirements, /REQ-(?:FN|LLM|NF|SEC)-\d+/g)) {
   if (!specification.includes(id)) failures.push(`SPECIFICATION.md: missing ${id}`);
   if (!evaluation.includes(id)) failures.push(`EVALUATION.md: missing ${id}`);
 }
-for (const [label, pattern] of [["opaque citation", /citeturn/], ["direct QEG CLI", /lakda export qeg/]]) {
-  if (walk(root).some(path => pattern.test(readFileSync(path, "utf8")))) failures.push(`forbidden ${label}`);
+
+const adaptiveDir = resolve(root, "docs/spec/adaptive-exploration");
+const adaptiveRequirementsPath = resolve(root, "REQUIREMENTS-ADAPTIVE-EXPLORATION.md");
+const adaptiveIndexPath = resolve(adaptiveDir, "README.md");
+const adaptiveEvaluationPath = resolve(adaptiveDir, "EVALUATION-ADAPTIVE-EXPLORATION.md");
+for (const path of [adaptiveRequirementsPath, adaptiveIndexPath, adaptiveEvaluationPath]) {
+  if (!statSync(path, { throwIfNoEntry: false })) failures.push(`missing adaptive document ${basename(path)}`);
+}
+
+if (statSync(adaptiveDir, { throwIfNoEntry: false }) && statSync(adaptiveRequirementsPath, { throwIfNoEntry: false })) {
+  const adaptiveRequirements = readFileSync(adaptiveRequirementsPath, "utf8");
+  const adaptiveEvaluation = readFileSync(adaptiveEvaluationPath, "utf8");
+  const adaptiveIndex = readFileSync(adaptiveIndexPath, "utf8");
+  const entries = readdirSync(adaptiveDir).filter(name => name.endsWith(".md")).sort();
+  const specNames = entries.filter(name => /^SPEC-\d{2}-.+\.md$/.test(name));
+  const checklistNames = entries.filter(name => /^CHECKLIST-\d{2}-.+\.md$/.test(name));
+  if (specNames.length !== 6) failures.push(`adaptive specs: expected 6, got ${specNames.length}`);
+  if (checklistNames.length !== 6) failures.push(`adaptive checklists: expected 6, got ${checklistNames.length}`);
+
+  const specDocs = new Map(specNames.map(name => [name, readFileSync(resolve(adaptiveDir, name), "utf8")]));
+  const checklistDocs = new Map(checklistNames.map(name => [name, readFileSync(resolve(adaptiveDir, name), "utf8")]));
+  const requirementIds = ids(adaptiveRequirements, /REQ-[A-Z]+-\d{3}/g);
+  const acceptanceIds = ids(adaptiveRequirements, /AC-AE-\d{3}/g);
+  if (requirementIds.length !== 128) failures.push(`adaptive requirements: expected 128, got ${requirementIds.length}`);
+  if (acceptanceIds.length !== 16) failures.push(`adaptive acceptance: expected 16, got ${acceptanceIds.length}`);
+
+  for (const id of requirementIds) {
+    const owners = [...specDocs].filter(([, text]) => text.includes(id)).map(([name]) => name);
+    const checklists = [...checklistDocs].filter(([, text]) => text.includes(id)).map(([name]) => name);
+    if (owners.length !== 1) failures.push(`adaptive requirement ${id}: expected 1 primary spec, got ${owners.join(",") || "none"}`);
+    if (checklists.length !== 1) failures.push(`adaptive requirement ${id}: expected 1 checklist, got ${checklists.join(",") || "none"}`);
+  }
+
+  const knownRequirements = new Set(requirementIds);
+  for (const [name, text] of [...specDocs, ...checklistDocs]) {
+    for (const id of ids(text, /REQ-[A-Z]+-\d{3}/g)) {
+      if (!knownRequirements.has(id)) failures.push(`${name}: unknown adaptive requirement ${id}`);
+    }
+  }
+
+  for (const id of acceptanceIds) {
+    if (!adaptiveEvaluation.includes(id)) failures.push(`adaptive evaluation: missing ${id}`);
+    if (![...checklistDocs.values()].some(text => text.includes(id))) failures.push(`adaptive checklists: missing ${id}`);
+  }
+
+  const checklistItemIds = new Map();
+  for (const [name, text] of checklistDocs) {
+    const number = String(Number(name.match(/^CHECKLIST-(\d{2})-/)[1])).padStart(3, "0");
+    if (!/\|\s*証跡\s*\|/.test(text)) failures.push(`${name}: missing evidence column`);
+    for (const [index, line] of text.split(/\r?\n/).entries()) {
+      if (!/\[(?: |x)\]/.test(line)) continue;
+      const found = line.match(/CHK-AE-\d{3}-[SIA]-\d{3}/g) ?? [];
+      if (found.length !== 1) {
+        failures.push(`${name}:${index + 1}: checkbox must have exactly one checklist item ID`);
+        continue;
+      }
+      const id = found[0];
+      if (!id.startsWith(`CHK-AE-${number}-`)) failures.push(`${name}:${index + 1}: checklist item ID belongs to another specification: ${id}`);
+      if (checklistItemIds.has(id)) failures.push(`${name}:${index + 1}: duplicate checklist item ID ${id}`);
+      else checklistItemIds.set(id, `${name}:${index + 1}`);
+    }
+  }
+
+  const documentIds = new Map();
+  for (const name of ["README.md", "EVALUATION-ADAPTIVE-EXPLORATION.md", ...specNames, ...checklistNames]) {
+    const text = readFileSync(resolve(adaptiveDir, name), "utf8");
+    const meta = metadata(text);
+    if (!meta.document_id) failures.push(`${name}: missing document_id`);
+    else if (documentIds.has(meta.document_id)) failures.push(`${name}: duplicate document_id ${meta.document_id}`);
+    else documentIds.set(meta.document_id, name);
+  }
+
+  for (const specName of specNames) {
+    const number = specName.match(/^SPEC-(\d{2})-/)[1];
+    const expectedId = `LAKDA-SPEC-AE-${String(Number(number)).padStart(3, "0")}`;
+    const specText = specDocs.get(specName);
+    const specMeta = metadata(specText);
+    const checklistName = specName.replace(/^SPEC-/, "CHECKLIST-");
+    if (specMeta.document_id !== expectedId) failures.push(`${specName}: expected document_id ${expectedId}`);
+    if (specMeta.checklist !== checklistName) failures.push(`${specName}: checklist metadata must be ${checklistName}`);
+    if (!checklistDocs.has(checklistName)) failures.push(`${specName}: missing paired checklist ${checklistName}`);
+    if (!adaptiveIndex.includes(specName) || !adaptiveIndex.includes(checklistName)) failures.push(`adaptive README: missing pair ${specName} / ${checklistName}`);
+
+    if (checklistDocs.has(checklistName)) {
+      const checklistText = checklistDocs.get(checklistName);
+      const checklistMeta = metadata(checklistText);
+      const expectedChecklistId = `LAKDA-CHK-AE-${String(Number(number)).padStart(3, "0")}`;
+      if (checklistMeta.document_id !== expectedChecklistId) failures.push(`${checklistName}: expected document_id ${expectedChecklistId}`);
+      if (checklistMeta.specification !== specName) failures.push(`${checklistName}: specification metadata must be ${specName}`);
+      if (!checklistText.includes(`](${specName})`)) failures.push(`${checklistName}: missing backlink to ${specName}`);
+      if (!specText.includes(`](${checklistName})`)) failures.push(`${specName}: missing link to ${checklistName}`);
+      if (specMeta.status === "review-ready") {
+        const specSection = checklistText.split("## A. 仕様完成チェック")[1]?.split("## B. 実装・受入チェック")[0] ?? "";
+        if (!specSection || /- \[ \]/.test(specSection)) failures.push(`${checklistName}: review-ready spec has incomplete specification checks`);
+      }
+    }
+  }
+}
+
+for (const [label, pattern] of [["opaque citation", /citeturn/], ["direct QEG CLI", /lakda export qeg/], ["obsolete v2 schema", /lakda\/real-llm-acceptance-report\/v2/]]) {
+  if (markdownPaths.some(path => pattern.test(readFileSync(path, "utf8")))) failures.push(`forbidden ${label}`);
 }
 if (failures.length) {
   console.error(failures.join("\n"));

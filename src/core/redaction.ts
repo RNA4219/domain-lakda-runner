@@ -6,7 +6,7 @@ const secretRules: Array<[RegExp, string]> = [
 ];
 const piiRules: Array<[RegExp, string]> = [
   [/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[REDACTED_EMAIL]"],
-  [/(?<![\dA-Fa-f])(?:\+\d{1,3}[ -]\d{2,4}(?:[ -]\d{2,4}){2,3}|0\d{1,3}[- ]\d{2,4}[- ]\d{2,4}|\d{3}[- ]\d{3}[- ]\d{4})(?![\dA-Fa-f-])/g, "[REDACTED_PHONE]"],
+  [/(?<![\dA-Fa-f])(?<!\d[-T])(?:\+\d{1,3}[ -]\d{2,4}(?:[ -]\d{2,4}){2,3}|0\d{1,3}[- ]\d{2,4}[- ]\d{2,4}|\d{3}[- ]\d{3}[- ]\d{4})(?![\dA-Fa-f-])/g, "[REDACTED_PHONE]"],
 ];
 
 export type SensitiveFinding = "secret" | "pii";

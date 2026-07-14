@@ -25,7 +25,9 @@ export function canonicalJson(value: unknown): string {
   return `{${Object.keys(record).sort().map(key => `${JSON.stringify(key)}:${canonicalJson(record[key])}`).join(",")}}`;
 }
 
-export function createActionPlan(config: LakdaConfig, mode: RunMode = config.mode, workerIndex = 0): ActionPlan {
+export function createActionPlan(config: LakdaConfig, mode: ActionPlan["mode"] | undefined = undefined, workerIndex = 0): ActionPlan {
+  const selectedMode: RunMode = mode ?? config.mode;
+  if (selectedMode === "adaptive-explore") throw new Error("adaptive-exploreはaction-plan/v1を生成しません");
   if (!config.baseUrl) throw new Error("--base-url または config.baseUrl が必要です");
   const seed = workerSeed(config.seed, workerIndex);
   const candidates = safeActions(config.actionCatalog, config);
@@ -42,10 +44,10 @@ export function createActionPlan(config: LakdaConfig, mode: RunMode = config.mod
     ? shuffled.filter(action => config.profiles.seededRandom.candidateIds!.includes(action.id))
     : shuffled;
   const randomCount = Math.min(randomPool.length, config.profiles.seededRandom.count ?? config.maxActions);
-  const actions = mode === "seeded-random"
+  const actions = selectedMode === "seeded-random"
     ? randomPool.slice(0, randomCount)
-    : mode === "smoke" ? smoke.slice(0, config.maxActions) : [base[0]];
-  return { schemaVersion: "lakda/action-plan/v1", mode, seed, baseUrl: new URL(config.baseUrl).toString(), actions };
+    : selectedMode === "smoke" ? smoke.slice(0, config.maxActions) : [base[0]];
+  return { schemaVersion: "lakda/action-plan/v1", mode: selectedMode, seed, baseUrl: new URL(config.baseUrl).toString(), actions };
 }
 
 export function validateActionPlan(value: unknown, config: LakdaConfig): ActionPlan {

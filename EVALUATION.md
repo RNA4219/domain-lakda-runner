@@ -14,18 +14,20 @@
 | AC-004 | replay sequence 20件×3回の最後までの実行成功率85%以上。 | replay suite | 5.1, 7.2 |
 | AC-005 | 必須 artifact 欠落率1%以下。critical failure run の欠落は0件。 | artifact audit | 8 |
 | AC-006 | 生成した全 artifact manifest が固定 HATE/v1 schema に適合する。 | schema contract | 8 |
-| AC-007 | LLM decision 20件×3回の strict JSON Schema 適合率100%。 | fake/local LLM suite | 5.3 |
+| AC-007 | 規範`full` profileの通常20ケース×3回、60 decisionが揃い、strict JSON Schema適合率100%。 | real LLM full + verifier | 6.4 |
 | AC-008 | allowlist 外 URL、未提示 candidate、deny action の実行件数0。 | security suite | 5.2, 9 |
 | AC-009 | 指定外モデルへ暗黙 fallback した件数0。 | provider contract | 6.1, 6.2 |
-| AC-010 | critical LLM decision 10件×3回が全件期待 outcome を満たす。 | local LLM acceptance | 5.2, 6 |
+| AC-010 | 規範`full` profileのcritical 10ケース×3回、30 decisionが揃い、全件期待outcomeを満たす。 | real LLM full + verifier | 5.2, 6.4 |
 | AC-011 | LLM停止時も deterministic mode が継続し、`llm_status=unavailable` を記録する。 | integration | 7.2 |
 | AC-012 | `doctor` 前後で tracked file、browser installation、process、port listener に変更がない。 | doctor immutability | 4.1 |
 | AC-013 | secret fixture がartifact/prompt/raw outputに平文で残らず、LLM出力がコード実行されない。 | security suite | 8, 9 |
-| AC-014 | `workers=2..4`を逐次実行し、seed、独立run/HATE、全worker継続、batch集約、RunBatchResultを検証する。 | batch contract | 5.1, 7.2 |
+| AC-014 | 決定的batch契約を満たし、実機`worker-smoke` 20 child runsを補助証跡としてseed、独立run/HATE、全worker継続を確認する。worker-smokeはAC-007/010不適格。 | batch contract + worker-smoke | 5.1, 6.4, 7.2 |
 | AC-015 | 共有Action Budgetのrate limitがLLM/Playwright操作を停止し、partial/rate_limit/exit 2を返す。batch先頭から早期枯渇した場合もpreflightとbrowser起動を0件にする。 | fake clock + batch contract | 2.1, 7.2, 8 |
 | AC-016 | redacted DOM snapshotをactionごとに保存し、`data-lakda-sensitive`要素の内容・全属性の除去、HATE static登録、実bytes security scanを検証する。保存時・最終必須artifact後の容量超過、browser未起動、snapshot保存失敗のtermination reasonを検証する。 | DOM/security contract | 2.1, 8, 9 |
-| AC-017 | HARを`content=omit`の一時captureから構造化redactionして保存し、すべてのheader値、cookie/Set-Cookie、query値、bodyの保護、raw HAR削除、secret/PII scan、classification、alternate/defaultの再export一致を検証する。 | HAR/security contract | 2.1, 8, 9 |
-| AC-018 | Policy確定順序、atomic metadata/failure、VerifiedArtifact bytes不変、export失敗時の`artifactManifestPath`不返却、passed以外のartifact期待値、fixture reset/executor/rate limitのtermination reason、workers整数検証を検証する。 | policy/abnormal contract | 2.1, 3, 7.2, 8.3 |
+| AC-017 | full 90-runとworker-smoke 20-runのsanitized bundleを第三者がschema、revision、件数、全file hash、payload/aggregate hash、HATE/v1まで独立再検証でき、改ざん・欠落・順序変更を拒否する。 | evidence verifier + tamper tests | 6.4, 8.5 |
+| AC-018 | Code-to-gate strict、HATE upstream、manual-bb実staging、QEG validate/gate/recordを対象revisionで完了する。mock、full未達、manual未実施、証跡欠落はpass不可。 | self-hosted RC workflow + QEG | 8.5 |
+| AC-019 | HARを`content=omit`の一時captureから構造化redactionして保存し、すべてのheader値、cookie/Set-Cookie、query値、bodyの保護、raw HAR削除、secret/PII scan、classification、alternate/defaultの再export一致を検証する。 | HAR/security contract | 2.1, 8, 9 |
+| AC-020 | Policy確定順序、atomic metadata/failure、VerifiedArtifact bytes不変、export失敗時の`artifactManifestPath`不返却、passed以外のartifact期待値、fixture reset/executor/rate limitのtermination reason、workers整数検証を検証する。 | policy/abnormal contract | 2.1, 3, 7.2, 8.3 |
 
 ## LLM 固有受入
 
@@ -35,6 +37,15 @@
 - critical golden case は全件成功。LLM 単独の pass/fail または Gate 判定は0件。
 - `temperature=0`、`top_p=1`、action decision `max_tokens=512`、接続 timeout 5秒、生成 timeout 60秒を既定値として検証する。
 - retry は接続 reset と一時的 5xx の最大2回だけで、Schema 不正・意味的不合格・モデル不一致を再試行しない。
+## 実LLM profileとRC Gate判定
+
+- `full`: workers=1、通常20×3＋critical 10×3、合計90 child runs。AC-007/010へ適格。
+- `worker-smoke`: workers=2、critical 10×1、合計20 child runs。AC-014 supplementだけに適格。
+- `custom`: option互換用。AC-007/010へ常に不適格。
+- 実GGUF SHA-256はfile全bytesからstream計算し、期待SHA、model ID、response model ID、runtime build、chat-template hashと照合する。
+- report/bundleは`npm run acceptance:verify`で独立検証し、bundleはGitへcommitしない。
+- RCはdeterministic CI → full → worker-smoke → bundle/security → Code-to-gate strict → HATE upstream → manual-bb real staging → QEGの順である。
+- staging URLまたはself-hosted runnerがない場合は`hold`であり、release成功ではない。最終verdictはQEGだけが返す。
 
 ## 品質指標
 
@@ -58,7 +69,8 @@
 | integration | Chromium、artifact lifecycle、replay、sequential worker batch | PR または専用 runner |
 | security | secret redaction、allowlist、loopback、prompt injection | PR 必須 |
 | golden | 欠陥検出、false positive、critical cases | 受入時・リリース候補 |
-| local-llm | 実 GGUF、latency、raw hash、再現性 | 明示 opt-in。`npm run acceptance:real-llm`で固定corpusを実行。決定的CIから分離 |
+| local-llm | 実GGUF attestation、full 90-run、worker-smoke 20-run | self-hosted RC。通常PR CIから分離 |
+| release-gate | Code-to-gate、HATE、manual-bb、QEG | v0.2.1 RC必須。manual未実施またはmockはhold |
 
 ## 実装準備の受入（AC-20260712-00）
 
@@ -80,7 +92,7 @@
 | REQ-FN-007 | 7.1 | AC-002, AC-003 |
 | REQ-FN-008〜010 | 8 | AC-005, AC-006 |
 | REQ-FN-011 | 4.1 | AC-012 |
-| REQ-FN-012 | 7.2 | AC-001〜AC-018 |
+| REQ-FN-012 | 7.2 | AC-001〜AC-020 |
 | REQ-LLM-001 | 3, 6.1 | AC-010 |
 | REQ-LLM-002〜003 | 5.2, 5.3, 9 | AC-007, AC-008 |
 | REQ-LLM-004〜005 | 6.2, 6.3 | AC-010 |
@@ -102,22 +114,28 @@
 | REQ-FN-015 | 8.1、9 | AC-016 |
 | REQ-SEC-008 | 2.1、8、9 | AC-015、AC-016 |
 | REQ-NF-007 | 5.1、7.2 | AC-014、AC-015 |
-| REQ-SEC-009 | 2.1、8、9 | AC-017 |
-| REQ-FN-016 | 2.1、8.3、8.4 | AC-018 |
-| REQ-FN-017 | 2.1、3、7.2、8.1 | AC-016、AC-018 |
+| REQ-SEC-009 | 2.1、8、9 | AC-019 |
+| REQ-FN-016 | 2.1、8.3、8.4 | AC-020 |
+| REQ-FN-017 | 2.1、3、7.2、8.1 | AC-016、AC-020 |
+| REQ-LLM-010 | 4.1、6.4 | AC-007、AC-010、AC-014 |
+| REQ-LLM-011 | 6.1〜6.4、9 | AC-008〜AC-010 |
+| REQ-NF-008 | 6.4、8.5 | AC-017 |
+| REQ-NF-009 | 8.4、8.5 | AC-018 |
+| REQ-SEC-010 | 6.4、8.5、9 | AC-017 |
+| REQ-FN-018 | 8.5 | AC-018 |
 
 
 ### 要件IDの明示カバレッジ
 
 自動検査で範囲表記を取りこぼさないよう、全要件IDを明示する。各IDは上表の仕様節・受入列または post-v1 評価へ対応する。
 
-`REQ-FN-001` `REQ-FN-002` `REQ-FN-003` `REQ-FN-004` `REQ-FN-005` `REQ-FN-006` `REQ-FN-007` `REQ-FN-008` `REQ-FN-009` `REQ-FN-010` `REQ-FN-011` `REQ-FN-012` `REQ-FN-013` `REQ-FN-014` `REQ-FN-015`
+`REQ-FN-001` `REQ-FN-002` `REQ-FN-003` `REQ-FN-004` `REQ-FN-005` `REQ-FN-006` `REQ-FN-007` `REQ-FN-008` `REQ-FN-009` `REQ-FN-010` `REQ-FN-011` `REQ-FN-012` `REQ-FN-013` `REQ-FN-014` `REQ-FN-015` `REQ-FN-016` `REQ-FN-017` `REQ-FN-018`
 
-`REQ-LLM-001` `REQ-LLM-002` `REQ-LLM-003` `REQ-LLM-004` `REQ-LLM-005` `REQ-LLM-006` `REQ-LLM-007` `REQ-LLM-008` `REQ-LLM-009`
+`REQ-LLM-001` `REQ-LLM-002` `REQ-LLM-003` `REQ-LLM-004` `REQ-LLM-005` `REQ-LLM-006` `REQ-LLM-007` `REQ-LLM-008` `REQ-LLM-009` `REQ-LLM-010` `REQ-LLM-011`
 
-`REQ-NF-001` `REQ-NF-002` `REQ-NF-003` `REQ-NF-004` `REQ-NF-005` `REQ-NF-006` `REQ-NF-007`
+`REQ-NF-001` `REQ-NF-002` `REQ-NF-003` `REQ-NF-004` `REQ-NF-005` `REQ-NF-006` `REQ-NF-007` `REQ-NF-008` `REQ-NF-009`
 
-`REQ-SEC-001` `REQ-SEC-002` `REQ-SEC-003` `REQ-SEC-004` `REQ-SEC-005` `REQ-SEC-006` `REQ-SEC-007` `REQ-SEC-008`
+`REQ-SEC-001` `REQ-SEC-002` `REQ-SEC-003` `REQ-SEC-004` `REQ-SEC-005` `REQ-SEC-006` `REQ-SEC-007` `REQ-SEC-008` `REQ-SEC-009` `REQ-SEC-010`
 post-v1 の要件も未定義のまま放置せず、対応する性能・重複排除評価を実装 Task の受入へ追加してから範囲に入れる。
 
 

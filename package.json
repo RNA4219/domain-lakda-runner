@@ -1,8 +1,24 @@
 {
   "name": "domain-lakda-runner",
-  "version": "0.2.1",
+  "version": "0.3.0-rc.1",
   "private": true,
-  "files": ["dist", "schemas", "README.md", "LICENSE"],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./schemas/*": "./schemas/*"
+  },
+  "files": [
+    "dist",
+    "schemas",
+    "README.md",
+    "RUNBOOK.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "type": "module",
   "engines": {
     "node": "24.6.0",
@@ -22,8 +38,19 @@
     "check": "npm run check:docs && npm run typecheck && npm run lint && npm run build && npm test",
     "pack:check": "npm pack --dry-run",
     "acceptance:fixture": "npm run build && node scripts/run-acceptance.mjs",
-    "acceptance:real-llm": "npm run build && node scripts/run-real-llm-acceptance.mjs",
-    "check:hate": "node scripts/check-hate-upstream.mjs"
+    "acceptance:adaptive": "npm run build && npx playwright test tests/adaptive",
+    "acceptance:real-llm": "npm run acceptance:real-llm:full",
+    "check:hate": "node scripts/check-hate-upstream.mjs",
+    "acceptance:real-llm:full": "npm run build && node scripts/run-real-llm-acceptance.mjs --profile=full",
+    "acceptance:real-llm:worker-smoke": "npm run build && node scripts/run-real-llm-acceptance.mjs --profile=worker-smoke",
+    "acceptance:verify": "npm run build && node scripts/verify-real-llm-acceptance.mjs",
+    "check:hate:upstream": "node scripts/check-hate-upstream.mjs --require-upstream",
+    "check:ctg-triage": "node scripts/check-ctg-triage.mjs",
+    "coverage:v8-to-lcov": "node scripts/v8-coverage-to-lcov.mjs",
+    "release:prepare-hate": "node scripts/prepare-hate-rc-input.mjs",
+    "release:prepare-gate": "npm run build && node scripts/prepare-release-gate.mjs",
+    "release:scan-evidence": "npm run build && node scripts/scan-release-evidence.mjs",
+    "release:scan-package": "npm run build && node scripts/scan-release-package.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
