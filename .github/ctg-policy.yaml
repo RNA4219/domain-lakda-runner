@@ -1,0 +1,58 @@
+version: ctg/v1
+policy_id: lakda-strict-v021
+description: Strict release-candidate policy for domain-lakda-runner.
+
+blocking:
+  severity:
+    critical: true
+    high: true
+    medium: false
+    low: false
+  category:
+    auth: true
+    payment: true
+    validation: true
+    data: true
+    config: false
+    maintainability: false
+    testing: false
+    compatibility: false
+    release-risk: true
+    security: true
+  rules:
+    HARDCODED_SECRET: true
+    WEAK_AUTH_GUARD: true
+    RAW_SQL: true
+    UNSAFE_REDIRECT: true
+    MISSING_RATE_LIMIT: true
+  count_threshold:
+    critical_max: 0
+    high_max: 0
+    medium_max: 10
+
+confidence:
+  min_confidence: 0.6
+  low_confidence_threshold: 0.4
+  filter_low: true
+
+suppression:
+  file: .ctg/suppressions.yaml
+  expiry_warning_days: 30
+  max_suppressions_per_rule: 1
+
+llm:
+  enabled: false
+  mode: none
+  require_llm: false
+
+partial:
+  allow_partial: false
+  partial_warning_threshold: 0
+
+exit:
+  fail_on_critical: true
+  fail_on_high: true
+  warn_only: false
+
+readiness:
+  criticalFindingStatus: blocked_input

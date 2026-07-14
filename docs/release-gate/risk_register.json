@@ -1,0 +1,35 @@
+{
+  "feature_id": "LAKDA-RC-021",
+  "risks": [
+    {
+      "id": "RISK-RC-01",
+      "scenario": "local fixtureだけで成功し、実staging固有の認証・network・UI差分を見逃す",
+      "impact": 5,
+      "likelihood": 3,
+      "score": 80,
+      "priority": "P0",
+      "rationale": "release対象環境の外部挙動が未検証になる",
+      "trace_to": ["TC-LAKDA-RC-001", "TC-LAKDA-RC-002"]
+    },
+    {
+      "id": "RISK-RC-02",
+      "scenario": "mockまたは件数不足の実LLM結果を規範AC達成として扱う",
+      "impact": 5,
+      "likelihood": 2,
+      "score": 72,
+      "priority": "P0",
+      "rationale": "AC-007、AC-010、AC-014の主張が再現不能になる",
+      "trace_to": ["TC-LAKDA-RC-004"]
+    },
+    {
+      "id": "RISK-RC-03",
+      "scenario": "staging認証値またはraw browser証跡がrelease bundleへ混入する",
+      "impact": 5,
+      "likelihood": 2,
+      "score": 70,
+      "priority": "P0",
+      "rationale": "credential漏えいと第三者共有不能を招く",
+      "trace_to": ["TC-LAKDA-RC-003", "TC-LAKDA-RC-004"]
+    }
+  ]
+}

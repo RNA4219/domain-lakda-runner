@@ -1,0 +1,21 @@
+{
+  "feature_id": "LAKDA-RC-021",
+  "title": "domain-lakda-runner v0.2.1 release candidate",
+  "summary": "実staging、実Qwen、独立再検証可能な証跡を五段Gateへ渡す。",
+  "actors": ["release_operator", "staging_user", "qeg_reviewer"],
+  "acceptance_criteria": [
+    "AC-017: full 90-runとworker-smoke 20-runのsanitized bundleを第三者がhashから再検証できる",
+    "AC-018: Code-to-gate、HATE、manual-bb、QEGを接続し、実staging未実施またはmock証跡ではrelease passにならない"
+  ],
+  "business_rules": [
+    "Lakdaはrun outcomeと証跡までを担当し、release verdictはQEGだけが決定する",
+    "認証値、raw prompt、絶対path、raw browser artifactをrelease evidenceへ含めない"
+  ],
+  "changed_areas": ["real-llm acceptance", "release evidence", "RC workflow"],
+  "devices": ["Windows Chromium"],
+  "source_refs": [
+    {"id": "AC-017", "kind": "ac", "excerpt": "証跡の独立再検証"},
+    {"id": "AC-018", "kind": "ac", "excerpt": "五段Gateと実staging"}
+  ],
+  "assumptions": []
+}

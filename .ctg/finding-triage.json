@@ -1,0 +1,51 @@
+{
+  "schemaVersion": "lakda/ctg-finding-triage/v1",
+  "owner": "RNA4219",
+  "entries": [
+    {
+      "fingerprint": "e2a8436463f3c111",
+      "ruleId": "ENV_DIRECT_ACCESS",
+      "path": "src/external-smoke.ts",
+      "disposition": "accepted-design",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "The environment value is parsed with URL and passed through Lakda host allowlist validation before browser use."
+    },
+    {
+      "fingerprint": "f9bb498a0d02156c",
+      "ruleId": "LARGE_MODULE",
+      "path": "scripts/real-llm-evidence.mjs",
+      "disposition": "planned-refactor",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "Acceptance-only evidence tooling; split profile/report and bundle verification after v0.2.1 RC."
+    },
+    {
+      "fingerprint": "396df2f9cdcf4ed0",
+      "ruleId": "LARGE_MODULE",
+      "path": "scripts/run-acceptance.mjs",
+      "disposition": "planned-refactor",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "Fixture-only acceptance orchestration; no runtime import path."
+    },
+    {
+      "fingerprint": "5f245e8baacca130",
+      "ruleId": "LARGE_MODULE",
+      "path": "src/core/llm.ts",
+      "disposition": "planned-refactor",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "Follow-up boundary split is already outside the v0.2.1 responsibility-separation scope."
+    },
+    {
+      "fingerprint": "634b2067f4f664fe",
+      "ruleId": "LARGE_MODULE",
+      "path": "src/core/runner.ts",
+      "disposition": "planned-refactor",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "Executor split remains the documented next Task Seed; current behavior is covered by deterministic acceptance."
+    }
+  ]
+}
