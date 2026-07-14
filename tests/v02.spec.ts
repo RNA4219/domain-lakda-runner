@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, expect } from "@playwright/test";
@@ -7,6 +7,7 @@ import { loadConfig } from "../src/core/config.js";
 import { sha256 } from "../src/core/redaction.js";
 import { runLakda, runLakdaBatch } from "../src/core/runner.js";
 import { exportHate } from "../src/core/hate.js";
+import { writeSanitizedHar } from "../src/core/har.js";
 import { startFixture } from "./fixtures/server.js";
 
 test("ActionBudget shares a sliding window and expires entries", () => {
@@ -67,7 +68,7 @@ test("fake LLM workers=2 keep strict decision evidence per child", async () => {
 });
 
 test("domSnapshots saves redacted HTML after each action", async () => {
-  const fixture = await startFixture(() => ({ body: '<button data-testid="next">Next</button><input value="fixture@example.com"><div data-lakda-sensitive="true">token=fixture-secret</div><script>const secret="fixture-secret";</script>', contentType: "text/html" }));
+  const fixture = await startFixture(() => ({ body: '<button data-testid="next">Next</button><input value="fixture@example.com"><div data-lakda-sensitive="true" data-private="dom-attribute-private" aria-label="dom-attribute-private">token=fixture-secret</div><script>const secret="fixture-secret";</script>', contentType: "text/html" }));
   const outputDir = await mkdtemp(join(tmpdir(), "lakda-dom-"));
   try {
     const actions = [{ id: "root", kind: "navigate" as const, path: "/" }, { id: "next", kind: "click" as const, locator: { testId: "next" } }];
@@ -79,6 +80,7 @@ test("domSnapshots saves redacted HTML after each action", async () => {
     const html = await readFile(join(runDir, "artifacts", "dom", snapshots[1]), "utf8");
     expect(html).not.toContain("fixture@example.com");
     expect(html).not.toContain("fixture-secret");
+    expect(html).not.toContain("dom-attribute-private");
     expect(html).not.toContain("const secret");
     const manifest = JSON.parse(await readFile(result.artifactManifestPath!, "utf8")) as { artifacts: Array<{ path: string; kind: string; redaction_status: string }> };
     expect(manifest.artifacts.find(artifact => artifact.path.includes("artifacts/dom/"))).toMatchObject({ kind: "static", redaction_status: "redacted" });
@@ -115,10 +117,19 @@ test("runtime rejects non-integer worker overrides", () => {
 });
 
 
-test("HAR is sanitized and classification survives re-export", async () => {
+test("HAR redacts headers, cookies, query values, and repeated re-exports", async () => {
   const fixture = await startFixture();
   const outputDir = await mkdtemp(join(tmpdir(), "lakda-har-"));
+  const beforeHarDirectories = new Set((await readdir(tmpdir())).filter(name => name.startsWith("lakda-har-")));
   try {
+    const rawPath = join(outputDir, "raw.har");
+    const sanitizedPath = join(outputDir, "sanitized.har");
+    const markers = ["HAR_AUTH_PRIVATE", "HAR_COOKIE_PRIVATE", "HAR_SET_COOKIE_PRIVATE", "HAR_QUERY_PRIVATE"];
+    await writeFile(rawPath, JSON.stringify({ log: { entries: [{ request: { url: "http://127.0.0.1/?plain=HAR_QUERY_PRIVATE", headers: [{ name: "Authorization", value: "Bearer HAR_AUTH_PRIVATE" }, { name: "Cookie", value: "session=HAR_COOKIE_PRIVATE" }], queryString: [{ name: "plain", value: "HAR_QUERY_PRIVATE" }] }, response: { headers: [{ name: "Set-Cookie", value: "session=HAR_SET_COOKIE_PRIVATE" }] } }] } }));
+    await writeSanitizedHar(rawPath, sanitizedPath);
+    const sanitized = await readFile(sanitizedPath, "utf8");
+    for (const marker of markers) expect(sanitized).not.toContain(marker);
+
     const secretUrl = "/api?token=fixture-secret&email=fixture@example.com";
     const action = { id: "secret-query", kind: "navigate" as const, path: secretUrl };
     const result = await runLakda(loadConfig(undefined, { baseUrl: fixture.baseUrl, outputDir, actionCatalog: [action], artifacts: { har: true, classification: "restricted" } }));
@@ -128,25 +139,30 @@ test("HAR is sanitized and classification survives re-export", async () => {
     expect(har).not.toContain("fixture-secret");
     expect(har).not.toContain("fixture@example.com");
     JSON.parse(har);
-    const manifest = JSON.parse(await readFile(result.artifactManifestPath!, "utf8")) as { artifacts: Array<{ classification: string; path: string; security_checks: { secrets_scan: string; pii_scan: string } }> };
+    const original = await readFile(result.artifactManifestPath!, "utf8");
+    const manifest = JSON.parse(original) as { artifacts: Array<{ classification: string; path: string; security_checks: { secrets_scan: string; pii_scan: string } }> };
     expect(new Set(manifest.artifacts.map(artifact => artifact.classification))).toEqual(new Set(["restricted"]));
     expect(manifest.artifacts.find(artifact => artifact.path === "artifacts/network.har")?.security_checks).toEqual({ secrets_scan: "pass", pii_scan: "pass" });
     const reexportPath = join(runDir, "exports", "reexport.json");
     await exportHate(runDir, reexportPath);
-    expect(await readFile(reexportPath, "utf8")).toBe(await readFile(result.artifactManifestPath!, "utf8"));
+    expect(await readFile(reexportPath, "utf8")).toBe(original);
+    await exportHate(runDir, result.artifactManifestPath!);
+    const repeated = await readFile(result.artifactManifestPath!, "utf8");
+    expect(repeated).toBe(original);
+    expect((JSON.parse(repeated) as { artifacts: Array<{ path: string }> }).artifacts.some(artifact => artifact.path.startsWith("exports/"))).toBeFalsy();
+    const retainedHarDirectories = (await readdir(tmpdir())).filter(name => name.startsWith("lakda-har-") && !beforeHarDirectories.has(name));
+    expect(retainedHarDirectories).toEqual([]);
   } finally { await fixture.close(); await rm(outputDir, { recursive: true, force: true }); }
 });
-
-
 test("DOM snapshot capacity stops without writing the oversized snapshot", async () => {
   const fixture = await startFixture(() => ({ body: "<main>snapshot content</main>" }));
   const outputDir = await mkdtemp(join(tmpdir(), "lakda-dom-limit-"));
   try {
-    const result = await runLakda(loadConfig(undefined, { baseUrl: fixture.baseUrl, outputDir, artifacts: { domSnapshots: true, maxRunBytes: 1 } }));
+    const result = await runLakda(loadConfig(undefined, { baseUrl: fixture.baseUrl, outputDir, artifacts: { domSnapshots: true, maxRunBytes: 1000 } }));
     expect(result.outcome).toBe("partial");
     expect(result.terminationReason).toBe("artifact_limit");
     const runDir = join(outputDir, result.runId.replace(/[^A-Za-z0-9._-]/g, "-"));
-    await expect(readdir(join(runDir, "artifacts", "dom"))).rejects.toThrow();
+    await expect(readdir(join(runDir, "artifacts", "dom"))).resolves.toEqual([]);
   } finally { await fixture.close(); await rm(outputDir, { recursive: true, force: true }); }
 });
 
@@ -189,4 +205,19 @@ test("fixture reset failure preserves executor_error", async () => {
     expect(result.terminationReason).toBe("executor_error");
     expect(result.exitCode).toBe(1);
   } finally { await fixture.close(); await rm(outputDir, { recursive: true, force: true }); }
+});
+
+test("manifest export failure omits artifactManifestPath", async () => {
+  const fixture = await startFixture();
+  const outputDir = await mkdtemp(join(tmpdir(), "lakda-manifest-collision-"));
+  const originalRandom = Math.random;
+  try {
+    Math.random = () => 0.5;
+    const runDir = join(outputDir, "lakda-run-1970-01-01T00-00-00-000Z-8");
+    await mkdir(join(runDir, "exports", "artifact-manifest.json"), { recursive: true });
+    const result = await runLakda(loadConfig(undefined, { baseUrl: fixture.baseUrl, outputDir }), undefined, { clock: () => 0 });
+    expect(result.outcome).toBe("error");
+    expect(result.terminationReason).toBe("artifact_failure");
+    expect(result.artifactManifestPath).toBeUndefined();
+  } finally { Math.random = originalRandom; await fixture.close(); await rm(outputDir, { recursive: true, force: true }); }
 });

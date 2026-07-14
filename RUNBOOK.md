@@ -68,7 +68,7 @@ npm run acceptance:real-llm -- --out=docs/acceptance/AC-YYYYMMDD-02.real-llm.jso
 
 `workers=1`は従来どおり単一の`RunResult`をstdoutへ返す。`workers=2..4`の`run`/`replay`は`lakda/run-batch/v1`の`RunBatchResult`を返し、child runごとに独立run directoryとHATE manifestを保存する。workerは逐次実行し、1件の失敗や基盤error後も残りを実行する。seedは`baseSeed + workerIndex`、batch共有Action Budgetは60秒sliding windowで、上限到達時は待機せず`partial/rate_limit`でworkerを終了する。
 
-`artifacts.domSnapshots=true`を指定したrunでは、成功action後の`artifacts/dom/0001-<action-id>.html`を確認する。保存内容はredacted HTMLのみで、script本文、form値、password/token/secret要素、`data-lakda-sensitive`内容を含めない。容量超過は`partial/artifact_limit`としてsnapshotを作らない。HAR指定時は`artifacts/network.har`だけを確認し、一時raw HARが残っていないこと、query/cookie/header/bodyのsecret/PIIがないことを確認する。
+`artifacts.domSnapshots=true`を指定したrunでは、成功action後の`artifacts/dom/0001-<action-id>.html`を確認する。保存内容はredacted HTMLのみで、script本文、form値、password/token/secret要素、`data-lakda-sensitive`要素の内容と全属性を含めない。保存前は実際に保存するUTF-8 bytesで容量判定し、metadataなど最終必須artifactの保存後に上限超過となった場合は、任意artifactであるDOM snapshotを削除して`partial/artifact_limit`とする。HAR指定時は`artifacts/network.har`だけを確認し、一時raw HARが残っていないこと、すべてのheader値、cookie、Set-Cookie、query値、bodyにsecret/PIIがないことを確認する。
 ### HATE出力と後続連携
 
 ```text

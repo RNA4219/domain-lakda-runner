@@ -71,11 +71,11 @@ Policyの確定順序は次で固定する。
 3. 実行結果とArtifact PolicyをOutcome Policyへ入力する。
 4. 最終outcome、termination reason、failure reportをatomic metadataへ保存する。
 5. 最終bytesを再scanし、前段のVerifiedArtifactから変更されていないことを検証する。
-6. HATE/v1 manifestを生成・schema検証し、同一runを再exportしてもbytes-identicalとする。
+6. HATE/v1 manifestを生成・schema検証し、`exports/`配下の生成物を検査・manifest対象から除外して同一runを再exportしてもbytes-identicalとする。
 
 Action Budgetはbatch全体で共有する60秒sliding windowである。typed actionを実行する直前にattemptを計上し、上限到達時はLLM/Playwright操作を行わず対象workerを`partial/rate_limit`で終了する。clock、batch ID、派生seedはruntime contextとして注入できる。
 
-DOM snapshotの期待件数は実際に保存できたactionだけから導出する。保存前容量検査で上限を超える場合はsnapshotを作成せず`partial/artifact_limit`とする。browser未起動時はtrace/screenshot/video/HARをprofile必須として扱わない。artifact、fixture reset、executor、rate limitのfailureは固有termination reasonを保持する。
+DOM snapshotの期待件数は実際に保存できたactionだけから導出する。保存後bytesの容量検査で上限を超える場合はsnapshotを作成せず、最終base artifactの確定後に上限を超えた場合はoptional snapshotを除去して`partial/artifact_limit`とする。browser未起動時はtrace/screenshot/video/HARをprofile必須として扱わない。artifact、fixture reset、executor、rate limitのfailureは固有termination reasonを保持する。
 ## 3. 設定契約
 
 既定設定ファイルは repository root の `lakda.config.json` とし、[schemas/lakda-config-v1.schema.json](schemas/lakda-config-v1.schema.json) に適合しなければならない。CLI option は同名の設定値を上書きする。環境変数は secret と endpoint のみ許可し、一般設定の暗黙上書きには使用しない。
@@ -435,7 +435,7 @@ HTTP errorはresponse statusで判定し、network transport failureとは分離
 ```
 
 artifactは保存前にredactionし、その後にSHA-256を計算する。hash対象は保存されたbytesとする。HATE exportはpolicy検査済みのVerifiedArtifact bytesを再確認し、変更があれば出力を拒否する。metadata/failure reportはatomic writeで更新する。
-`domSnapshots=true`のsnapshotはbrowser内でDOMをcloneしてscript本文、form値、password/token/secret要素、`data-lakda-sensitive`内容を除去し、ホスト側redaction後に保存する。raw DOMはディスクへ書かない。snapshotが残りの`maxRunBytes`へ収まらない場合は保存せず`artifact_limit/partial`、sanitizationまたは保存失敗は`artifact_failure/error`とする。HATE manifestでは`kind=static`、`redaction_status=redacted`とする。
+`domSnapshots=true`のsnapshotはbrowser内でDOMをcloneしてscript本文、form値、password/token/secret要素、`data-lakda-sensitive`要素の内容と全属性を除去し、ホスト側redaction後に保存する。raw DOMはディスクへ書かない。snapshotが残りの`maxRunBytes`へ収まらない場合は保存せず`artifact_limit/partial`、sanitizationまたは保存失敗は`artifact_failure/error`とする。HATE manifestでは`kind=static`、`redaction_status=redacted`とする。
 
 Artifact Storeの公開関数はCollectorとHATE Exporterの両方から利用するが、CollectorとHATE Exporterは相互importしない。HATE audit recordはLakdaが生成せず、HATE側がartifact検証後に生成する。
 
@@ -483,7 +483,7 @@ base artifacts -> security scan -> outcome decision -> atomic final metadata/fai
               -> final-byte rescan -> HATE/v1 manifest -> schema validation
 ```
 
-残存secret/PIIは対象pathを削除し、再scan後に収束しなければ`error/artifact_failure`とする。容量超過は必須artifactとsecurity scanが有効な場合だけ`partial/artifact_limit`とし、passed runのHATE exportで容量超過を検出した場合は拒否する。HATE manifestのartifact entriesは検査済みbytesのsize/SHA-256/securityを使用し、同じrun directoryからの再exportは決定的に一致しなければならない。
+残存secret/PIIは対象pathを削除し、再scan後に収束しなければ`error/artifact_failure`とする。容量超過は必須artifactとsecurity scanが有効な場合だけ`partial/artifact_limit`とし、passed runのHATE exportで容量超過を検出した場合は拒否する。HATE manifestのartifact entriesは検査済みbytesのsize/SHA-256/securityを使用し、同じrun directoryからの再exportは決定的に一致しなければならず、`exports/`配下の既存manifestや任意の再export出力はartifactとして含めない。
 ### 8.4 QEG境界
 
 `lakda:*` IDはLakda runとHATE入力内だけで使用する。QEG 0.2のstable IDへ直接書き込まない。HATE adapterがQEG出力時に `hate:*` などQEG許可prefixへ変換し、変換表とsource referenceを保持する。Lakdaは `quality-evidence-record`、`test-placement-plan`、`gate-verdict` を生成しない。

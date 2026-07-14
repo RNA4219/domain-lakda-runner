@@ -15,7 +15,7 @@
 
 - [Task Seed](tasks/TASK.20260713-05.md): Artifact Store、Artifact/Outcome Policy、Action Budget、逐次worker、DOM redaction、設定正規化。
 - [v0.2 fixture record](acceptance/AC-20260713-03.v02-fixture.json): AC-014〜AC-016を含むfixture全体成功。fake LLM workers=2、共有budget、DOM/HATE static登録を契約テストで検証。
-- [v0.2.1 fixture record](acceptance/AC-20260713-05.v021-hardening-fixture.json): AC-014〜AC-018を含むhardening結果。v0.2回帰13件、fixture acceptance全体、HAR redaction/classification、Policy再export、DOM容量、fixture reset異常系が成功。
+- [v0.2.1 fixture record](acceptance/AC-20260713-05.v021-hardening-fixture.json): fixture acceptance全体と`tests/v02.spec.ts`のhardening回帰14件が成功。AC-014〜AC-018はAction Budget、DOM属性redaction/容量、HAR全値redaction/再export、export失敗時のmanifest pathを実行したスイートで検証し、recordには検証時のcommitと`worktreeDirty`を残す。
 - [v0.2 実Qwen record](acceptance/AC-20260713-04.v02-real-llm.json): critical 10ケース×2 workerの20 child runs、strict JSON 20/20、safe action 20/20、fallback 0、critical 20/20。
 - [v0.2.1 実Qwen record](acceptance/AC-20260713-06.v021-hardening-real-llm.json): critical 10ケース×2 workerの20 child runsが成功。strict JSON 20/20、safe action 20/20、fallback 0、critical golden 20/20。
 - `workers=1`は従来の`RunResult`、`workers>1`は`lakda/run-batch/v1` envelopeを返し、child runだけを永続化する。
