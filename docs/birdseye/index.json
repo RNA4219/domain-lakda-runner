@@ -1,5 +1,5 @@
 {
-  "generated_at": "00029",
+  "generated_at": "00030",
   "nodes": {
     "README.md": {
       "role": "overview",
@@ -354,6 +354,10 @@
     "docs/acceptance/AC-20260715-12.timeout-quarantine-recovery-safety.md": {
       "role": "doc",
       "caps": "docs/birdseye/caps/docs.acceptance.AC-20260715-12.timeout-quarantine-recovery-safety.md.json"
+    },
+    "docs/acceptance/AC-20260715-13.manual-bb-package-boundary.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260715-13.manual-bb-package-boundary.md.json"
     }
   },
   "edges": [
