@@ -7,11 +7,15 @@ import { chromium } from "playwright";
 import { fileURLToPath } from "node:url";
 import { parseArgs as parseNodeArgs } from "node:util";
 import { exportHate } from "./core/hate.js";
+import { readJson, writeCanonicalJson } from "./core/artifact-store.js";
+import { assertCombinationFactorModel, assertCombinationSuite, generateCombinationSuite, verifyCombinationSuite } from "./adaptive/combinations.js";
 import { loadConfig, parseMode } from "./core/config.js";
 import { authStatePath, runLakda, runLakdaBatch } from "./core/runner.js";
-import { probeLlm } from "./core/llm.js";
+import { LocalLlmClient, probeLlm } from "./core/llm.js";
 import { assertLoopbackEndpoint } from "./core/safety.js";
 import { LAKDA_VERSION } from "./index.js";
+import { buildScoutContext, groupLeadsRuleOnly, signalsFromTrace, scoutWithLoopback, writeScoutEvidence, type ExplorationLead } from "./adaptive/scouting.js";
+import { createInvestigation, promoteInvestigation, runStrictReplay, type Investigation } from "./adaptive/investigation.js";
 
 const usage = `lakda ${LAKDA_VERSION}
 
@@ -22,6 +26,12 @@ Commands:
   lakda doctor [--config <path>]
   lakda auth capture --persona <name> --browser chromium --base-url <url>
   lakda auth validate --persona <name> --base-url <url>
+  lakda combo gen --factor-model <path> [--seed <int>] [--strength <int>] [--case-budget <int>] --out <suite.json>
+  lakda combo verify --factor-model <path> --suite <suite.json> --out <coverage.json>
+  lakda scout --config <path> --suite <trace-or-suite.json> [--scout-mode rule-only|llm] [--out <leads.json>]
+  lakda report leads --run-dir <run-dir> --format json|html
+  lakda investigate --lead <lead.json> --reviewer <ref> --out <investigation.json>
+  lakda promote --investigation <investigation.json> --kind trace|suite --out <promotion.json>
 `;
 
 type Flags = Record<string, string | boolean | undefined>;
@@ -34,11 +44,20 @@ function args(argv: string[]): { positionals: string[]; flags: Flags } {
       "base-url": { type: "string" }, mode: { type: "string" }, seed: { type: "string" }, headed: { type: "boolean" },
       "output-dir": { type: "string" }, persona: { type: "string" }, config: { type: "string" }, input: { type: "string" },
       "run-dir": { type: "string" }, out: { type: "string" }, browser: { type: "string" }, help: { type: "boolean" }, version: { type: "boolean" },
+      "factor-model": { type: "string" }, suite: { type: "string" }, strength: { type: "string" }, "case-budget": { type: "string" }, "factor-group": { type: "string" },
+      lead: { type: "string" }, reviewer: { type: "string" }, investigation: { type: "string" }, kind: { type: "string" }, format: { type: "string" }, "out-dir": { type: "string" }, "scout-mode": { type: "string" },
     },
   });
   return { positionals: parsed.positionals, flags: parsed.values };
 }
 function stringFlag(flags: Flags, key: string, required = false): string | undefined { const value = flags[key]; if (required && typeof value !== "string") throw new Error(`--${key} は必須です`); return typeof value === "string" ? value : undefined; }
+function integerFlag(flags: Flags, key: string, fallback?: number): number | undefined {
+  const value = stringFlag(flags, key);
+  if (value === undefined) return fallback;
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed)) throw new Error("--"+key+" は整数で指定してください");
+  return parsed;
+}
 function overrides(flags: Flags) {
   const baseUrl = stringFlag(flags, "base-url"); const mode = stringFlag(flags, "mode"); const seed = stringFlag(flags, "seed");
   const values = { baseUrl, mode: mode ? parseMode(mode) : undefined, seed: seed ? Number(seed) : undefined, outputDir: stringFlag(flags, "output-dir"), persona: stringFlag(flags, "persona"), ...(flags.headed === true ? { headed: true } : {}) };
@@ -89,6 +108,91 @@ async function validateAuth(flags: Flags): Promise<number> {
   } finally { await browser.close(); }
 }
 
+async function scoutCommand(flags: Flags): Promise<number> {
+  const suitePath = stringFlag(flags, "suite", true)!;
+  const config = loadConfig(stringFlag(flags, "config") ?? resolve(process.cwd(), "lakda.config.json"));
+  const input = await readJson(suitePath);
+  const trace = input && typeof input === "object" && Array.isArray((input as Record<string, unknown>).trace) ? (input as Record<string, unknown>).trace : [input];
+  const runId = input && typeof input === "object" && typeof (input as Record<string, unknown>).runId === "string" ? (input as Record<string, string>).runId : "scout-" + config.seed;
+  const signals = signalsFromTrace(trace, runId);
+  const leadCap = config.extensions?.scouting?.leadCap ?? 3;
+  const leads = groupLeadsRuleOnly(signals, leadCap);
+  const context = buildScoutContext(leads, ["trace", "oracle", "timeout", "topology", "coverage", "safety"], leadCap);
+  const requestedMode = stringFlag(flags, "scout-mode") ?? stringFlag(flags, "mode");
+  const configuredMode = config.extensions?.scouting?.mode;
+  const mode = requestedMode === "loopback" || (!requestedMode && configuredMode === "loopback") ? "llm" : requestedMode ?? configuredMode ?? "rule-only";
+  let selectedLeads = leads;
+  if (mode === "llm") {
+    if (!config.llm.enabled || !config.llm.modelPath || !config.llm.modelSha256) throw new Error("LLM scoutは明示的なloopback設定とmodel証跡が必要です");
+    const client = new LocalLlmClient(config); await client.preflight();
+    const response = await scoutWithLoopback(client, context, leads, { signalCount: signals.length });
+    selectedLeads = leads.map(lead => lead.leadId === response.leadId ? { ...lead, priority: response.priority } : lead).sort((left, right) => right.priority - left.priority || left.leadId.localeCompare(right.leadId)).slice(0, leadCap);
+  } else if (mode !== "rule-only") throw new Error("scout modeはrule-onlyまたはllmだけを許可します");
+  const result = { schemaVersion: "lakda/lead-report-index/v1", runId, leadCount: selectedLeads.length, leads: selectedLeads.map(lead => lead.leadId), generatedAt: new Date().toISOString(), signals, leadObjects: selectedLeads, context };
+  const out = stringFlag(flags, "out") ?? resolve(stringFlag(flags, "out-dir") ?? config.outputDir, "leads.json");
+  await writeCanonicalJson(out, result);
+  await writeScoutEvidence(resolve(out, "..", "scout-evidence.jsonl"), { context, accepted: true });
+  console.log(JSON.stringify({ command: "scout", mode, out, leadCount: selectedLeads.length }, null, 2)); return 0;
+}
+
+async function reportLeads(flags: Flags): Promise<number> {
+  const runDir = stringFlag(flags, "run-dir", true)!; const format = stringFlag(flags, "format", true);
+  if (format !== "json" && format !== "html") throw new Error("--formatはjsonまたはhtmlです");
+  const candidates = [resolve(runDir, "adaptive", "leads.json"), resolve(runDir, "leads.json")]; const source = candidates.find(path => existsSync(path)); if (!source) throw new Error("leads.jsonがありません");
+  const report = await readJson(source); if (format === "json") { console.log(JSON.stringify(report, null, 2)); return 0; }
+  const escape = (value: string) => value.replace(/[&<>"]/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[character] ?? character));
+  const leads = report && typeof report === "object" && Array.isArray((report as Record<string, unknown>).leadObjects) ? (report as Record<string, unknown>).leadObjects as ExplorationLead[] : [];
+  const html = "<!doctype html><meta charset=\"utf-8\"><title>Lakda Leads</title><h1>Lakda Leads</h1><ul>" + leads.map(lead => "<li>" + escape(lead.leadId) + " priority=" + String(lead.priority) + " status=" + escape(lead.status) + "</li>").join("") + "</ul>";
+  const out = stringFlag(flags, "out"); if (out) await writeTextArtifact(out, html); else console.log(html); return 0;
+}
+
+async function investigateCommand(flags: Flags): Promise<number> {
+  const leadPath = stringFlag(flags, "lead", true)!; const reviewer = stringFlag(flags, "reviewer", true)!;
+  const lead = await readJson(leadPath) as ExplorationLead; const investigation = createInvestigation(lead, reviewer);
+  const result = await runStrictReplay(investigation, () => ({ reproduced: false, divergence: "replay-context-unavailable" }));
+  const out = stringFlag(flags, "out") ?? resolve(dirnameFor(leadPath), result.investigationId + ".json");
+  await writeCanonicalJson(out, result); console.log(JSON.stringify({ command: "investigate", out, status: result.status, replayCount: result.replayCount }, null, 2)); return result.status === "reproduced" ? 0 : 2;
+}
+
+async function promoteCommand(flags: Flags): Promise<number> {
+  const investigationPath = stringFlag(flags, "investigation", true)!; const kind = stringFlag(flags, "kind", true);
+  if (kind !== "trace" && kind !== "suite") throw new Error("--kindはtraceまたはsuiteです");
+  const investigation = await readJson(investigationPath) as Investigation; const refs = investigation.evidenceRefs ?? investigation.oracleRefs ?? [];
+  const promotion = promoteInvestigation(investigation, kind, refs); const out = stringFlag(flags, "out") ?? resolve(dirnameFor(investigationPath), promotion.promotionId + ".json");
+  await writeCanonicalJson(out, promotion); console.log(JSON.stringify({ command: "promote", out, promotionId: promotion.promotionId }, null, 2)); return 0;
+}
+function dirnameFor(path: string): string { return resolve(path, ".."); }
+async function writeTextArtifact(path: string, text: string): Promise<void> { const { writeText } = await import("./core/artifact-store.js"); await writeText(path, text); }
+async function comboGen(flags: Flags): Promise<number> {
+  const modelPath = stringFlag(flags, "factor-model", true)!;
+  const out = stringFlag(flags, "out", true)!;
+  const model = await readJson(modelPath);
+  assertCombinationFactorModel(model);
+  const suite = generateCombinationSuite(model, {
+    seed: integerFlag(flags, "seed"),
+    strength: integerFlag(flags, "strength"),
+    caseBudget: integerFlag(flags, "case-budget"),
+    factorGroup: stringFlag(flags, "factor-group"),
+  });
+  await writeCanonicalJson(out, suite);
+  console.log(JSON.stringify({ command: "combo gen", out, suiteId: suite.suiteId, caseCount: suite.cases.length, strength: suite.strength }, null, 2));
+  return 0;
+}
+
+async function comboVerify(flags: Flags): Promise<number> {
+  const modelPath = stringFlag(flags, "factor-model", true)!;
+  const suitePath = stringFlag(flags, "suite", true)!;
+  const out = stringFlag(flags, "out", true)!;
+  const model = await readJson(modelPath);
+  const suite = await readJson(suitePath);
+  assertCombinationFactorModel(model);
+  assertCombinationSuite(suite);
+  const report = verifyCombinationSuite(model, suite);
+  await writeCanonicalJson(out, report);
+  console.log(JSON.stringify(report, null, 2));
+  return report.valid ? 0 : 1;
+}
+
 export async function runCli(argv: string[]): Promise<number> {
   try {
     const parsed = args(argv);
@@ -109,6 +213,12 @@ export async function runCli(argv: string[]): Promise<number> {
     if (command === "doctor") return doctor(parsed.flags);
     if (command === "auth capture") return capture(parsed.flags);
     if (command === "auth validate") return validateAuth(parsed.flags);
+    if (command === "combo gen") return comboGen(parsed.flags);
+    if (command === "combo verify") return comboVerify(parsed.flags);
+    if (command === "scout") return scoutCommand(parsed.flags);
+    if (command === "report leads") return reportLeads(parsed.flags);
+    if (command === "investigate") return investigateCommand(parsed.flags);
+    if (command === "promote") return promoteCommand(parsed.flags);
     throw new Error(`未対応command: ${command}`);
   } catch (error) { console.error(error instanceof Error ? error.message : String(error)); return 1; }
 }

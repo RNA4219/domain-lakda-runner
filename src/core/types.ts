@@ -82,6 +82,10 @@ export type LlmConfig = {
   maxRetries: number;
 };
 
+export type LakdaExtensions = {
+  combinations?: { caseBudget: number; defaultStrength: number };
+  scouting?: { mode: "rule-only" | "loopback"; leadCap: number };
+};
 export type LakdaConfig = {
   schemaVersion: "lakda/v1";
   baseUrl?: string;
@@ -95,6 +99,7 @@ export type LakdaConfig = {
   outputDir: string;
   headed: boolean;
   adaptive?: AdaptiveConfig;
+  extensions?: LakdaExtensions;
   /** v1 source of truth for executable actions. */
   actionCatalog: Action[];
   /** Backward-compatible input alias; normalized into actionCatalog. */

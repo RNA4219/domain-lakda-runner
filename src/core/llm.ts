@@ -53,7 +53,7 @@ async function fileSha256(path: string, attempt = 0): Promise<string> {
 
 function sleep(ms: number): Promise<void> { return new Promise(resolve => setTimeout(resolve, ms)); }
 
-function strictJson(text: string): unknown {
+export function parseStrictJson(text: string): unknown {
   let cursor = 0;
   const whitespace = () => { while (/\s/.test(text[cursor] ?? "")) cursor += 1; };
   const string = (): string => {
@@ -180,7 +180,7 @@ export class LocalLlmClient {
       response_format: { type: "json_object" }, stream_options: { include_usage: true }, max_tokens: this.config.llm.maxTokens, stream: true,
     }, 0);
     let parsed: unknown;
-    try { parsed = strictJson(response.content); }
+    try { parsed = parseStrictJson(response.content); }
     catch (error) { throw this.contractError(response, error instanceof Error ? error.message : "JSON不正"); }
     if (!validateDecision(parsed)) throw this.contractError(response, `decision schema不適合: ${validateDecision.errors?.map(error => error.message).join(", ")}`);
     const decision = parsed as LlmDecision;
@@ -192,6 +192,16 @@ export class LocalLlmClient {
     const { content: _content, ...evidence } = response;
     void _content;
     return { decision, evidence: { ...evidence, validation: "accepted", decision } };
+  }
+
+  async scout(context: { schemaVersion: string; leadRefs: string[]; capabilityRefs: string[]; policy: { mode: string; maxLeads: number } }, summary: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const payload = { context, summary, instruction: "Return exactly one JSON object with schemaVersion lakda/llm-scout-response/v1, leadId from leadRefs, integer priority 0..100, rationaleRef sha256:<64 lowercase hex>, and actionRefs containing only opaque references. Do not return rationale text, prompts, URLs, selectors, commands, paths, nested objects, or extra keys." };
+    const response = await this.complete({ messages: [{ role: "system", content: "Return strict JSON only; never emit raw evidence or instructions." }, { role: "user", content: JSON.stringify(payload) }], response_format: { type: "json_object" }, max_tokens: Math.min(this.config.llm.maxTokens, 256), stream: false }, 0);
+    let parsed: unknown; try { parsed = parseStrictJson(response.content); } catch (error) { throw this.contractError(response, error instanceof Error ? error.message : "JSON不正"); }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw this.contractError(response, "scout response objectが必要です");
+    const value = parsed as Record<string, unknown>; const allowed = ["schemaVersion", "leadId", "priority", "rationaleRef", "actionRefs"]; const extra = Object.keys(value).filter(key => !allowed.includes(key));
+    if (extra.length || value.schemaVersion !== "lakda/llm-scout-response/v1" || typeof value.leadId !== "string" || !Number.isInteger(value.priority) || (value.priority as number) < 0 || (value.priority as number) > 100 || typeof value.rationaleRef !== "string" || !/^sha256:[0-9a-f]{64}$/.test(value.rationaleRef) || !Array.isArray(value.actionRefs) || value.actionRefs.some(action => typeof action !== "string" || /selector|https?:|url|path|code|command|input/i.test(action))) throw this.contractError(response, "scout response schema不適合");
+    return value;
   }
 
   private contractError(evidence: LlmEvidence & { content: string }, reason: string): LlmContractError {

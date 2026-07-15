@@ -1,34 +1,64 @@
 ---
-document_id: LAKDA-SPEC-LX-INDEX
-status: review-ready
-version: 0.1.0-draft
+document_id: LAKDA-SPEC-EXT-001
+status: implementation-baseline
+version: 1.0.0
 last_updated: 2026-07-15
 requirements: ../Lakda拡張要件定義書.md
-evaluation: EVALUATION-LAKDA-EXTENSION.md
 ---
 
-# Lakda 拡張仕様書群
+# Lakda拡張仕様書
 
-P7後の追加要件を、Workflow-cookbookの一次所有・Task Seed・Acceptance・Evidenceへ投影する仕様書群である。P7 real受入のpending_external状態は変更しない。
+## 1. 目的と非破壊境界
 
-## 読み順
+P8〜P11の追加経路を、既存のObservation、ActionCandidate、ExecutionResult、OracleResult、EvidenceArtifactRef、RunResultへ接続する。既存mode、action-plan/v1、adaptive-trace/v1、HATE/v1、QEG境界は変更しない。
 
-| 順序 | 仕様書 | チェックリスト | 一次所有要件 | 受入 |
-|---:|---|---|---|---|
-| 1 | [Spec-01 組み合わせ](SPEC-01-COMBINATION-TESTING.md) | [Checklist-01](CHECKLIST-01-COMBINATION-TESTING.md) | REQ-LX-COMB-*, REQ-LX-CLI-* | AC-LX-001〜005, 013 |
-| 2 | [Spec-02 Signal/LLM](SPEC-02-SIGNAL-LLM-SCOUTING.md) | [Checklist-02](CHECKLIST-02-SIGNAL-LLM-SCOUTING.md) | REQ-LX-SIG-*, REQ-LX-LLM-* | AC-LX-006〜008 |
-| 3 | [Spec-03 調査・証跡](SPEC-03-INVESTIGATE-EVIDENCE.md) | [Checklist-03](CHECKLIST-03-INVESTIGATE-EVIDENCE.md) | REQ-LX-INV-*, REQ-LX-EVD-* | AC-LX-009〜012, 014 |
+各仕様には対応チェックリストを紐付ける。
 
-受入の分母、fixture、real/mock資格、artifact条件は[拡張評価仕様](EVALUATION-LAKDA-EXTENSION.md)を正本とする。実装のPlan/Patch/Tests/Commands/Notesは[拡張実装計画](../../IMPLEMENTATION-PLAN-LAKDA-EXTENSION.md)に集約する。
+- [Checklist-01 Combination](CHECKLIST-01-COMBINATION.md)
+- [Checklist-02 Scouting](CHECKLIST-02-SCOUTING.md)
+- [Checklist-03 Investigation/Evidence](CHECKLIST-03-INVESTIGATION-EVIDENCE.md)
 
-## 共通規約
+## 2. Combination契約（P8）
 
-- Mustは対応phaseの受入に必須、Shouldは後続phaseで実装可能とする。
-- 未知schema version、未知ref、未対応capabilityの暗黙変換・暗黙fallbackは禁止する。
-- fixture/mockは補助証跡であり、real必須受入を完了扱いにしない。
-- Lakdaの証跡境界はHATE/v1 manifestまで。QEGのrecord、verdict、approval、waiverは生成しない。
-- 各仕様書はObjective、Scope、Requirements、Plan、Patch、Tests、Commands、Notesを持つ。
+factor modelは schemaVersion、modelId、generatorPolicy、factors、constraintsを必須とする。factorは input/state/action/environment のいずれかで、値は安全なfixture値だけを保持する。constraintは allOf、anyOf、not、eq、neq、in、notIn、implies の専用DSLとし、未知factor/refは生成前に拒否する。
 
-## ライフサイクル
+generatorは model digest、generator version、seed、strength、factorGroup、case budgetを入力に、stable sortしたgreedy IPOG相当のsuiteを生成する。同一入力はbyte-identicalである。指定groupの3-way tuple以外はpairwiseのままにする。
 
-draft -> review-ready -> approved。対応ChecklistのAが完了したときreview-readyとし、ownerレビューとTask Seed生成後にapprovedとする。ChecklistのB/Cは実装・受入証跡取得後だけ更新する。
+verifyは入力modelからvalid assignmentとtupleを独立再計算し、model digest、constraint、unknown ref、duplicate case、coverage不足を返す。invalid時はexit 1で、部分suiteを成功扱いにしない。
+
+Playwright forms観測はvisible/enabledのselect optionを値IDとして安定ソートし、disabled、hidden、空値、secret/PII patternを除外する。
+
+## 3. Signal/Lead/Scout契約（P9）
+
+trace entryからtimeout、trace failure、oracle failure、topology change、coverage gap、safety refusalをrule-firstでSignal化する。Signal IDはrun、kind、source refs、fingerprint、観測属性のcanonical digestで決まり、重複を除去する。
+
+LeadはSignal refのみを束ねる調査候補で、priorityとstatus=openを持つ。rule-only groupingはkind、target、fingerprintでグループ化し、lead cap既定3を超えない。
+
+LLM scoutはloopback LocalLlmClientのattestation/timeout/token契約を継承する。contextはLead IDとcapability refのみ、responseはstrict JSON・追加キーなし・提示済みLead refのみとする。selector、URL、path、code、command、raw input、confirmed verdictは拒否し、providerを暗黙切替しない。判断はredacted digest JSONLへ記録する。
+
+## 4. Investigation/Promotion/Shrinking契約（P10）
+
+investigateはreviewer refとLead digestを記録し、strict replayを一回だけ実行する。pre/post fingerprint、settle、topology、oracleが一致しない場合はreplay_divergedでfail-closedにする。
+
+promoteはstatus=reproducedかつartifact/oracle refが存在する場合だけ受理し、parent investigation digest、kind(trace|suite)、派生artifact refsをimmutableに記録する。元Lead/run/artifactは変更しない。
+
+shrinkingはsafe non-mutating sequenceだけをcase→sequence→inputの順で試行し、scope allowlist、mutation allowlist、attempt budget、kill switchを各候補へ適用する。KPIはrevision、numerator、denominator、ratioを持つ。
+
+追加artifactはArtifact Storeのredaction→secret/PII scan→size/SHA-256→HATE/v1 exportを通す。失敗は成功へ変換しない。
+
+## 5. P11 real acceptance
+
+runnerは承認済み環境変数、immutable corpus、case ID、target revision、config digestをtarget接続前に検証する。不足または不整合の場合は非0終了でpending_externalを出し、targetへ接続しない。
+
+成功時のcase reportはexecutionMode=real、OracleResult refs、HATE artifact refs、manifest path、qegHandoff.status=pending_external、verdictGeneratedByLakda=falseを必須とする。verifierは最終HATE manifestの実bytes/digestとreport refsを再照合する。manual-bb/QEGのverdictは生成しない。
+
+## 6. CLI契約
+
+- combo gen: factor modelからsuite.jsonを生成
+- combo verify: suiteのcoverage/constraint reportを生成
+- scout: configとtrace/suiteからSignal/Lead reportを生成
+- investigate: Leadをstrict replayしてinvestigation recordを生成
+- promote: reproduced investigationのみtrace/suiteへ昇格
+- report leads: JSON/HTMLでLead一覧を出力
+
+未知version/ref、追加キー、禁止mode、scope外、budget超過は非0終了とする。

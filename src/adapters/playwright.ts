@@ -363,6 +363,14 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
         const minimum = field instanceof HTMLInputElement && field.min !== "" && Number.isFinite(Number(field.min)) ? Number(field.min) : undefined;
         const maximum = field instanceof HTMLInputElement && field.max !== "" && Number.isFinite(Number(field.max)) ? Number(field.max) : undefined;
         const pattern = field instanceof HTMLInputElement && field.pattern ? field.pattern : undefined;
+        const sensitive = /password|secret|token|credential|authorization|cookie|ssn|credit[ -]?card|api[ -_]?key|@/i;
+        const options = field instanceof HTMLSelectElement
+          ? [...field.options]
+            .filter(option => !option.disabled && !option.hidden && !option.parentElement?.hasAttribute("hidden") && option.value.trim() !== "" && !sensitive.test(`${option.value} ${option.label}`))
+            .map(option => option.value.trim())
+            .filter((value, optionIndex, values) => values.indexOf(value) === optionIndex)
+            .sort((left, right) => left.localeCompare(right))
+          : undefined;
         return [{
           fieldId: field.id || field.getAttribute("data-testid") || field.getAttribute("name") || `field-${fieldIndex}`,
           name: field.getAttribute("name") || undefined,
@@ -374,11 +382,11 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
           ...(minimum !== undefined ? { minimum } : {}),
           ...(maximum !== undefined ? { maximum } : {}),
           ...(pattern ? { pattern } : {}),
+          ...(options?.length ? { options } : {}),
         }];
       }),
     })));
   }
-
   async observe(targetRef: TargetRef, context: ObserveContext): Promise<Observation> {
     const entry = this.entry(targetRef); const page = entry.ref.kind === "frame" ? (entry.target as Frame).page() : entry.target as Page;
     this.activateTarget(entry.ref.targetId, "observe");

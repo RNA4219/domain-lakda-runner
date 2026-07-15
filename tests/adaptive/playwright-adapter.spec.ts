@@ -13,7 +13,7 @@ test("Playwright adapter re-observes dynamic DOM and rejects stale candidates", 
       body: `<main>
         <h1>Adaptive corpus</h1>
         <section role="dialog" aria-label="Safe modal">Modal content</section>
-        <label>Search <input data-testid="query" name="q"></label>
+        <label>Search <input data-testid="query" name="q"></label><form id="plan-form"><label>Plan <select data-testid="plan"><option value="hidden" hidden>Hidden</option><option value="basic">Basic</option><option value="disabled" disabled>Disabled</option><option value="pro">Pro</option></select></label></form>
         <button data-testid="advance">Advance</button>
         <button data-testid="dialog" onclick="alert('safe dialog')">Dialog</button>
         <a data-testid="popup" target="_blank" href="/popup">Open popup</a>
@@ -39,6 +39,7 @@ test("Playwright adapter re-observes dynamic DOM and rejects stale candidates", 
       expect.objectContaining({ role: "dialog", name: "Safe modal", modal: true }),
     ]));
     expect(first.ui.domModals).toEqual([expect.objectContaining({ role: "dialog", name: "Safe modal", open: true })]);
+    expect(first.forms).toEqual([expect.objectContaining({ fields: expect.arrayContaining([expect.objectContaining({ fieldId: "plan", options: ["basic", "pro"] })]) })]);
     expect(first.dialogs).toEqual([]);
     const repeated = await adapter.observe(adapter.primaryTarget(), { runId: "adapter-test", scopeHosts: ["127.0.0.1"] });
     expect(canonicalizeObservation(repeated)).toBe(canonicalizeObservation(first));

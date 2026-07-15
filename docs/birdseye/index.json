@@ -1,5 +1,5 @@
 {
-  "generated_at": "00033",
+  "generated_at": "00037",
   "nodes": {
     "README.md": {
       "role": "overview",
@@ -398,6 +398,34 @@
     "docs/spec/lakda-extension/SPEC-03-INVESTIGATE-EVIDENCE.md": {
       "role": "doc",
       "caps": "docs/birdseye/caps/docs.spec.lakda-extension.SPEC-03-INVESTIGATE-EVIDENCE.md.json"
+    },
+    "docs/spec/lakda-extension/CHECKLIST-01-COMBINATION.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.spec.lakda-extension.CHECKLIST-01-COMBINATION.md.json"
+    },
+    "docs/spec/lakda-extension/CHECKLIST-02-SCOUTING.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.spec.lakda-extension.CHECKLIST-02-SCOUTING.md.json"
+    },
+    "docs/spec/lakda-extension/CHECKLIST-03-INVESTIGATION-EVIDENCE.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.spec.lakda-extension.CHECKLIST-03-INVESTIGATION-EVIDENCE.md.json"
+    },
+    "docs/acceptance/AC-20260715-14.lakda-extension-p8-local.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260715-14.lakda-extension-p8-local.md.json"
+    },
+    "docs/acceptance/AC-20260715-15.lakda-extension-p9-local.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260715-15.lakda-extension-p9-local.md.json"
+    },
+    "docs/acceptance/AC-20260715-16.lakda-extension-p10-local.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260715-16.lakda-extension-p10-local.md.json"
+    },
+    "docs/acceptance/AC-20260715-17.lakda-extension-p11-pending-external.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260715-17.lakda-extension-p11-pending-external.md.json"
     }
   },
   "edges": [
