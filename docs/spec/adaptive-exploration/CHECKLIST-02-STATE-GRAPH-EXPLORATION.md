@@ -2,7 +2,7 @@
 document_id: LAKDA-CHK-AE-002
 status: review-ready
 version: 0.1.0-draft
-last_updated: 2026-07-14
+last_updated: 2026-07-15
 specification: SPEC-02-STATE-GRAPH-EXPLORATION.md
 ---
 
@@ -37,7 +37,7 @@ specification: SPEC-02-STATE-GRAPH-EXPLORATION.md
 | [ ] | CHK-AE-002-I-006 | REQ-FP-006 | §3 fingerprint | 決定的fixture・graph/trace検証 | 未取得 |
 | [ ] | CHK-AE-002-I-007 | REQ-GRAPH-001 | §4 graph | 決定的fixture・graph/trace検証 | 未取得 |
 | [ ] | CHK-AE-002-I-008 | REQ-GRAPH-002 | §4 graph | 決定的fixture・graph/trace検証 | 未取得 |
-| [ ] | CHK-AE-002-I-009 | REQ-GRAPH-003 | §4 graph | 決定的fixture・graph/trace検証 | 未取得 |
+| [x] | CHK-AE-002-I-009 | REQ-GRAPH-003 | §4 graph | 決定的fixture・graph/trace検証 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
 | [x] | CHK-AE-002-I-010 | REQ-GRAPH-004 | §4 graph | 決定的fixture・graph/trace検証 | [AC-20260715-08](../../acceptance/AC-20260715-08.p3-p4-replay-hardening.md) |
 | [ ] | CHK-AE-002-I-011 | REQ-GRAPH-005 | §4 graph | 決定的fixture・graph/trace検証 | 未取得 |
 | [ ] | CHK-AE-002-I-012 | REQ-GRAPH-006 | §4 graph | 決定的fixture・graph/trace検証 | 未取得 |
@@ -45,7 +45,7 @@ specification: SPEC-02-STATE-GRAPH-EXPLORATION.md
 | [ ] | CHK-AE-002-I-014 | REQ-EXP-001 | §5 Generator | 決定的fixture・graph/trace検証 | 未取得 |
 | [ ] | CHK-AE-002-I-015 | REQ-EXP-002 | §5 Generator | 決定的fixture・graph/trace検証 | 未取得 |
 | [ ] | CHK-AE-002-I-016 | REQ-EXP-003 | §5 Generator | 決定的fixture・graph/trace検証 | 未取得 |
-| [ ] | CHK-AE-002-I-017 | REQ-EXP-004 | §5 Generator | 決定的fixture・graph/trace検証 | 未取得 |
+| [x] | CHK-AE-002-I-017 | REQ-EXP-004 | §5 Generator | 決定的fixture・graph/trace検証 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
 | [ ] | CHK-AE-002-I-018 | REQ-EXP-005 | §5 Generator | 決定的fixture・graph/trace検証 | 未取得 |
 | [ ] | CHK-AE-002-I-019 | REQ-EXP-006 | §5 Generator | 決定的fixture・graph/trace検証 | 未取得 |
 | [ ] | CHK-AE-002-I-020 | REQ-EXP-007 | §5 Generator | 決定的fixture・graph/trace検証 | 未取得 |
@@ -64,12 +64,12 @@ specification: SPEC-02-STATE-GRAPH-EXPLORATION.md
 | [ ] | CHK-AE-002-I-033 | REQ-COV-007 | §7 coverage | 決定的fixture・graph/trace検証 | 未取得 |
 | [ ] | CHK-AE-002-I-034 | REQ-COV-008 | §7 coverage | 決定的fixture・graph/trace検証 | 未取得 |
 | [ ] | CHK-AE-002-I-035 | REQ-REC-001 | §8・§9 循環・復旧 | 決定的fixture・graph/trace検証 | 未取得 |
-| [ ] | CHK-AE-002-I-036 | REQ-REC-002 | §8・§9 循環・復旧 | 決定的fixture・graph/trace検証 | 未取得 |
-| [ ] | CHK-AE-002-I-037 | REQ-REC-003 | §8・§9 循環・復旧 | 決定的fixture・graph/trace検証 | 未取得 |
+| [x] | CHK-AE-002-I-036 | REQ-REC-002 | §8・§9 循環・復旧 | 決定的fixture・graph/trace検証 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
+| [x] | CHK-AE-002-I-037 | REQ-REC-003 | §8・§9 循環・復旧 | 決定的fixture・graph/trace検証 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
 | [ ] | CHK-AE-002-I-038 | REQ-REC-004 | §8・§9 循環・復旧 | 決定的fixture・graph/trace検証 | 未取得 |
 | [ ] | CHK-AE-002-I-039 | REQ-REC-005 | §8・§9 循環・復旧 | 決定的fixture・graph/trace検証 | 未取得 |
 | [ ] | CHK-AE-002-I-040 | REQ-REC-006 | §8・§9 循環・復旧 | 決定的fixture・graph/trace検証 | 未取得 |
-| [ ] | CHK-AE-002-I-041 | REQ-REC-007 | §8・§9 循環・復旧 | 決定的fixture・graph/trace検証 | 未取得 |
+| [x] | CHK-AE-002-I-041 | REQ-REC-007 | §8・§9 循環・復旧 | 決定的fixture・graph/trace検証 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
 
 ## C. 受入Gate
 

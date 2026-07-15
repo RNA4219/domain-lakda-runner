@@ -1,4 +1,4 @@
-import type { ActionCandidate, AdaptiveGeneratorStrategy, AdaptiveStopCondition, ExecutionResult, StateFingerprint } from "./contracts.js";
+import type { ActionCandidate, AdaptiveGeneratorStrategy, AdaptiveStopCondition, ExecutionResult, OracleResult, StateFingerprint } from "./contracts.js";
 
 export type CoverageMetric = { numerator: number; denominator: number; ratio: number };
 export type GraphNode = {
@@ -11,13 +11,16 @@ export type GraphNode = {
   knownCandidateIds: string[];
   obligations: Record<string, "met" | "unmet" | "unknown">;
 };
+export type GraphEdgeKind = "action" | "denied" | "timeout" | "recovery" | "reset" | "backtrack";
 export type GraphEdge = {
   from: string;
   candidateId: string;
+  edgeKind: GraphEdgeKind;
   to?: string;
   count: number;
   statuses: Record<string, number>;
   failureSignatures: string[];
+  oracleRefs: string[];
   evidenceArtifactIds: string[];
   latencyMs: { count: number; total: number; min: number; max: number };
 };
@@ -59,7 +62,8 @@ export type CoveragePoint = { actionIndex: number; graphRevision: number; covera
 export type StopDecision = { stop: boolean; reason?: string; matchedConditions: string[]; coverage: Coverage };
 
 const actionKey = (from: string, candidateId: string): string => `${from}\u0000${candidateId}`;
-const edgeKey = (from: string, candidateId: string, to?: string): string => `${from}\u0000${candidateId}\u0000${to ?? ""}`;
+const edgeKey = (from: string, candidateId: string, to: string | undefined, edgeKind: GraphEdgeKind): string => `${from}\u0000${candidateId}\u0000${to ?? ""}\u0000${edgeKind}`;
+const executionEdgeKind = (status: ExecutionResult["status"]): GraphEdgeKind => status === "denied" ? "denied" : status === "timeout" ? "timeout" : "action";
 const pairKey = (left: string, right: string): string => `${left}\u0001${right}`;
 const metric = (numerator: number, denominator: number): CoverageMetric => ({
   numerator,
@@ -150,16 +154,19 @@ export class StateGraph {
     this.actionCount = Math.max(this.actionCount, actionIndex);
     this.executedActions.add(actionKey(from, candidate.candidateId));
     this.executedCandidateIds.add(candidate.candidateId);
-    const key = edgeKey(from, candidate.candidateId, to);
+    const edgeKind = executionEdgeKind(result.status);
+    const key = edgeKey(from, candidate.candidateId, to, edgeKind);
     const duration = elapsed(result);
     const existing = this.edges.get(key);
     const edge = existing ?? {
       from,
       candidateId: candidate.candidateId,
+      edgeKind,
       ...(to ? { to } : {}),
       count: 0,
       statuses: {},
       failureSignatures: [],
+      oracleRefs: [],
       evidenceArtifactIds: [],
       latencyMs: { count: 0, total: 0, min: duration, max: duration },
     };
@@ -187,6 +194,41 @@ export class StateGraph {
     const coverage = this.coverage();
     this.history.push({ actionIndex, graphRevision: coverage.graphRevision, coverage });
     return !existing;
+  }
+
+  recordControlTransition(input: {
+    from: string; candidateId: string; to?: string; edgeKind: "recovery" | "reset" | "backtrack";
+    status: "recovered" | "not_recovered" | "diverged"; failureSignature?: string; evidenceArtifactIds?: string[]; actionIndex?: number;
+  }): boolean {
+    const actionIndex = input.actionIndex ?? this.actionCount;
+    const key = edgeKey(input.from, input.candidateId, input.to, input.edgeKind);
+    const existing = this.edges.get(key);
+    const edge = existing ?? {
+      from: input.from, candidateId: input.candidateId, edgeKind: input.edgeKind, ...(input.to ? { to: input.to } : {}),
+      count: 0, statuses: {}, failureSignatures: [], oracleRefs: [], evidenceArtifactIds: [],
+      latencyMs: { count: 0, total: 0, min: 0, max: 0 },
+    };
+    edge.count += 1;
+    edge.statuses[input.status] = (edge.statuses[input.status] ?? 0) + 1;
+    if (input.failureSignature && !edge.failureSignatures.includes(input.failureSignature)) edge.failureSignatures.push(input.failureSignature);
+    for (const artifactId of input.evidenceArtifactIds ?? []) if (!edge.evidenceArtifactIds.includes(artifactId)) edge.evidenceArtifactIds.push(artifactId);
+    edge.failureSignatures.sort(); edge.evidenceArtifactIds.sort();
+    this.edges.set(key, edge);
+    const previous = this.lastTransition ? this.edges.get(this.lastTransition) : undefined;
+    if (previous?.to === input.from && this.lastTransition) this.transitionPairs.add(pairKey(this.lastTransition, key));
+    this.lastTransition = key; this.revision += 1;
+    if (!existing) this.lastNovelAction = actionIndex;
+    const coverage = this.coverage(); this.history.push({ actionIndex, graphRevision: coverage.graphRevision, coverage });
+    return !existing;
+  }
+
+  recordOracleResults(from: string, candidateId: string, to: string | undefined, results: OracleResult[], status?: ExecutionResult["status"]): void {
+    const edgeKind = status ? executionEdgeKind(status) : undefined;
+    const matches = [...this.edges.values()].filter(edge => edge.from === from && edge.candidateId === candidateId && edge.to === to && (!edgeKind || edge.edgeKind === edgeKind));
+    if (matches.length !== 1) throw new Error("cannot attach oracle results to an unknown or ambiguous graph edge");
+    const edge = matches[0];
+    for (const result of results) if (!edge.oracleRefs.includes(result.oracleId)) edge.oracleRefs.push(result.oracleId);
+    edge.oracleRefs.sort();
   }
 
   visits(fingerprint: string): number { return this.nodes.get(fingerprint)?.visits ?? 0; }
@@ -252,14 +294,25 @@ export class StateGraph {
     if (!candidates.length) return undefined;
     const ordered = [...candidates].sort((left, right) => left.candidateId.localeCompare(right.candidateId));
     if (strategy === "random" || strategy === "llm-select") return ordered[Math.floor(random() * ordered.length)];
+    if (strategy === "weighted-random") {
+      const weights = ordered.map(candidate => Number.isFinite(candidate.risk.weight) ? Math.max(0, candidate.risk.weight) : 0);
+      const total = weights.reduce((sum, weight) => sum + weight, 0);
+      if (total === 0) return ordered[Math.floor(random() * ordered.length)];
+      const draw = random() * total;
+      let cumulative = 0;
+      for (let index = 0; index < ordered.length; index += 1) {
+        cumulative += weights[index];
+        if (draw < cumulative) return ordered[index];
+      }
+      return ordered.at(-1);
+    }
     const scored = ordered.map(candidate => {
       const transitionVisits = this.transitionVisits(candidate.sourceFingerprint, candidate.candidateId);
       const stateVisits = this.visits(candidate.sourceFingerprint);
       const unseen = this.executedActions.has(actionKey(candidate.sourceFingerprint, candidate.candidateId)) ? 0 : 1;
-      const score = strategy === "weighted-random" ? candidate.risk.weight * (0.5 + random())
-        : strategy === "least-visited-transition" ? -transitionVisits
-          : strategy === "shortest-to-uncovered" ? unseen * 10_000 - stateVisits * 10 - transitionVisits
-            : unseen * candidate.risk.weight * 100 - transitionVisits;
+      const score = strategy === "least-visited-transition" ? -transitionVisits
+        : strategy === "shortest-to-uncovered" ? unseen * 10_000 - stateVisits * 10 - transitionVisits
+          : unseen * candidate.risk.weight * 100 - transitionVisits;
       return { candidate, score };
     });
     const max = Math.max(...scored.map(value => value.score));
@@ -299,9 +352,10 @@ export class StateGraph {
         ...edge,
         statuses: { ...edge.statuses },
         failureSignatures: [...edge.failureSignatures],
+        oracleRefs: [...edge.oracleRefs],
         evidenceArtifactIds: [...edge.evidenceArtifactIds],
         latencyMs: { ...edge.latencyMs },
-      })).sort((left, right) => edgeKey(left.from, left.candidateId, left.to).localeCompare(edgeKey(right.from, right.candidateId, right.to))),
+      })).sort((left, right) => edgeKey(left.from, left.candidateId, left.to, left.edgeKind).localeCompare(edgeKey(right.from, right.candidateId, right.to, right.edgeKind))),
       transitionPairs: [...this.transitionPairs].sort(),
       offeredCandidateIds: [...this.offeredCandidateIds].sort(),
       executedCandidateIds: [...this.executedCandidateIds].sort(),

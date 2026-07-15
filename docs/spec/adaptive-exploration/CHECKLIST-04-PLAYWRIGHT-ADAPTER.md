@@ -2,7 +2,7 @@
 document_id: LAKDA-CHK-AE-004
 status: review-ready
 version: 0.1.0-draft
-last_updated: 2026-07-14
+last_updated: 2026-07-15
 specification: SPEC-04-PLAYWRIGHT-ADAPTER.md
 ---
 
@@ -30,15 +30,15 @@ Chromium実行と証跡が得られるまで未チェックとする。
 
 | 完了 | チェックID | 要件ID | 仕様節 | 検証方法 | 証跡 |
 |---|---|---|---|---|---|
-| [ ] | CHK-AE-004-I-001 | REQ-WEB-001 | §4・§7〜§9 target topology | Chromium固定corpus・trace検証 | 未取得 |
+| [x] | CHK-AE-004-I-001 | REQ-WEB-001 | §4・§7〜§9 target topology | Chromium固定corpus・trace検証 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
 | [ ] | CHK-AE-004-I-002 | REQ-WEB-002 | §4・§7〜§9 target topology | Chromium固定corpus・trace検証 | 未取得 |
 | [ ] | CHK-AE-004-I-003 | REQ-WEB-003 | §4・§7〜§9 target topology | Chromium固定corpus・trace検証 | 未取得 |
-| [ ] | CHK-AE-004-I-004 | REQ-WEB-004 | §4・§7〜§9 target topology | Chromium固定corpus・trace検証 | 未取得 |
-| [ ] | CHK-AE-004-I-005 | REQ-WEB-005 | §4・§7〜§9 target topology | Chromium固定corpus・trace検証 | 未取得 |
+| [x] | CHK-AE-004-I-004 | REQ-WEB-004 | §4・§7〜§9 target topology | Chromium固定corpus・trace検証 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
+| [x] | CHK-AE-004-I-005 | REQ-WEB-005 | §4・§7〜§9 target topology | Chromium固定corpus・trace検証 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
 | [ ] | CHK-AE-004-I-006 | REQ-WEB-006 | §4・§7〜§9 target topology | Chromium固定corpus・trace検証 | 未取得 |
 | [ ] | CHK-AE-004-I-007 | REQ-WEB-007 | §4・§7〜§9 target topology | Chromium固定corpus・trace検証 | 未取得 |
-| [ ] | CHK-AE-004-I-008 | REQ-PW-001 | §3・§5・§6 Playwright | Chromium固定corpus・trace検証 | 未取得 |
-| [ ] | CHK-AE-004-I-009 | REQ-PW-002 | §3・§5・§6 Playwright | Chromium固定corpus・trace検証 | 未取得 |
+| [x] | CHK-AE-004-I-008 | REQ-PW-001 | §3・§5・§6 Playwright | Chromium固定corpus・trace検証 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
+| [x] | CHK-AE-004-I-009 | REQ-PW-002 | §3・§5・§6 Playwright | Chromium固定corpus・trace検証 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
 | [ ] | CHK-AE-004-I-010 | REQ-PW-003 | §3・§5・§6 Playwright | Chromium固定corpus・trace検証 | 未取得 |
 
 ## C. 受入Gate

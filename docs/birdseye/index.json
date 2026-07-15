@@ -1,5 +1,5 @@
 {
-  "generated_at": "00023",
+  "generated_at": "00025",
   "nodes": {
     "README.md": {
       "role": "overview",
@@ -338,6 +338,10 @@
     "docs/tasks/TASK.20260714-35.md": {
       "role": "task",
       "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-35.md.json"
+    },
+    "docs/acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260715-09.adaptive-contract-topology-recovery.md.json"
     }
   },
   "edges": [

@@ -14,7 +14,7 @@ import type { ActionCandidate, ExecutionResult, Observation, OracleResult, Targe
 import { StateGraph } from "./graph.js";
 import { evaluateAdaptiveSafety, KillSwitch } from "./safety.js";
 import { SecurityExecutionController } from "./security-execution.js";
-import { genericOracle } from "./oracles.js";
+import { evaluateActionGuard, evaluateActionPostconditions, genericOracle } from "./oracles.js";
 import { securityOracle } from "./security-oracle.js";
 import { writeAdaptiveEvidence } from "./evidence.js";
 import { generateInputs, matchesRecordedInputCase, recordInputCase, shrinkFailure, type GeneratedInput, type InputField, type RecordedInputCase } from "./input.js";
@@ -49,7 +49,7 @@ type ReplayStep = {
   candidate: ActionCandidate;
   inputCase?: RecordedInputCase;
   execution?: ReplayExecutionExpectation;
-  oracle?: OracleResult;
+  oracles: OracleResult[];
 };
 
 function expectedExecution(entry: AdaptiveReplayEntry): ReplayExecutionExpectation | undefined {
@@ -77,12 +77,12 @@ function buildReplaySteps(replay: AdaptiveReplayTrace | undefined): ReplayStep[]
   let current: ReplayStep | undefined;
   for (const entry of replay?.trace ?? []) {
     if (entry.type === "candidate" && entry.candidate) {
-      current = { candidate: entry.candidate, ...(entry.inputCase ? { inputCase: entry.inputCase } : {}) };
+      current = { candidate: entry.candidate, ...(entry.inputCase ? { inputCase: entry.inputCase } : {}), oracles: [] };
       steps.push(current);
     } else if (entry.type === "execution" && current) {
       current.execution = expectedExecution(entry);
     } else if (entry.type === "oracle" && entry.result && current) {
-      current.oracle = entry.result;
+      current.oracles.push(entry.result);
     }
   }
   return steps;
@@ -98,8 +98,8 @@ function executionDivergence(expected: ReplayExecutionExpectation | undefined, a
   return undefined;
 }
 
-function oracleDivergence(expected: OracleResult | undefined, actual: OracleResult): string | undefined {
-  if (!expected) return "missing-oracle-expectation";
+function oracleDivergence(expected: OracleResult[] | undefined, actual: OracleResult[]): string | undefined {
+  if (!expected?.length) return "missing-oracle-expectation";
   const signature = (value: OracleResult) => canonicalJson({
     oracleClass: value.oracleClass,
     verdict: value.verdict,
@@ -107,7 +107,10 @@ function oracleDivergence(expected: OracleResult | undefined, actual: OracleResu
     message: value.message,
     requirementRefs: value.requirementRefs,
   });
-  return signature(expected) === signature(actual) ? undefined : "oracle-result-mismatch";
+  const expectedSignatures = expected.map(signature).sort();
+  const actualSignatures = actual.map(signature).sort();
+  if (expectedSignatures.length === 1 && actualSignatures.includes(expectedSignatures[0])) return undefined;
+  return canonicalJson(expectedSignatures) === canonicalJson(actualSignatures) ? undefined : "oracle-result-mismatch";
 }
 
 function random(seed: number): () => number {
@@ -220,7 +223,7 @@ export async function runAdaptiveExplore(config: LakdaConfig, collector: Artifac
   const started = (runtime.clock ?? Date.now)();
   const budget = runtime.actionBudget ?? new ActionBudget(config.safety.maxActionsPerMinute, runtime.clock);
   const graph = new StateGraph(); const trace: Array<Record<string, unknown>> = []; const killSwitch = new KillSwitch();
-  const observations: Observation[] = []; const candidateSnapshots: Array<{ observationId: string; candidates: ActionCandidate[] }> = []; const oracleResults: OracleResult[] = [];
+  const observations: Observation[] = []; const observationsByFingerprint = new Map<string, Observation>(); const candidateSnapshots: Array<{ observationId: string; candidates: ActionCandidate[] }> = []; const oracleResults: OracleResult[] = [];
   const generatedInputs: GeneratedInput[] = []; const shrinkSteps: ShrinkStep[] = []; let failureStep: ShrinkStep | undefined; let recoveryAttempts = 0;
   let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined; let context: BrowserContext | undefined; let page: Page | undefined; let adapter!: AdaptiveAdapter; let securityController: SecurityExecutionController | undefined; let activeTargets!: () => TargetRef[];
   let actions = 0; let outcome: RunOutcome = "error"; let terminationReason: TerminationReason = "executor_error";
@@ -272,12 +275,19 @@ export async function runAdaptiveExplore(config: LakdaConfig, collector: Artifac
           if (!generatedInputs.some(existing => existing.caseId === generatedInput.caseId)) generatedInputs.push(generatedInput);
         }
         const fingerprint = fingerprintObservation(observation);
+        observationsByFingerprint.set(fingerprint.value, observation);
         graph.recordState(fingerprint, observation.obligations, actions);
         trace.push({ type: "observation", observationId: observation.observationId, targetRef: observation.targetRef, fingerprint: fingerprint.value });
         const generated = await adapter.generateCandidates(observation);
         candidateSnapshots.push({ observationId: observation.observationId, candidates: generated });
         graph.recordOffered(generated, actions);
         for (const candidate of generated) {
+          const guard = evaluateActionGuard(candidate, observation);
+          if (!guard.allowed) {
+            if (guard.result) oracleResults.push(guard.result);
+            trace.push({ type: "candidate-denied", candidateId: candidate.candidateId, reason: guard.result?.message ?? "guard-not-satisfied", ...(guard.result ? { oracleResult: guard.result } : {}) });
+            continue;
+          }
           const safety = evaluateAdaptiveSafety(candidate, config, { actionCount: actions, artifactBytes: await runSizeBytes(collector.paths.runDir), killSwitch });
           if (!safety.allowed) trace.push({ type: "candidate-denied", candidateId: candidate.candidateId, reason: safety.reason });
           else {
@@ -295,7 +305,21 @@ export async function runAdaptiveExplore(config: LakdaConfig, collector: Artifac
         if (!safety.allowed || securityReason) { trace.push({ type: "candidate-denied", candidateId: candidate.candidateId, reason: securityReason! }); outcome = "partial"; terminationReason = "completed"; break; }
       }
       if (!candidate) { trace.push({ type: "stop", reason: "no-safe-candidate", actionCount: actions }); outcome = collector.failures.length ? "failed" : "passed"; terminationReason = "completed"; break; }
-      const generatedInput = candidate.inputProfileRef ? generatedInputs[actions % generatedInputs.length] : undefined;
+      const preObservation = observationsByFingerprint.get(candidate.sourceFingerprint);
+      if (!preObservation) {
+        trace.push({ type: "replay-divergence", candidateId: candidate.candidateId, reason: "pre-observation-missing", expectedFingerprint: candidate.sourceFingerprint });
+        outcome = "failed"; terminationReason = "machine_failure"; break;
+      }
+      const guard = evaluateActionGuard(candidate, preObservation);
+      if (!guard.allowed) {
+        if (guard.result) oracleResults.push(guard.result);
+        trace.push({ type: "candidate-denied", candidateId: candidate.candidateId, reason: guard.result?.message ?? "guard-not-satisfied", ...(guard.result ? { oracleResult: guard.result } : {}) });
+        if (replay) trace.push({ type: "replay-divergence", candidateId: candidate.candidateId, reason: guard.result?.message ?? "guard-not-satisfied" });
+        outcome = replay ? "failed" : "partial"; terminationReason = replay ? "machine_failure" : "completed"; break;
+      }
+      const inputFieldId = candidate.inputProfileRef?.startsWith("input-field:") ? candidate.inputProfileRef.slice("input-field:".length) : undefined;
+      const candidateInputs = inputFieldId ? generatedInputs.filter(input => input.fieldId === inputFieldId) : [];
+      const generatedInput = candidate.inputProfileRef && candidateInputs.length ? candidateInputs[actions % candidateInputs.length] : undefined;
       const inputCase = replay ? replayStep?.inputCase : generatedInput ? recordInputCase(generatedInput) : undefined;
       if (candidate.inputProfileRef && !inputCase) {
         trace.push({ type: "replay-divergence", candidateId: candidate.candidateId, reason: "missing-input-case" });
@@ -323,15 +347,36 @@ export async function runAdaptiveExplore(config: LakdaConfig, collector: Artifac
       graph.recordTransition(candidate.sourceFingerprint, candidate, result, result.postFingerprint, actions);
       if (result.postFingerprint) graph.recordFingerprint(result.postFingerprint, {}, actions);
       trace.push({ type: "execution", executionResult: result, executionId: result.executionId, candidateId: candidate.candidateId, ...(inputCase ? { inputCaseRef: inputCase.caseId } : {}), status: result.status, preFingerprint: result.preFingerprint, ...(result.postFingerprint ? { postFingerprint: result.postFingerprint } : {}), settle: result.settleResult.status });
-      const oracle = securityOracle(candidate, result) ?? genericOracle(result);
-      oracleResults.push(oracle);
-      trace.push({ type: "oracle", result: oracle });
+      let postObservation: Observation | undefined;
+      const postTarget = activeTargets().find(target => target.targetId === candidate.targetRef.targetId);
+      if (postTarget) {
+        try {
+          postObservation = await adapter.observe(postTarget, { runId: collector.metadata.runId, personaRef: config.persona, scopeHosts: config.safety.allowHosts });
+          observations.push(postObservation);
+          const postState = fingerprintObservation(postObservation);
+          observationsByFingerprint.set(postState.value, postObservation);
+          graph.recordState(postState, postObservation.obligations, actions);
+          trace.push({ type: "observation", phase: "post-action", observationId: postObservation.observationId, targetRef: postObservation.targetRef, fingerprint: postState.value });
+        } catch {
+          trace.push({ type: "observation-unavailable", phase: "post-action", candidateId: candidate.candidateId });
+        }
+      } else trace.push({ type: "observation-unavailable", phase: "post-action", candidateId: candidate.candidateId, reason: "target-not-active" });
+      const productOracles = evaluateActionPostconditions(candidate, preObservation, postObservation, result);
+      const generic = genericOracle(result, preObservation, postObservation);
+      const security = securityOracle(candidate, result);
+      const stepOracles = [generic, ...productOracles, ...(security ? [security] : [])];
+      graph.recordOracleResults(candidate.sourceFingerprint, candidate.candidateId, result.postFingerprint, stepOracles, result.status);
+      oracleResults.push(...stepOracles);
+      stepOracles.forEach(oracle => trace.push({ type: "oracle", result: oracle }));
       if (replay) {
-        const reason = executionDivergence(replayStep?.execution, result) ?? oracleDivergence(replayStep?.oracle, oracle);
+        const reason = executionDivergence(replayStep?.execution, result) ?? oracleDivergence(replayStep?.oracles, stepOracles);
         if (reason) {
-          trace.push({ type: "replay-divergence", candidateId: candidate.candidateId, reason, expectedExecution: replayStep?.execution, actualExecution: result, expectedOracle: replayStep?.oracle, actualOracle: oracle });
+          trace.push({ type: "replay-divergence", candidateId: candidate.candidateId, reason, expectedExecution: replayStep?.execution, actualExecution: result, expectedOracles: replayStep?.oracles, actualOracles: stepOracles });
           outcome = "failed"; terminationReason = "machine_failure"; break;
         }
+      }
+      if (productOracles.some(oracle => oracle.verdict === "fail") || (generic.verdict === "fail" && ["executed", "denied"].includes(result.status))) {
+        outcome = "failed"; terminationReason = "machine_failure"; break;
       }
       if (result.status === "executed") continue;
       if (result.status === "denied") {
@@ -341,8 +386,38 @@ export async function runAdaptiveExplore(config: LakdaConfig, collector: Artifac
       collector.addFailure("UI-006", result.status);
       if (recoveryAttempts >= config.adaptive.recovery.maxBacktracks) { trace.push({ type: "recovery", candidateId: candidate.candidateId, recovered: false, strategy: "backtrack", reason: "max-backtracks" }); outcome = "failed"; terminationReason = "machine_failure"; break; }
       recoveryAttempts += 1;
-      const recovered = await adapter.recover({ category: category(result.status), messageRef: result.failureSignature ?? result.status, targetRef: candidate.targetRef }, { runId: collector.metadata.runId, strategy: "backtrack", expectedFingerprint: result.preFingerprint });
-      trace.push({ type: "recovery", candidateId: candidate.candidateId, recovered: recovered.recovered, strategy: recovered.strategy });
+      const expectedFingerprint = result.preFingerprint;
+      const recoveryPreFingerprint = result.postFingerprint ?? result.preFingerprint;
+      const recovered = await adapter.recover({ category: category(result.status), messageRef: result.failureSignature ?? result.status, targetRef: candidate.targetRef }, { runId: collector.metadata.runId, strategy: "backtrack", expectedFingerprint });
+      let recoveryObservation: Observation | undefined;
+      if (recovered.recovered) {
+        const recoveredTarget = activeTargets().find(target => target.targetId === (recovered.targetRef?.targetId ?? candidate.targetRef.targetId));
+        if (recoveredTarget) {
+          try {
+            recoveryObservation = await adapter.observe(recoveredTarget, { runId: collector.metadata.runId, personaRef: config.persona, scopeHosts: config.safety.allowHosts });
+            observations.push(recoveryObservation);
+            const recoveryState = fingerprintObservation(recoveryObservation);
+            observationsByFingerprint.set(recoveryState.value, recoveryObservation);
+            graph.recordState(recoveryState, recoveryObservation.obligations, actions);
+            trace.push({ type: "observation", phase: "recovery-post", observationId: recoveryObservation.observationId, targetRef: recoveryObservation.targetRef, fingerprint: recoveryState.value });
+          } catch { trace.push({ type: "observation-unavailable", phase: "recovery-post", candidateId: candidate.candidateId }); }
+        }
+      }
+      const recoveryPostFingerprint = recoveryObservation ? fingerprintObservation(recoveryObservation).value : undefined;
+      const matchedExpectedState = recovered.recovered && recoveryPostFingerprint === expectedFingerprint;
+      const recoveryEdgeKind: "backtrack" | "reset" | "recovery" = recovered.strategy === "backtrack" ? "backtrack" : recovered.strategy.includes("reset") ? "reset" : "recovery";
+      graph.recordControlTransition({
+        from: recoveryPreFingerprint, candidateId: `recovery:${recovered.strategy}:${candidate.candidateId}:${recoveryAttempts}`,
+        ...(recoveryPostFingerprint ? { to: recoveryPostFingerprint } : {}), edgeKind: recoveryEdgeKind,
+        status: matchedExpectedState ? "recovered" : recovered.recovered ? "diverged" : "not_recovered",
+        ...(!matchedExpectedState ? { failureSignature: recovered.recovered ? "recovery-divergence" : "recovery-failed" } : {}),
+        evidenceArtifactIds: recovered.evidenceRefs.map(ref => ref.artifactId), actionIndex: actions,
+      });
+      trace.push({ type: "recovery", candidateId: candidate.candidateId, recovered: recovered.recovered, strategy: recovered.strategy, preFingerprint: recoveryPreFingerprint, expectedFingerprint, ...(recoveryPostFingerprint ? { postFingerprint: recoveryPostFingerprint } : {}), matchedExpectedState });
+      if (recovered.recovered && !matchedExpectedState) {
+        trace.push({ type: "recovery-divergence", candidateId: candidate.candidateId, strategy: recovered.strategy, expectedFingerprint, actualFingerprint: recoveryPostFingerprint ?? null });
+        outcome = "failed"; terminationReason = "machine_failure"; break;
+      }
       if (!recovered.recovered) { outcome = "failed"; terminationReason = "machine_failure"; stop = true; }
     }
     if (outcome === "error") { outcome = collector.failures.length ? "failed" : "passed"; terminationReason = "completed"; }

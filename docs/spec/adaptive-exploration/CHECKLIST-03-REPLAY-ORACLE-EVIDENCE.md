@@ -2,7 +2,7 @@
 document_id: LAKDA-CHK-AE-003
 status: review-ready
 version: 0.1.0-draft
-last_updated: 2026-07-14
+last_updated: 2026-07-15
 specification: SPEC-03-REPLAY-ORACLE-EVIDENCE.md
 ---
 
@@ -48,8 +48,8 @@ specification: SPEC-03-REPLAY-ORACLE-EVIDENCE.md
 | [ ] | CHK-AE-003-I-016 | REQ-SHR-004 | §6 shrinking | schema・replay・oracle/evidence試験 | 未取得 |
 | [ ] | CHK-AE-003-I-017 | REQ-SHR-005 | §6 shrinking | schema・replay・oracle/evidence試験 | 未取得 |
 | [ ] | CHK-AE-003-I-018 | REQ-ORC-001 | §7 oracle | schema・replay・oracle/evidence試験 | 未取得 |
-| [ ] | CHK-AE-003-I-019 | REQ-ORC-002 | §7 oracle | schema・replay・oracle/evidence試験 | 未取得 |
-| [ ] | CHK-AE-003-I-020 | REQ-ORC-003 | §7 oracle | schema・replay・oracle/evidence試験 | 未取得 |
+| [x] | CHK-AE-003-I-019 | REQ-ORC-002 | §7 oracle | schema・replay・oracle/evidence試験 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
+| [x] | CHK-AE-003-I-020 | REQ-ORC-003 | §7 oracle | schema・replay・oracle/evidence試験 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
 | [ ] | CHK-AE-003-I-021 | REQ-ORC-004 | §7 oracle | schema・replay・oracle/evidence試験 | 未取得 |
 | [ ] | CHK-AE-003-I-022 | REQ-ORC-005 | §7 oracle | schema・replay・oracle/evidence試験 | 未取得 |
 | [ ] | CHK-AE-003-I-023 | REQ-ORC-006 | §7 oracle | schema・replay・oracle/evidence試験 | 未取得 |

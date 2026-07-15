@@ -48,13 +48,13 @@
       "rationale": "Fixture-only acceptance orchestration with no runtime import path; retained for reproducible legacy acceptance."
     },
     {
-      "fingerprint": "fc80a2878d1a026f",
+      "fingerprint": "47d9a540da4e1a30",
       "ruleId": "LARGE_MODULE",
       "path": "src/adaptive/coordinator.ts",
       "disposition": "planned-refactor",
       "owner": "RNA4219",
       "dueDate": "2026-08-31",
-      "rationale": "The coordinator is a cohesive state-machine boundary covered by adaptive integration and replay tests; split generators and recovery after the P6 RC contract is frozen."
+      "rationale": "The coordinator is a cohesive state-machine boundary covered by adaptive integration, recovery, and strict replay tests; split generators and recovery after the adaptive contract is stabilized."
     },
     {
       "fingerprint": "5f245e8baacca130",

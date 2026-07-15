@@ -2,7 +2,7 @@
 document_id: LAKDA-CHK-AE-001
 status: review-ready
 version: 0.1.0-draft
-last_updated: 2026-07-14
+last_updated: 2026-07-15
 specification: SPEC-01-COMMON-CORE.md
 ---
 
@@ -35,22 +35,22 @@ specification: SPEC-01-COMMON-CORE.md
 | [ ] | CHK-AE-001-I-005 | REQ-CORE-005 | §4 共通契約 | 実装・自動/手動試験 | 未取得 |
 | [ ] | CHK-AE-001-I-006 | REQ-CORE-006 | §4 共通契約 | 実装・自動/手動試験 | 未取得 |
 | [ ] | CHK-AE-001-I-007 | REQ-CORE-007 | §4 共通契約 | 実装・自動/手動試験 | 未取得 |
-| [ ] | CHK-AE-001-I-008 | REQ-OBS-001 | §4.1・§5 観測とsettle | 実装・自動/手動試験 | 未取得 |
+| [x] | CHK-AE-001-I-008 | REQ-OBS-001 | §4.1・§5 観測とsettle | 実装・自動/手動試験 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
 | [ ] | CHK-AE-001-I-009 | REQ-OBS-002 | §4.1・§5 観測とsettle | 実装・自動/手動試験 | 未取得 |
 | [ ] | CHK-AE-001-I-010 | REQ-OBS-003 | §4.1・§5 観測とsettle | 実装・自動/手動試験 | 未取得 |
 | [ ] | CHK-AE-001-I-011 | REQ-OBS-004 | §4.1・§5 観測とsettle | 実装・自動/手動試験 | 未取得 |
-| [ ] | CHK-AE-001-I-012 | REQ-OBS-005 | §4.1・§5 観測とsettle | 実装・自動/手動試験 | 未取得 |
+| [x] | CHK-AE-001-I-012 | REQ-OBS-005 | §4.1・§5 観測とsettle | 実装・自動/手動試験 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
 | [ ] | CHK-AE-001-I-013 | REQ-OBS-006 | §4.1・§5 観測とsettle | 実装・自動/手動試験 | 未取得 |
-| [ ] | CHK-AE-001-I-014 | REQ-ACT-001 | §4.2・§4.3・§6 candidate | 実装・自動/手動試験 | 未取得 |
+| [x] | CHK-AE-001-I-014 | REQ-ACT-001 | §4.2・§4.3・§6 candidate | 実装・自動/手動試験 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
 | [ ] | CHK-AE-001-I-015 | REQ-ACT-002 | §4.2・§4.3・§6 candidate | 実装・自動/手動試験 | 未取得 |
 | [ ] | CHK-AE-001-I-016 | REQ-ACT-003 | §4.2・§4.3・§6 candidate | 実装・自動/手動試験 | 未取得 |
-| [ ] | CHK-AE-001-I-017 | REQ-ACT-004 | §4.2・§4.3・§6 candidate | 実装・自動/手動試験 | 未取得 |
+| [x] | CHK-AE-001-I-017 | REQ-ACT-004 | §4.2・§4.3・§6 candidate | 実装・自動/手動試験 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
 | [ ] | CHK-AE-001-I-018 | REQ-ACT-005 | §4.2・§4.3・§6 candidate | 実装・自動/手動試験 | 未取得 |
 | [ ] | CHK-AE-001-I-019 | REQ-ACT-006 | §4.2・§4.3・§6 candidate | 実装・自動/手動試験 | 未取得 |
-| [ ] | CHK-AE-001-I-020 | REQ-ACT-007 | §4.2・§4.3・§6 candidate | 実装・自動/手動試験 | 未取得 |
-| [ ] | CHK-AE-001-I-021 | REQ-ACT-008 | §4.2・§4.3・§6 candidate | 実装・自動/手動試験 | 未取得 |
-| [ ] | CHK-AE-001-I-022 | REQ-ACT-009 | §4.2・§4.3・§6 candidate | 実装・自動/手動試験 | 未取得 |
-| [ ] | CHK-AE-001-I-023 | REQ-ACT-010 | §4.2・§4.3・§6 candidate | 実装・自動/手動試験 | 未取得 |
+| [x] | CHK-AE-001-I-020 | REQ-ACT-007 | §4.2・§4.3・§6 candidate | 実装・自動/手動試験 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
+| [x] | CHK-AE-001-I-021 | REQ-ACT-008 | §4.2・§4.3・§6 candidate | 実装・自動/手動試験 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
+| [x] | CHK-AE-001-I-022 | REQ-ACT-009 | §4.2・§4.3・§6 candidate | 実装・自動/手動試験 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
+| [x] | CHK-AE-001-I-023 | REQ-ACT-010 | §4.2・§4.3・§6 candidate | 実装・自動/手動試験 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
 | [ ] | CHK-AE-001-I-024 | REQ-ACT-011 | §4.2・§4.3・§6 candidate | 実装・自動/手動試験 | 未取得 |
 | [ ] | CHK-AE-001-I-025 | REQ-ADP-001 | §7 adapter interface | 実装・自動/手動試験 | 未取得 |
 | [ ] | CHK-AE-001-I-026 | REQ-ADP-002 | §7 adapter interface | 実装・自動/手動試験 | 未取得 |
