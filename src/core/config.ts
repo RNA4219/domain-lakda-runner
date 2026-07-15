@@ -24,6 +24,7 @@ const defaultConfig: LakdaConfig = {
   workers: 1,
   outputDir: ".lakda/runs",
   headed: false,
+  extensions: { combinations: { caseBudget: 1000, defaultStrength: 2 }, scouting: { mode: "rule-only", leadCap: 3 } },
   actionCatalog: [{ id: "navigate-root", kind: "navigate", path: "/", accessibleName: "root" }],
   candidates: [{ id: "navigate-root", kind: "navigate", path: "/", accessibleName: "root" }],
   inputProfiles: {},
@@ -62,7 +63,8 @@ const defaultConfig: LakdaConfig = {
   },
 };
 
-type PartialConfig = Omit<Partial<LakdaConfig>, "safety" | "llm" | "artifacts" | "profiles" | "classifier"> & {
+type PartialConfig = Omit<Partial<LakdaConfig>, "safety" | "llm" | "artifacts" | "profiles" | "classifier" | "extensions"> & {
+  extensions?: { combinations?: Partial<NonNullable<LakdaConfig["extensions"]>["combinations"]>; scouting?: Partial<NonNullable<LakdaConfig["extensions"]>["scouting"]> };
   safety?: Partial<LakdaConfig["safety"]>;
   llm?: Partial<LakdaConfig["llm"]>;
   artifacts?: Partial<LakdaConfig["artifacts"]>;
@@ -84,6 +86,7 @@ function mergeConfig(input: PartialConfig): LakdaConfig {
     seed: resolvedSeed,
     actionCatalog,
     candidates: actionCatalog,
+    extensions: { combinations: { ...defaultConfig.extensions!.combinations!, ...input.extensions?.combinations }, scouting: { ...defaultConfig.extensions!.scouting!, ...input.extensions?.scouting } },
     inputProfiles: { ...defaultConfig.inputProfiles, ...input.inputProfiles },
     profiles: {
       ...defaultConfig.profiles,
@@ -114,7 +117,8 @@ export function loadConfig(path = resolve(process.cwd(), "lakda.config.json"), o
 }
 
 export function validateConfig(config: LakdaConfig): void {
-  if (config.schemaVersion !== "lakda/v1") throw new Error("schemaVersion は lakda/v1 だけを許可します");
+if (config.extensions?.combinations && (config.extensions.combinations.caseBudget < 1 || config.extensions.combinations.defaultStrength < 2)) throw new Error("extensions.combinations の値が不正です");
+  if (config.extensions?.scouting && (config.extensions.scouting.leadCap < 1 || config.extensions.scouting.leadCap > 3)) throw new Error("extensions.scouting.leadCap は1〜3です");  if (config.schemaVersion !== "lakda/v1") throw new Error("schemaVersion は lakda/v1 だけを許可します");
   if (config.browser !== "chromium") throw new Error("v1 は chromium だけを許可します");
   if (!Number.isInteger(config.seed)) throw new Error("seed は整数で指定してください");
   if (!Number.isInteger(config.workers) || !Number.isFinite(config.workers) || config.workers < 1 || config.workers > 4) throw new Error("workers は1〜4の整数です");

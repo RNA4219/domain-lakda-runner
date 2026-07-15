@@ -12,7 +12,7 @@ last_updated: 2026-07-13
 
 ## エグゼクティブサマリ
 
-**結論として、`domain-lakda-runner` は「Playwright を実行エンジンにした local-first のゴリラ E2E 証跡コレクタ」として設計するのが最も整合的です。**
+**結論として、`domain-lakda-runner` は「Playwright を実行エンジンにした local-first の探索型 E2E 証跡コレクタ」として設計するのが最も整合的です。**
 理由は三つあります。第一に、Playwright は Chromium / Firefox / WebKit を単一 API で駆動でき、ローカルでも CI でも headless / headed の両方で動かせ、並列実行・トレース・動画・スクリーンショット・ネットワーク捕捉を標準機能として持っています。第二に、既存の `quality-evidence-graph` は仕様・差分・リスク・テスト配置・Gate を単一グラフで扱う local-first 基盤であり、`harness-auto-test-evidence` は runner 非依存の local-first 証跡正規化器で、`domain-lakda-runner` はその前段 collector として自然に接続できます。第三に、探索的テストは「確認」より「探索と学習」に強い。ただし正本のv1 Mustは smoke / seeded-random / regression-replay / llm-explore に限定し、route-crawl / form-fuzz / visual-sanity はpost-v1候補として扱います。
 
 本 OSS の最小価値は、**実ブラウザをローカルで再現可能に叩き、失敗を構造化証跡として HATE/QEG に流せること**です。単なる monkey test 実行器では足りません。必要なのは、実行単位ごとに `run_id / seed / persona / browser / base_url / timestamp` を持ち、操作列・スクリーンショット・trace・console・network・DOM snapshot を保存し、deterministic modeでは機械判定し、llm-exploreでは安全な候補IDからローカルLLMが次操作を選び、最後に HATE/v1 の artifact manifest へ変換し、HATE 経由で QEG に受け渡すことです。HATE は HATE/v1 record を生成する local-first normalizer として設計され、QEG は `quality-evidence-record`、`test-placement-plan`、`gate-verdict` などのスキーマ群を持っています。
@@ -32,7 +32,7 @@ v1のスコープは、ChromiumのPlaywright実行、再現可能なシナリオ
 ### 主要ユースケース
 
 主要ユースケースは次の六つです。
-第一に、**ローカル開発時のゴリラ実行**です。`lakda run --base-url http://localhost:3000 --seed 4219 --mode seeded-random` のように回し、再現可能な失敗証跡を得ます。第二に、**PR前のsmoke**です。主要導線と白画面・無限ローディング・クリック不能を短時間で拾います。visual-sanityとstaging synthetic monitorはpost-v1候補です。第三に、**既知障害の回帰 replay**です。過去 action sequenceを入力に再生し、差分を確認します。第四に、**将来のstaging synthetic browser monitor**です。Synthetic monitoring は、制御された環境で現実のユーザー操作をシミュレートし、回帰や短期的な性能問題を継続監視する用途に向いています。第五に、**manual QA の証跡補強** です。exploratory testing の考え方に従い、確認系では拾いにくい欠陥探索を補完します。第六に、**QEG の test placement 更新材料** です。QEG は `test-placement-plan` と `placement_changes[]` を持つため、manual→automated の置換根拠や revert 条件の証跡として使えます。
+第一に、**ローカル開発時の探索実行**です。`lakda run --base-url http://localhost:3000 --seed 4219 --mode seeded-random` のように回し、再現可能な失敗証跡を得ます。第二に、**PR前のsmoke**です。主要導線と白画面・無限ローディング・クリック不能を短時間で拾います。visual-sanityとstaging synthetic monitorはpost-v1候補です。第三に、**既知障害の回帰 replay**です。過去 action sequenceを入力に再生し、差分を確認します。第四に、**将来のstaging synthetic browser monitor**です。Synthetic monitoring は、制御された環境で現実のユーザー操作をシミュレートし、回帰や短期的な性能問題を継続監視する用途に向いています。第五に、**manual QA の証跡補強** です。exploratory testing の考え方に従い、確認系では拾いにくい欠陥探索を補完します。第六に、**QEG の test placement 更新材料** です。QEG は `test-placement-plan` と `placement_changes[]` を持つため、manual→automated の置換根拠や revert 条件の証跡として使えます。
 
 ### 関連 OSS と採用判断
 
@@ -227,7 +227,7 @@ exploratory testing は、事前に固定した確認手順だけでなく、テ
 | モード | 目的 | v1 強度 |
 |---|---|---|
 | `smoke` | 主要導線の機械判定 | Must |
-| `seeded-random` | seed固定の再現可能なゴリラ実行 | Must |
+| `seeded-random` | seed固定の再現可能な探索実行 | Must |
 | `regression-replay` | 保存済みaction sequenceの回帰再生 | Must |
 | `llm-explore` | 安全検査済み候補からローカルLLMが次操作を選択 | Must |
 | `route-crawl` | 遷移グラフ探索 | post-v1 Should |
@@ -425,7 +425,7 @@ false positive 抑制は、技術より運用で決まります。Playwright 公
 
 ### 安全性
 
-ゴリラ E2E は放置すると壊します。したがって安全要件を最初から必須に置くべきです。
+探索型 E2E は放置すると壊します。したがって安全要件を最初から必須に置くべきです。
 実装必須項目は、**許可 URL 制御、破壊操作の allowlist / denylist、テストデータ初期化、auth state の gitignore、機密 artifact の redaction** です。Playwright 公式は auth state が機密になり得ること、third-party を直接叩くより network API で制御すべきことを明記しています。HATE `artifact-manifest` も `classification / redaction_status / security_checks / retention` を必須にしているため、この方向は既存基盤とも整合します。
 
 推奨ポリシーは以下です。
@@ -584,7 +584,7 @@ Firefox/WebKit、route crawl、form fuzz、visual sanity、追加artifact、stag
 | Flaky UI | hydration・遅延ロード・揺れる DOM で誤検知 | auto-wait、web-first assertions、hydration 待ち、role/testid locator 優先  |
 | Visual ノイズ | OS・ブラウザ差で diff 暴発 | baseline 環境固定、mask/stylePath、browser 別 baseline  |
 | auth 漏えい | storageState に秘密情報が入る | `.gitignore`、secret store、短期ローテーション  |
-| 破壊操作事故 | ゴリラ操作でデータ破壊 | denylist、sandbox data、fixture reset、staging 限定 |
+| 破壊操作事故 | 探索操作でデータ破壊 | denylist、sandbox data、fixture reset、staging 限定 |
 | artifact 肥大化 | trace/video/HAR で容量逼迫 | failure 優先保存、retention/purge、SHA dedupe  |
 | cross-browser 差異 | 同一 scenario が browser ごとに別挙動 | browser 別 outcome と baseline を分離  |
 | HATE/QEG schema drift | upstream schema 変更で adapter 崩壊 | schema version pin、contract test、自動 schema validation  |

@@ -1,7 +1,7 @@
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
-import { redact, sha256 } from "./redaction.js";
+import { findSensitive, redact, sha256 } from "./redaction.js";
 import { canonicalJson } from "./plan.js";
 
 export type ArtifactSecurityRecord = {
@@ -36,6 +36,12 @@ export function serializeTextArtifact(value: string): string {
 export async function writeText(path: string, value: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, serializeTextArtifact(value), "utf8");
+}
+
+export async function writeVerifiedText(path: string, value: string): Promise<{ size: number; sha256: string; redactionStatus: "redacted" | "not_required"; secretsScan: "pass"; piiScan: "pass" }> {
+  const redacted = redact(value); const findings = findSensitive(redacted); if (findings.length) throw new Error("artifact security scan failed: " + findings.join(","));
+  await writeText(path, redacted); const verified = await fileDigest(path);
+  return { ...verified, redactionStatus: redacted === value ? "not_required" : "redacted", secretsScan: "pass", piiScan: "pass" };
 }
 
 export async function readJson(path: string): Promise<unknown> {
