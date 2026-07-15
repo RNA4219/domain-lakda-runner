@@ -1,6 +1,6 @@
 {
   "id": "GUARDRAILS.md",
-  "role": "doc",
+  "role": "policy",
   "public_api": [],
   "summary": "GUARDRAILS.md",
   "deps_out": [],

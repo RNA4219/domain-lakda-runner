@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { writeCanonicalJson, writeText } from "../core/artifact-store.js";
 import type { ActionCandidate, Observation, OracleResult } from "./contracts.js";
-import type { Coverage, GraphSnapshot } from "./graph.js";
+import type { Coverage, CoveragePoint, GraphSnapshot } from "./graph.js";
 
 export type AdaptiveTraceEntry = Record<string, unknown>;
 export type AdaptiveEvidence = {
@@ -15,6 +15,7 @@ export type AdaptiveEvidence = {
   trace: AdaptiveTraceEntry[];
   graph: GraphSnapshot;
   coverage: Coverage;
+  coverageTimeline: CoveragePoint[];
   shrink: Record<string, unknown>;
 };
 
@@ -47,6 +48,7 @@ export async function writeAdaptiveEvidence(runDir: string, evidence: AdaptiveEv
       schemaVersion: "lakda/coverage-report/v1",
       actions: evidence.actions,
       ...evidence.coverage,
+      timeline: evidence.coverageTimeline,
     }),
     writeCanonicalJson(join(root, "shrink-report.json"), {
       schemaVersion: "lakda/shrink-report/v1",

@@ -38,7 +38,7 @@ specification: SPEC-02-STATE-GRAPH-EXPLORATION.md
 | [ ] | CHK-AE-002-I-007 | REQ-GRAPH-001 | §4 graph | 決定的fixture・graph/trace検証 | 未取得 |
 | [ ] | CHK-AE-002-I-008 | REQ-GRAPH-002 | §4 graph | 決定的fixture・graph/trace検証 | 未取得 |
 | [ ] | CHK-AE-002-I-009 | REQ-GRAPH-003 | §4 graph | 決定的fixture・graph/trace検証 | 未取得 |
-| [ ] | CHK-AE-002-I-010 | REQ-GRAPH-004 | §4 graph | 決定的fixture・graph/trace検証 | 未取得 |
+| [x] | CHK-AE-002-I-010 | REQ-GRAPH-004 | §4 graph | 決定的fixture・graph/trace検証 | [AC-20260715-08](../../acceptance/AC-20260715-08.p3-p4-replay-hardening.md) |
 | [ ] | CHK-AE-002-I-011 | REQ-GRAPH-005 | §4 graph | 決定的fixture・graph/trace検証 | 未取得 |
 | [ ] | CHK-AE-002-I-012 | REQ-GRAPH-006 | §4 graph | 決定的fixture・graph/trace検証 | 未取得 |
 | [ ] | CHK-AE-002-I-013 | REQ-GRAPH-007 | §4 graph | 決定的fixture・graph/trace検証 | 未取得 |
@@ -51,15 +51,15 @@ specification: SPEC-02-STATE-GRAPH-EXPLORATION.md
 | [ ] | CHK-AE-002-I-020 | REQ-EXP-007 | §5 Generator | 決定的fixture・graph/trace検証 | 未取得 |
 | [ ] | CHK-AE-002-I-021 | REQ-STOP-001 | §6 Stop Condition | 決定的fixture・graph/trace検証 | 未取得 |
 | [ ] | CHK-AE-002-I-022 | REQ-STOP-002 | §6 Stop Condition | 決定的fixture・graph/trace検証 | 未取得 |
-| [ ] | CHK-AE-002-I-023 | REQ-STOP-003 | §6 Stop Condition | 決定的fixture・graph/trace検証 | 未取得 |
+| [x] | CHK-AE-002-I-023 | REQ-STOP-003 | §6 Stop Condition | 決定的fixture・graph/trace検証 | [AC-20260715-08](../../acceptance/AC-20260715-08.p3-p4-replay-hardening.md) |
 | [ ] | CHK-AE-002-I-024 | REQ-STOP-004 | §6 Stop Condition | 決定的fixture・graph/trace検証 | 未取得 |
-| [ ] | CHK-AE-002-I-025 | REQ-STOP-005 | §6 Stop Condition | 決定的fixture・graph/trace検証 | 未取得 |
+| [x] | CHK-AE-002-I-025 | REQ-STOP-005 | §6 Stop Condition | 決定的fixture・graph/trace検証 | [AC-20260715-08](../../acceptance/AC-20260715-08.p3-p4-replay-hardening.md) |
 | [ ] | CHK-AE-002-I-026 | REQ-STOP-006 | §6 Stop Condition | 決定的fixture・graph/trace検証 | 未取得 |
-| [ ] | CHK-AE-002-I-027 | REQ-COV-001 | §7 coverage | 決定的fixture・graph/trace検証 | 未取得 |
-| [ ] | CHK-AE-002-I-028 | REQ-COV-002 | §7 coverage | 決定的fixture・graph/trace検証 | 未取得 |
-| [ ] | CHK-AE-002-I-029 | REQ-COV-003 | §7 coverage | 決定的fixture・graph/trace検証 | 未取得 |
-| [ ] | CHK-AE-002-I-030 | REQ-COV-004 | §7 coverage | 決定的fixture・graph/trace検証 | 未取得 |
-| [ ] | CHK-AE-002-I-031 | REQ-COV-005 | §7 coverage | 決定的fixture・graph/trace検証 | 未取得 |
+| [x] | CHK-AE-002-I-027 | REQ-COV-001 | §7 coverage | 決定的fixture・graph/trace検証 | [AC-20260715-08](../../acceptance/AC-20260715-08.p3-p4-replay-hardening.md) |
+| [x] | CHK-AE-002-I-028 | REQ-COV-002 | §7 coverage | 決定的fixture・graph/trace検証 | [AC-20260715-08](../../acceptance/AC-20260715-08.p3-p4-replay-hardening.md) |
+| [x] | CHK-AE-002-I-029 | REQ-COV-003 | §7 coverage | 決定的fixture・graph/trace検証 | [AC-20260715-08](../../acceptance/AC-20260715-08.p3-p4-replay-hardening.md) |
+| [x] | CHK-AE-002-I-030 | REQ-COV-004 | §7 coverage | 決定的fixture・graph/trace検証 | [AC-20260715-08](../../acceptance/AC-20260715-08.p3-p4-replay-hardening.md) |
+| [x] | CHK-AE-002-I-031 | REQ-COV-005 | §7 coverage | 決定的fixture・graph/trace検証 | [AC-20260715-08](../../acceptance/AC-20260715-08.p3-p4-replay-hardening.md) |
 | [ ] | CHK-AE-002-I-032 | REQ-COV-006 | §7 coverage | 決定的fixture・graph/trace検証 | 未取得 |
 | [ ] | CHK-AE-002-I-033 | REQ-COV-007 | §7 coverage | 決定的fixture・graph/trace検証 | 未取得 |
 | [ ] | CHK-AE-002-I-034 | REQ-COV-008 | §7 coverage | 決定的fixture・graph/trace検証 | 未取得 |

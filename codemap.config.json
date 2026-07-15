@@ -1,11 +1,15 @@
 {
   "schemaVersion": "workflow-cookbook/codemap-discovery/v1",
   "include": [
+    "REQUIREMENTS-ADAPTIVE-EXPLORATION.md",
+    "docs/IMPLEMENTATION-PLAN-ADAPTIVE-EXPLORATION.md",
+    "docs/spec/adaptive-exploration/**/*.md",
+    "docs/tasks/TASK.20260714-*.md",
     "docs/acceptance/**/*.md",
     "docs/acceptance/**/*.json"
   ],
   "exclude": [
     ".lakda/**"
   ],
-  "defaultRole": "acceptance"
+  "defaultRole": "doc"
 }

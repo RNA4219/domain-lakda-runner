@@ -9,7 +9,8 @@ import { fingerprintObservation } from "../../src/adaptive/fingerprint.js";
 import type { Observation } from "../../src/adaptive/contracts.js";
 
 test("adaptive-explore writes a state graph and deterministic replay trace from a real browser run", async () => {
-  const fixture = await startFixture(() => ({ body: `<main><button data-testid="next">Next</button></main><script>document.querySelector("button").addEventListener("click", () => document.querySelector("main").innerHTML = "<button data-testid='finish'>Finish</button>");</script>` }));
+  let terminalTestId = "finish";
+  const fixture = await startFixture(() => ({ body: `<main><button data-testid="next">Next</button></main><script>document.querySelector("button").addEventListener("click", () => document.querySelector("main").innerHTML = "<button data-testid='${terminalTestId}'>Finish</button>");</script>` }));
   const outputDir = await mkdtemp(join(tmpdir(), "lakda-adaptive-"));
   try {
     const config = loadConfig(undefined, {
@@ -43,12 +44,24 @@ test("adaptive-explore writes a state graph and deterministic replay trace from 
     expect(trace.seed).toBe(99);
     expect(trace.trace.some((entry: { type: string }) => entry.type === "execution")).toBe(true);
     expect(coverage.schemaVersion).toBe("lakda/coverage-report/v1");
+    expect(coverage.model).toBe("discovered-model");
+    expect(coverage.openWorld).toBe(true);
+    expect(coverage.timeline.length).toBeGreaterThanOrEqual(1);
+    expect(coverage.timeline.every((point: { graphRevision: number }) => point.graphRevision > 0)).toBe(true);
     expect(shrink.schemaVersion).toBe("lakda/shrink-report/v1");
     expect(observations.trim()).not.toBe("");
     expect(candidates.trim()).not.toBe("");
     expect(oracles.trim()).not.toBe("");
     const replayed = await runLakda(config, join(adaptiveDir, "trace.json"));
     expect(replayed.outcome, JSON.stringify(replayed)).toBe("passed");
+
+    terminalTestId = "changed-post-state";
+    const postDiverged = await runLakda(config, join(adaptiveDir, "trace.json"));
+    expect(postDiverged.outcome, JSON.stringify(postDiverged)).toBe("failed");
+    const postDivergenceTrace = JSON.parse(await readFile(join(dirname(postDiverged.actionSequencePath!), "adaptive", "trace.json"), "utf8"));
+    expect(postDivergenceTrace.trace.some((entry: { type: string; reason?: string }) => entry.type === "replay-divergence" && entry.reason === "post-fingerprint-mismatch")).toBe(true);
+    terminalTestId = "finish";
+
     const divergent = structuredClone(trace) as { trace: Array<{ type: string; candidate?: { sourceFingerprint: string } }> };
     const replayCandidate = divergent.trace.find(entry => entry.type === "candidate");
     if (!replayCandidate?.candidate) throw new Error("replay candidate missing");
@@ -195,6 +208,44 @@ test("Security bridge executes an authorized sequential parameter mutation only 
     expect(cleanupCalls).toBe(1);
     const deniedTrace = JSON.parse(await readFile(join(dirname(denied.actionSequencePath!), "adaptive", "trace.json"), "utf8"));
     expect(deniedTrace.trace.some((entry: { type: string; reason?: string }) => entry.type === "candidate-denied" && entry.reason === "scope_denied")).toBe(true);
+  } finally {
+    await fixture.close();
+    await rm(outputDir, { recursive: true, force: true });
+  }
+});
+
+
+test("adaptive trace records the exact versioned InputCase and replays it", async () => {
+  const fixture = await startFixture(() => ({ body: `<main><form><label>Email <input data-testid="email" type="email" required minlength="6" maxlength="64"></label></form></main>` }));
+  const outputDir = await mkdtemp(join(tmpdir(), "lakda-adaptive-input-replay-"));
+  try {
+    const config = loadConfig(undefined, {
+      baseUrl: fixture.baseUrl, outputDir, seed: 17, maxActions: 2, mode: "adaptive-explore",
+      adaptive: {
+        schemaVersion: "lakda/adaptive-config/v1", adapter: { id: "playwright" }, generator: { strategy: "least-visited-transition" },
+        stopWhen: { any: [{ type: "actionCoverage", atLeast: 1 }] },
+        settlePolicy: { policyVersion: "settle/v1", maxWaitMs: 1_000, stableWindowMs: 20 },
+        fingerprintPolicy: { algorithmVersion: "sha256/v1", canonicalizationVersion: "canonical/v1" },
+        recovery: { maxBacktracks: 0, maxAttemptsPerState: 1 },
+        safety: { allowTargetKinds: ["page"], denyActionIds: [], allowMutationKinds: ["none"] },
+      },
+    });
+    const result = await runLakda(config);
+    expect(result.outcome, JSON.stringify(result)).toBe("passed");
+    const runDir = dirname(result.actionSequencePath!);
+    const tracePath = join(runDir, "adaptive", "trace.json");
+    const trace = JSON.parse(await readFile(tracePath, "utf8")) as { trace: Array<{ type: string; inputCase?: { caseId: string; generatorVersion: string; seed: number; domainRef: string; valueDigest: string } }> };
+    const selected = trace.trace.find(entry => entry.type === "candidate");
+    expect(selected?.inputCase?.generatorVersion).toBe("lakda-input-generator/v1");
+    expect(selected?.inputCase?.seed).toBe(17);
+    expect(selected?.inputCase?.domainRef).toBe("form:form-0/email");
+    expect(selected?.inputCase?.valueDigest).toMatch(/^sha256:[a-f0-9]{64}$/);
+    expect(selected?.inputCase).not.toHaveProperty("value");
+
+    const replayed = await runLakda(config, tracePath);
+    const replayTrace = JSON.parse(await readFile(join(dirname(replayed.actionSequencePath!), "adaptive", "trace.json"), "utf8")) as typeof trace;
+    expect(replayed.outcome, JSON.stringify({ replayed, replayTrace })).toBe("passed");
+    expect(replayTrace.trace.find(entry => entry.type === "candidate")?.inputCase).toEqual(selected?.inputCase);
   } finally {
     await fixture.close();
     await rm(outputDir, { recursive: true, force: true });

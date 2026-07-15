@@ -48,7 +48,7 @@
       "rationale": "Fixture-only acceptance orchestration with no runtime import path; retained for reproducible legacy acceptance."
     },
     {
-      "fingerprint": "ae47f1e6a467efac",
+      "fingerprint": "fc80a2878d1a026f",
       "ruleId": "LARGE_MODULE",
       "path": "src/adaptive/coordinator.ts",
       "disposition": "planned-refactor",

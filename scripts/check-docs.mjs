@@ -60,6 +60,7 @@ for (const requiredPath of [
   "docs/tasks/TASK.20260714-35.md",
   "docs/acceptance/P7-REAL-ACCEPTANCE-RUNBOOK.md",
   "docs/acceptance/AC-20260715-07.p7-runner-pending-external.md",
+  "docs/acceptance/AC-20260715-08.p3-p4-replay-hardening.md",
   "docs/IMPLEMENTATION-PLAN-ADAPTIVE-EXPLORATION.md",
   "docs/acceptance/AC-20260713-05.v021-hardening-fixture.json",
   "docs/acceptance/AC-20260713-06.v021-hardening-real-llm.json",
@@ -68,6 +69,8 @@ for (const requiredPath of [
   "schemas/manual-bb-release-record-v1.schema.json",
   ".github/workflows/release-evidence.yml",
   "codemap.config.json",
+  "docs/birdseye/index.json",
+  "docs/birdseye/hot.json",
 ]) {
   if (!statSync(resolve(root, requiredPath), { throwIfNoEntry: false })) failures.push("missing required evidence " + requiredPath);
 }
@@ -93,7 +96,7 @@ if (statSync(adaptiveTaskSeedPath, { throwIfNoEntry: false })) {
   const adaptiveTaskSeed = readFileSync(adaptiveTaskSeedPath, "utf8");
   const taskMeta = metadata(adaptiveTaskSeed);
   if (taskMeta.task_id !== "TASK.20260714-08") failures.push("adaptive Task Seed: incorrect task_id");
-  if (taskMeta.status !== "planned") failures.push("adaptive Task Seed: status must be planned");
+  if (taskMeta.status !== "fixture_accepted") failures.push("adaptive Task Seed: status must be fixture_accepted");
   for (const heading of ["## Objective", "## Scope", "## Requirements", "## Plan", "## Patch", "## Tests", "## Commands", "## Notes"]) {
     if (!adaptiveTaskSeed.includes(heading)) failures.push("adaptive Task Seed: missing " + heading);
   }
@@ -172,6 +175,7 @@ const adaptiveDir = resolve(root, "docs/spec/adaptive-exploration");
 const adaptiveRequirementsPath = resolve(root, "REQUIREMENTS-ADAPTIVE-EXPLORATION.md");
 const adaptiveIndexPath = resolve(adaptiveDir, "README.md");
 const adaptiveEvaluationPath = resolve(adaptiveDir, "EVALUATION-ADAPTIVE-EXPLORATION.md");
+const birdseyeIndexPath = resolve(root, "docs/birdseye/index.json");
 for (const path of [adaptiveRequirementsPath, adaptiveIndexPath, adaptiveEvaluationPath]) {
   if (!statSync(path, { throwIfNoEntry: false })) failures.push(`missing adaptive document ${basename(path)}`);
 }
@@ -262,6 +266,46 @@ if (statSync(adaptiveDir, { throwIfNoEntry: false }) && statSync(adaptiveRequire
         const specSection = checklistText.split("## A. 仕様完成チェック")[1]?.split("## B. 実装・受入チェック")[0] ?? "";
         if (!specSection || /- \[ \]/.test(specSection)) failures.push(`${checklistName}: review-ready spec has incomplete specification checks`);
       }
+    }
+  }
+}
+
+
+const adaptiveNames = [
+  "COMMON-CORE",
+  "STATE-GRAPH-EXPLORATION",
+  "REPLAY-ORACLE-EVIDENCE",
+  "PLAYWRIGHT-ADAPTER",
+  "AIRTEST-POCO-ADAPTER",
+  "SECURITY-ADAPTER",
+];
+if (statSync(birdseyeIndexPath, { throwIfNoEntry: false })) {
+  const birdseye = JSON.parse(readFileSync(birdseyeIndexPath, "utf8"));
+  const requiredNodes = new Map([
+    ["REQUIREMENTS-ADAPTIVE-EXPLORATION.md", "requirements"],
+    ["docs/IMPLEMENTATION-PLAN-ADAPTIVE-EXPLORATION.md", "plan"],
+    ...adaptiveNames.map((name, index) => [
+      `docs/spec/adaptive-exploration/SPEC-${String(index + 1).padStart(2, "0")}-${name}.md`,
+      "specification",
+    ]),
+    ...adaptiveNames.map((name, index) => [
+      `docs/spec/adaptive-exploration/CHECKLIST-${String(index + 1).padStart(2, "0")}-${name}.md`,
+      "checklist",
+    ]),
+    ...Array.from({ length: 28 }, (_, index) => [
+      `docs/tasks/TASK.20260714-${String(index + 8).padStart(2, "0")}.md`,
+      "task",
+    ]),
+  ]);
+  for (const [id, role] of requiredNodes) {
+    if (!birdseye.nodes?.[id]) failures.push(`Birdseye index: missing ${id}`);
+    else if (birdseye.nodes[id].role !== role) failures.push(`Birdseye index: ${id} must have role ${role}`);
+    const capsule = birdseye.nodes?.[id]?.caps;
+    if (capsule && !statSync(resolve(root, capsule), { throwIfNoEntry: false })) {
+      failures.push(`Birdseye capsule: missing ${capsule}`);
+    } else if (capsule) {
+      const capsuleRecord = JSON.parse(readFileSync(resolve(root, capsule), "utf8"));
+      if (capsuleRecord.role !== role) failures.push(`Birdseye capsule: ${capsule} must have role ${role}`);
     }
   }
 }

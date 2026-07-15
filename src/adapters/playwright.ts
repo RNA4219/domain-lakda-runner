@@ -23,7 +23,8 @@ function safeUrl(value: string): string | undefined {
     return `${url.origin}${url.pathname}${query.length ? `?${query.join("&")}` : ""}`;
   } catch { return undefined; }
 }
-function mutation(value: string): MutationKind {
+function mutation(value: string, actionKind: Control["actionKind"]): MutationKind {
+  if (actionKind !== "click") return "none";
   const text = value.toLowerCase();
   if (/(delete|remove|destroy|削除)/.test(text)) return "delete";
   if (/(purchase|buy|checkout|order|payment|決済|購入|注文)/.test(text)) return "purchase";
@@ -144,7 +145,29 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
   }
 
   private async forms(target: Target): Promise<Array<Record<string, unknown>>> {
-    return target.evaluate(() => [...document.forms].map((form, index) => ({ formId: form.id || `form-${index}`, fields: [...form.elements].flatMap((field, fieldIndex) => field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement ? [{ fieldId: field.id || `field-${fieldIndex}`, name: field.getAttribute("name") || undefined, type: field.getAttribute("type") || field.tagName.toLowerCase(), required: field.required, disabled: field.disabled }] : []) })));
+    return target.evaluate(() => [...document.forms].map((form, index) => ({
+      formId: form.id || `form-${index}`,
+      fields: [...form.elements].flatMap((field, fieldIndex) => {
+        if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement)) return [];
+        const minLength = "minLength" in field && field.minLength >= 0 ? field.minLength : undefined;
+        const maxLength = "maxLength" in field && field.maxLength >= 0 ? field.maxLength : undefined;
+        const minimum = field instanceof HTMLInputElement && field.min !== "" && Number.isFinite(Number(field.min)) ? Number(field.min) : undefined;
+        const maximum = field instanceof HTMLInputElement && field.max !== "" && Number.isFinite(Number(field.max)) ? Number(field.max) : undefined;
+        const pattern = field instanceof HTMLInputElement && field.pattern ? field.pattern : undefined;
+        return [{
+          fieldId: field.id || field.getAttribute("data-testid") || field.getAttribute("name") || `field-${fieldIndex}`,
+          name: field.getAttribute("name") || undefined,
+          type: field.getAttribute("type") || field.tagName.toLowerCase(),
+          required: field.required,
+          disabled: field.disabled,
+          ...(minLength !== undefined ? { minLength } : {}),
+          ...(maxLength !== undefined ? { maxLength } : {}),
+          ...(minimum !== undefined ? { minimum } : {}),
+          ...(maximum !== undefined ? { maximum } : {}),
+          ...(pattern ? { pattern } : {}),
+        }];
+      }),
+    })));
   }
 
   async observe(targetRef: TargetRef, context: ObserveContext): Promise<Observation> {
@@ -162,7 +185,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
       if (control.href) try { if (!this.scopeHosts.has(new URL(control.href).hostname)) return []; } catch { return []; }
       const recipe: LocatorRecipe | undefined = control.testId && counts.get(`t:${control.testId}`) === 1 ? { strategy: "test-id", value: control.testId } : control.role && publicLocator(control.name) && counts.get(`r:${control.role}:${control.name}`) === 1 ? { strategy: "role", value: control.role, name: control.name } : undefined;
       if (!recipe) return [];
-      const mutationKind = mutation(control.hint); const candidateId = `pw-${sha256(`${observation.targetRef.targetId}:${control.actionKind}:${recipe.strategy}:${recipe.value}:${recipe.name ?? ""}`).slice(0, 20)}`;
+      const mutationKind = mutation(control.hint, control.actionKind); const candidateId = `pw-${sha256(`${observation.targetRef.targetId}:${control.actionKind}:${recipe.strategy}:${recipe.value}:${recipe.name ?? ""}`).slice(0, 20)}`;
       return [{ schemaVersion: version, candidateId, adapterId: this.adapterId, targetRef: observation.targetRef, sourceFingerprint, actionKind: control.actionKind, locatorRecipe: recipe, ...(control.actionKind === "fill" || control.actionKind === "select" ? { inputProfileRef: `generated-input:${candidateId}` } : {}), generatedBy: { ruleId: "visible-enabled-control/v1", observationId: observation.observationId, reason: "visible-enabled-unique-control" }, risk: { weight: mutationKind === "none" ? 1 : mutationKind === "update" ? 4 : 10, mutationCost: mutationKind === "none" ? 1 : 4 }, mutationKind }];
     });
   }

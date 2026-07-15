@@ -1,6 +1,6 @@
 {
   "id": "REQUIREMENTS.md",
-  "role": "doc",
+  "role": "requirements",
   "public_api": [],
   "summary": "REQUIREMENTS.md",
   "deps_out": [

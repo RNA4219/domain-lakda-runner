@@ -1,6 +1,6 @@
 {
   "id": "README.md",
-  "role": "doc",
+  "role": "overview",
   "public_api": [],
   "summary": "README.md",
   "deps_out": [

@@ -1,6 +1,6 @@
 {
   "id": "docs/acceptance/AC-20260713-06.v021-hardening-real-llm.json",
-  "role": "doc",
+  "role": "acceptance",
   "public_api": [],
   "summary": "docs/acceptance/AC-20260713-06.v021-hardening-real-llm.json",
   "deps_out": [
