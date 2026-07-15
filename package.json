@@ -14,6 +14,7 @@
   "files": [
     "dist",
     "schemas",
+    "vendor/hate/v1/artifact-manifest.schema.json",
     "README.md",
     "RUNBOOK.md",
     "CHANGELOG.md",
@@ -36,7 +37,7 @@
     "test:headed": "playwright test tests/headed.spec.ts --headed",
     "smoke:external": "npm run build && node scripts/run-external-smoke.mjs",
     "check": "npm run check:docs && npm run typecheck && npm run lint && npm run build && npm test",
-    "pack:check": "npm pack --dry-run",
+    "pack:check": "node scripts/check-package-contents.mjs",
     "acceptance:fixture": "npm run build && node scripts/run-acceptance.mjs",
     "acceptance:adaptive": "npm run build && npx playwright test tests/adaptive",
     "acceptance:adaptive:real": "npm run build && node scripts/run-adaptive-real-acceptance.mjs",
