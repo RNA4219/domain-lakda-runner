@@ -1,0 +1,546 @@
+{
+  "schemaVersion": "lakda/manual-bb-local-package/v1",
+  "subjectRevision": "2159231f8edbfe9ac83246d83cc4efe182dd2e34",
+  "generatedAt": "2026-07-15T09:10:00+09:00",
+  "package": {
+    "name": "domain-lakda-runner",
+    "version": "0.3.0-rc.1",
+    "tarballSha256": "48fdf9ef4e076ad1476d0dc8c1bfb9fd79cbcccd1df8f1b4c983fa7e4714d17b",
+    "installMode": "isolated-npm-package",
+    "runtime": "Node.js v24.6.0 / Windows"
+  },
+  "intake": {
+    "status": "degraded",
+    "scope": "公開npm package、CLI、loopback smoke、HATE/v1証跡、安全拒否",
+    "outOfScope": [
+      "Airtest/Poco実機",
+      "認可済みSecurity target",
+      "実ZAP",
+      "P7 real 16 AC corpus",
+      "QEG最終判定"
+    ],
+    "assumptions": [
+      "fixture/loopbackの結果を実環境受入へ昇格しない",
+      "QEG verdictをLakdaまたは本記録から生成しない"
+    ],
+    "sourceRefs": [
+      {
+        "id": "SRC-01",
+        "kind": "spec",
+        "path": "RUNBOOK.md",
+        "note": "P6 RCローカル納品Gate"
+      },
+      {
+        "id": "SRC-02",
+        "kind": "spec",
+        "path": "docs/acceptance/P7-REAL-ACCEPTANCE-RUNBOOK.md",
+        "note": "実環境P7条件"
+      },
+      {
+        "id": "SRC-03",
+        "kind": "code_review",
+        "path": "package.json",
+        "revision": "2159231f8edbfe9ac83246d83cc4efe182dd2e34"
+      }
+    ],
+    "confidence": "high"
+  },
+  "feature_spec": {
+    "featureId": "LAKDA-RC-PACKAGE-MBB",
+    "title": "Lakda 0.3.0-rc.1 公開package境界",
+    "summary": "隔離installしたtarballの公開CLI、実行結果、安全拒否、HATE証跡をblack-boxで確認する。",
+    "actors": [
+      "RC評価者",
+      "CLI利用者"
+    ],
+    "acceptanceCriteria": [
+      "package install後にCLIが起動できる",
+      "version/helpが成功しadaptive-exploreが公開される",
+      "不正command、必須引数欠落、設定欠落、scope外host、不正replayをfail-closedで扱う",
+      "loopback smokeがpassしHATE/v1 manifestとsecurity scan結果を生成する"
+    ],
+    "sourceRefs": [
+      "SRC-01",
+      "SRC-02",
+      "SRC-03"
+    ],
+    "assumptions": []
+  },
+  "observation_set": [
+    {
+      "id": "OBS-PKG-01",
+      "title": "runtime依存schemaを含むpackage起動性",
+      "view": "black",
+      "techniques": [
+        "equivalence_partitioning",
+        "regression"
+      ],
+      "rationale": "tarball内容はrepo内実行と異なりruntime resource欠落を起こし得る。",
+      "sourceRefs": [
+        "SRC-03"
+      ]
+    },
+    {
+      "id": "OBS-CLI-01",
+      "title": "公開commandと異常入力のfail-closed",
+      "view": "black",
+      "techniques": [
+        "equivalence_partitioning",
+        "boundary_value"
+      ],
+      "rationale": "未知commandと必須値欠落を成功扱いしてはならない。",
+      "sourceRefs": [
+        "SRC-01"
+      ]
+    },
+    {
+      "id": "OBS-SAFE-01",
+      "title": "allowlist外hostとadaptive契約欠落の事前拒否",
+      "view": "black",
+      "techniques": [
+        "decision_table",
+        "state_transition"
+      ],
+      "rationale": "対象接続前の安全拒否が必須。",
+      "sourceRefs": [
+        "SRC-01",
+        "SRC-02"
+      ]
+    },
+    {
+      "id": "OBS-EVD-01",
+      "title": "正常runのHATE/v1証跡とsecurity check",
+      "view": "black",
+      "techniques": [
+        "state_transition",
+        "regression"
+      ],
+      "rationale": "run成功だけでなく監査可能な証跡が必要。",
+      "sourceRefs": [
+        "SRC-01"
+      ]
+    },
+    {
+      "id": "OBS-EXT-01",
+      "title": "実機・認可済み対象の未実施境界",
+      "view": "black",
+      "techniques": [
+        "exploratory_charter"
+      ],
+      "rationale": "local結果をproduction受入へ誤昇格させない。",
+      "sourceRefs": [
+        "SRC-02"
+      ]
+    }
+  ],
+  "risk_register": [
+    {
+      "id": "RISK-PKG-01",
+      "scenario": "runtime schema欠落で公開CLIが起動不能",
+      "impact": 5,
+      "likelihood": 4,
+      "modifiers": {
+        "D": 3,
+        "C": 3,
+        "X": 0,
+        "P": 0,
+        "A": 0
+      },
+      "riskScore": 74,
+      "priority": "P0",
+      "status": "resolved",
+      "rationale": "初回tarballで再現し、schema同梱とpack check追加後に再実行pass。"
+    },
+    {
+      "id": "RISK-SAFE-01",
+      "scenario": "不正入力またはscope外hostが操作へ進む",
+      "impact": 5,
+      "likelihood": 3,
+      "modifiers": {
+        "D": 2,
+        "C": 2,
+        "X": 1,
+        "P": 3,
+        "A": 3
+      },
+      "riskScore": 56,
+      "priority": "P1",
+      "status": "passed",
+      "rationale": "必須引数、adaptive設定、allowlist外loopback hostでexit 1を確認。"
+    },
+    {
+      "id": "RISK-EVD-01",
+      "scenario": "成功runの証跡欠落またはsecurity scan失敗",
+      "impact": 5,
+      "likelihood": 3,
+      "modifiers": {
+        "D": 3,
+        "C": 3,
+        "X": 1,
+        "P": 2,
+        "A": 3
+      },
+      "riskScore": 58,
+      "priority": "P1",
+      "status": "passed",
+      "rationale": "HATE/v1、5 artifacts、security failure 0を確認。"
+    },
+    {
+      "id": "RISK-EXT-01",
+      "scenario": "実機・認可済みSecurity対象未確認のままproduction判定",
+      "impact": 5,
+      "likelihood": 4,
+      "modifiers": {
+        "D": 3,
+        "C": 3,
+        "X": 3,
+        "P": 3,
+        "A": 0
+      },
+      "riskScore": 84,
+      "priority": "P0",
+      "status": "unresolved_out_of_scope",
+      "rationale": "ユーザー合意により外部P7は対象外。production Goには使用不可。"
+    }
+  ],
+  "priority_order": [
+    "RISK-PKG-01",
+    "RISK-EXT-01",
+    "RISK-EVD-01",
+    "RISK-SAFE-01"
+  ],
+  "manual_case_set": [
+    {
+      "tcId": "TC-MBB-01",
+      "priority": "P0",
+      "title": "tarballを空の隔離環境へinstall",
+      "preconditions": [
+        "新規一時directory"
+      ],
+      "steps": [
+        "npm install --ignore-scripts <tarball>"
+      ],
+      "expectedResults": [
+        "install成功"
+      ],
+      "oracle": {
+        "type": "specified",
+        "refs": [
+          "package.json"
+        ]
+      },
+      "traceTo": [
+        "OBS-PKG-01",
+        "RISK-PKG-01"
+      ],
+      "estimateMinutes": 8
+    },
+    {
+      "tcId": "TC-MBB-02",
+      "priority": "P0",
+      "title": "packaged CLI version起動",
+      "preconditions": [
+        "TC-MBB-01完了"
+      ],
+      "steps": [
+        "lakda --version"
+      ],
+      "expectedResults": [
+        "0.3.0-rc.1",
+        "exit 0"
+      ],
+      "oracle": {
+        "type": "specified",
+        "refs": [
+          "package.json"
+        ]
+      },
+      "traceTo": [
+        "OBS-PKG-01",
+        "RISK-PKG-01"
+      ],
+      "estimateMinutes": 2
+    },
+    {
+      "tcId": "TC-MBB-03",
+      "priority": "P1",
+      "title": "helpに公開commandとadaptive-exploreを表示",
+      "preconditions": [
+        "TC-MBB-01完了"
+      ],
+      "steps": [
+        "lakda --help"
+      ],
+      "expectedResults": [
+        "run/replay/export/doctor/authを表示",
+        "adaptive-exploreを表示",
+        "exit 0"
+      ],
+      "oracle": {
+        "type": "specified",
+        "refs": [
+          "src/cli.ts"
+        ]
+      },
+      "traceTo": [
+        "OBS-CLI-01"
+      ],
+      "estimateMinutes": 2
+    },
+    {
+      "tcId": "TC-MBB-04",
+      "priority": "P1",
+      "title": "未知commandを拒否",
+      "preconditions": [
+        "TC-MBB-01完了"
+      ],
+      "steps": [
+        "lakda unsupported-command"
+      ],
+      "expectedResults": [
+        "未対応commandを表示",
+        "exit 1"
+      ],
+      "oracle": {
+        "type": "specified",
+        "refs": [
+          "src/cli.ts"
+        ]
+      },
+      "traceTo": [
+        "OBS-CLI-01",
+        "RISK-SAFE-01"
+      ],
+      "estimateMinutes": 2
+    },
+    {
+      "tcId": "TC-MBB-05",
+      "priority": "P1",
+      "title": "adaptive必須入力と契約欠落を拒否",
+      "preconditions": [
+        "TC-MBB-01完了"
+      ],
+      "steps": [
+        "base-urlなしでadaptive実行",
+        "adaptive設定なしでloopbackへ実行"
+      ],
+      "expectedResults": [
+        "各実行をexit 1で拒否"
+      ],
+      "oracle": {
+        "type": "specified",
+        "refs": [
+          "RUNBOOK.md",
+          "schemas/lakda-config-v1.schema.json"
+        ]
+      },
+      "traceTo": [
+        "OBS-CLI-01",
+        "OBS-SAFE-01",
+        "RISK-SAFE-01"
+      ],
+      "estimateMinutes": 4
+    },
+    {
+      "tcId": "TC-MBB-06",
+      "priority": "P1",
+      "title": "packaged smokeとHATE証跡生成",
+      "preconditions": [
+        "loopback HTTP fixture"
+      ],
+      "steps": [
+        "lakda run --mode smoke",
+        "artifact manifestを確認"
+      ],
+      "expectedResults": [
+        "outcome passed",
+        "exit 0",
+        "HATE/v1",
+        "security failure 0"
+      ],
+      "oracle": {
+        "type": "specified",
+        "refs": [
+          "RUNBOOK.md",
+          "vendor/hate/v1/artifact-manifest.schema.json"
+        ]
+      },
+      "traceTo": [
+        "OBS-EVD-01",
+        "RISK-EVD-01"
+      ],
+      "estimateMinutes": 6
+    },
+    {
+      "tcId": "TC-MBB-07",
+      "priority": "P1",
+      "title": "allowlist外loopback hostを拒否",
+      "preconditions": [
+        "default allowHosts"
+      ],
+      "steps": [
+        "127.0.0.2をbase-urlとして実行"
+      ],
+      "expectedResults": [
+        "allowlist error",
+        "exit 1"
+      ],
+      "oracle": {
+        "type": "specified",
+        "refs": [
+          "RUNBOOK.md"
+        ]
+      },
+      "traceTo": [
+        "OBS-SAFE-01",
+        "RISK-SAFE-01"
+      ],
+      "estimateMinutes": 2
+    },
+    {
+      "tcId": "TC-MBB-08",
+      "priority": "P2",
+      "title": "不正adaptive replayをerror証跡化",
+      "preconditions": [
+        "stepsが配列でないtrace"
+      ],
+      "steps": [
+        "lakda replayを実行"
+      ],
+      "expectedResults": [
+        "outcome error",
+        "exit 1",
+        "UI-008 failure"
+      ],
+      "oracle": {
+        "type": "specified",
+        "refs": [
+          "schemas/adaptive-contracts-v1.schema.json"
+        ]
+      },
+      "traceTo": [
+        "OBS-CLI-01"
+      ],
+      "estimateMinutes": 3
+    }
+  ],
+  "effort_plan": {
+    "prepMinutes": 20,
+    "executionMinutes": 29,
+    "evidenceMinutes": 20,
+    "retryBufferMinutes": 10,
+    "totalMinutes": 79,
+    "executionOrder": [
+      "P0 package起動",
+      "P1安全拒否",
+      "P1証跡",
+      "P2不正replay"
+    ]
+  },
+  "execution_evidence": [
+    {
+      "tcId": "TC-MBB-01",
+      "result": "pass",
+      "actual": [
+        "9 packages installed in isolated directory"
+      ],
+      "attachments": [
+        "tarball sha256:48fdf9ef4e076ad1476d0dc8c1bfb9fd79cbcccd1df8f1b4c983fa7e4714d17b"
+      ]
+    },
+    {
+      "tcId": "TC-MBB-02",
+      "result": "pass_after_fix",
+      "actual": [
+        "0.3.0-rc.1",
+        "exit 0"
+      ],
+      "incident": "初回はvendor HATE schema欠落でexit 1。commit 2159231で修正後pass。"
+    },
+    {
+      "tcId": "TC-MBB-03",
+      "result": "pass",
+      "actual": [
+        "adaptive-exploreを含む全公開command表示",
+        "exit 0"
+      ]
+    },
+    {
+      "tcId": "TC-MBB-04",
+      "result": "pass",
+      "actual": [
+        "未対応command: unsupported-command",
+        "exit 1"
+      ]
+    },
+    {
+      "tcId": "TC-MBB-05",
+      "result": "pass",
+      "actual": [
+        "--base-url は必須です / exit 1",
+        "adaptive-exploreにはadaptive設定が必要です / exit 1"
+      ]
+    },
+    {
+      "tcId": "TC-MBB-06",
+      "result": "pass",
+      "actual": [
+        "runId lakda:run-2026-07-15T09-03-14-448Z-033c4e",
+        "outcome passed",
+        "HATE/v1",
+        "artifactCount 5",
+        "failedSecurity 0"
+      ]
+    },
+    {
+      "tcId": "TC-MBB-07",
+      "result": "pass",
+      "actual": [
+        "baseUrl host はallowlistに必要です: 127.0.0.2",
+        "exit 1"
+      ]
+    },
+    {
+      "tcId": "TC-MBB-08",
+      "result": "pass",
+      "actual": [
+        "outcome error",
+        "exit 1",
+        "UI-008 action sequence の形式が不正です"
+      ]
+    }
+  ],
+  "gate_decision": {
+    "profile": "strict",
+    "status": "no_go",
+    "scope": "production release",
+    "reasons": [
+      "local package black-box 8/8 pass",
+      "検出したpackage起動blockerは修正・再実行済み",
+      "実機・認可済みSecurity対象・real 16 AC corpusが未実施"
+    ],
+    "blockingRisks": [
+      "RISK-EXT-01"
+    ],
+    "waivers": [],
+    "internalRcDelivery": "go",
+    "qegHandoff": "not_executed"
+  },
+  "release_brief": {
+    "feature": "domain-lakda-runner 0.3.0-rc.1",
+    "decision": "production_no_go / internal_rc_go",
+    "topRisks": [
+      "外部P7未実施"
+    ],
+    "evidence": [
+      "8/8 local package black-box pass",
+      "tarball bytes fixed to SHA-256",
+      "HATE/v1 security failure 0",
+      "package runtime blocker fixed at 2159231"
+    ],
+    "residualRisk": "実機・認可済みSecurity targetの挙動は未確認",
+    "requiredFollowUp": [
+      "production判定時のみP7 real acceptanceとQEGを実施"
+    ]
+  }
+}

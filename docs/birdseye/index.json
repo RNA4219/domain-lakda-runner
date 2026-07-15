@@ -1,5 +1,5 @@
 {
-  "generated_at": "00020",
+  "generated_at": "00030",
   "nodes": {
     "README.md": {
       "role": "overview",
@@ -130,6 +130,234 @@
     "docs/acceptance/AC-20260714-03.v021-real-llm-eef71cb.md": {
       "role": "acceptance",
       "caps": "docs/birdseye/caps/docs.acceptance.AC-20260714-03.v021-real-llm-eef71cb.md.json"
+    },
+    "docs/acceptance/AC-20260714-03.adaptive-exploration-fixture.md": {
+      "role": "acceptance",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260714-03.adaptive-exploration-fixture.md.json"
+    },
+    "docs/acceptance/AC-20260715-04.adaptive-evidence-replay-fixture.md": {
+      "role": "acceptance",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260715-04.adaptive-evidence-replay-fixture.md.json"
+    },
+    "docs/acceptance/AC-20260715-05.adaptive-shrink-bridge-fixture.md": {
+      "role": "acceptance",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260715-05.adaptive-shrink-bridge-fixture.md.json"
+    },
+    "docs/acceptance/AC-20260715-06.p6-rc.md": {
+      "role": "acceptance",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260715-06.p6-rc.md.json"
+    },
+    "docs/acceptance/AC-20260715-07.p7-runner-pending-external.md": {
+      "role": "acceptance",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260715-07.p7-runner-pending-external.md.json"
+    },
+    "docs/acceptance/AC-20260715-08.p3-p4-replay-hardening.md": {
+      "role": "acceptance",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260715-08.p3-p4-replay-hardening.md.json"
+    },
+    "docs/acceptance/P7-REAL-ACCEPTANCE-RUNBOOK.md": {
+      "role": "acceptance",
+      "caps": "docs/birdseye/caps/docs.acceptance.P7-REAL-ACCEPTANCE-RUNBOOK.md.json"
+    },
+    "REQUIREMENTS-ADAPTIVE-EXPLORATION.md": {
+      "role": "requirements",
+      "caps": "docs/birdseye/caps/REQUIREMENTS-ADAPTIVE-EXPLORATION.md.json"
+    },
+    "docs/IMPLEMENTATION-PLAN-ADAPTIVE-EXPLORATION.md": {
+      "role": "plan",
+      "caps": "docs/birdseye/caps/docs.IMPLEMENTATION-PLAN-ADAPTIVE-EXPLORATION.md.json"
+    },
+    "docs/spec/adaptive-exploration/CHECKLIST-01-COMMON-CORE.md": {
+      "role": "checklist",
+      "caps": "docs/birdseye/caps/docs.spec.adaptive-exploration.CHECKLIST-01-COMMON-CORE.md.json"
+    },
+    "docs/spec/adaptive-exploration/CHECKLIST-02-STATE-GRAPH-EXPLORATION.md": {
+      "role": "checklist",
+      "caps": "docs/birdseye/caps/docs.spec.adaptive-exploration.CHECKLIST-02-STATE-GRAPH-EXPLORATION.md.json"
+    },
+    "docs/spec/adaptive-exploration/CHECKLIST-03-REPLAY-ORACLE-EVIDENCE.md": {
+      "role": "checklist",
+      "caps": "docs/birdseye/caps/docs.spec.adaptive-exploration.CHECKLIST-03-REPLAY-ORACLE-EVIDENCE.md.json"
+    },
+    "docs/spec/adaptive-exploration/CHECKLIST-04-PLAYWRIGHT-ADAPTER.md": {
+      "role": "checklist",
+      "caps": "docs/birdseye/caps/docs.spec.adaptive-exploration.CHECKLIST-04-PLAYWRIGHT-ADAPTER.md.json"
+    },
+    "docs/spec/adaptive-exploration/CHECKLIST-05-AIRTEST-POCO-ADAPTER.md": {
+      "role": "checklist",
+      "caps": "docs/birdseye/caps/docs.spec.adaptive-exploration.CHECKLIST-05-AIRTEST-POCO-ADAPTER.md.json"
+    },
+    "docs/spec/adaptive-exploration/CHECKLIST-06-SECURITY-ADAPTER.md": {
+      "role": "checklist",
+      "caps": "docs/birdseye/caps/docs.spec.adaptive-exploration.CHECKLIST-06-SECURITY-ADAPTER.md.json"
+    },
+    "docs/spec/adaptive-exploration/EVALUATION-ADAPTIVE-EXPLORATION.md": {
+      "role": "quality",
+      "caps": "docs/birdseye/caps/docs.spec.adaptive-exploration.EVALUATION-ADAPTIVE-EXPLORATION.md.json"
+    },
+    "docs/spec/adaptive-exploration/README.md": {
+      "role": "navigation",
+      "caps": "docs/birdseye/caps/docs.spec.adaptive-exploration.README.md.json"
+    },
+    "docs/spec/adaptive-exploration/SPEC-01-COMMON-CORE.md": {
+      "role": "specification",
+      "caps": "docs/birdseye/caps/docs.spec.adaptive-exploration.SPEC-01-COMMON-CORE.md.json"
+    },
+    "docs/spec/adaptive-exploration/SPEC-02-STATE-GRAPH-EXPLORATION.md": {
+      "role": "specification",
+      "caps": "docs/birdseye/caps/docs.spec.adaptive-exploration.SPEC-02-STATE-GRAPH-EXPLORATION.md.json"
+    },
+    "docs/spec/adaptive-exploration/SPEC-03-REPLAY-ORACLE-EVIDENCE.md": {
+      "role": "specification",
+      "caps": "docs/birdseye/caps/docs.spec.adaptive-exploration.SPEC-03-REPLAY-ORACLE-EVIDENCE.md.json"
+    },
+    "docs/spec/adaptive-exploration/SPEC-04-PLAYWRIGHT-ADAPTER.md": {
+      "role": "specification",
+      "caps": "docs/birdseye/caps/docs.spec.adaptive-exploration.SPEC-04-PLAYWRIGHT-ADAPTER.md.json"
+    },
+    "docs/spec/adaptive-exploration/SPEC-05-AIRTEST-POCO-ADAPTER.md": {
+      "role": "specification",
+      "caps": "docs/birdseye/caps/docs.spec.adaptive-exploration.SPEC-05-AIRTEST-POCO-ADAPTER.md.json"
+    },
+    "docs/spec/adaptive-exploration/SPEC-06-SECURITY-ADAPTER.md": {
+      "role": "specification",
+      "caps": "docs/birdseye/caps/docs.spec.adaptive-exploration.SPEC-06-SECURITY-ADAPTER.md.json"
+    },
+    "docs/tasks/TASK.20260714-07.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-07.md.json"
+    },
+    "docs/tasks/TASK.20260714-08.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-08.md.json"
+    },
+    "docs/tasks/TASK.20260714-09.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-09.md.json"
+    },
+    "docs/tasks/TASK.20260714-10.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-10.md.json"
+    },
+    "docs/tasks/TASK.20260714-11.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-11.md.json"
+    },
+    "docs/tasks/TASK.20260714-12.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-12.md.json"
+    },
+    "docs/tasks/TASK.20260714-13.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-13.md.json"
+    },
+    "docs/tasks/TASK.20260714-14.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-14.md.json"
+    },
+    "docs/tasks/TASK.20260714-15.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-15.md.json"
+    },
+    "docs/tasks/TASK.20260714-16.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-16.md.json"
+    },
+    "docs/tasks/TASK.20260714-17.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-17.md.json"
+    },
+    "docs/tasks/TASK.20260714-18.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-18.md.json"
+    },
+    "docs/tasks/TASK.20260714-19.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-19.md.json"
+    },
+    "docs/tasks/TASK.20260714-20.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-20.md.json"
+    },
+    "docs/tasks/TASK.20260714-21.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-21.md.json"
+    },
+    "docs/tasks/TASK.20260714-22.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-22.md.json"
+    },
+    "docs/tasks/TASK.20260714-23.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-23.md.json"
+    },
+    "docs/tasks/TASK.20260714-24.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-24.md.json"
+    },
+    "docs/tasks/TASK.20260714-25.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-25.md.json"
+    },
+    "docs/tasks/TASK.20260714-26.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-26.md.json"
+    },
+    "docs/tasks/TASK.20260714-27.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-27.md.json"
+    },
+    "docs/tasks/TASK.20260714-28.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-28.md.json"
+    },
+    "docs/tasks/TASK.20260714-29.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-29.md.json"
+    },
+    "docs/tasks/TASK.20260714-30.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-30.md.json"
+    },
+    "docs/tasks/TASK.20260714-31.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-31.md.json"
+    },
+    "docs/tasks/TASK.20260714-32.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-32.md.json"
+    },
+    "docs/tasks/TASK.20260714-33.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-33.md.json"
+    },
+    "docs/tasks/TASK.20260714-34.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-34.md.json"
+    },
+    "docs/tasks/TASK.20260714-35.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260714-35.md.json"
+    },
+    "docs/acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260715-09.adaptive-contract-topology-recovery.md.json"
+    },
+    "docs/acceptance/AC-20260715-10.playwright-frame-offpage-events.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260715-10.playwright-frame-offpage-events.md.json"
+    },
+    "docs/acceptance/AC-20260715-11.playwright-dialog-target-topology.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260715-11.playwright-dialog-target-topology.md.json"
+    },
+    "docs/acceptance/AC-20260715-12.timeout-quarantine-recovery-safety.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260715-12.timeout-quarantine-recovery-safety.md.json"
+    },
+    "docs/acceptance/AC-20260715-13.manual-bb-package-boundary.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260715-13.manual-bb-package-boundary.md.json"
     }
   },
   "edges": [

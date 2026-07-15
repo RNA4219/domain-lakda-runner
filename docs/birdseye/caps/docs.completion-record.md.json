@@ -1,6 +1,6 @@
 {
   "id": "docs/completion-record.md",
-  "role": "doc",
+  "role": "completion",
   "public_api": [],
   "summary": "docs/completion-record.md",
   "deps_out": [

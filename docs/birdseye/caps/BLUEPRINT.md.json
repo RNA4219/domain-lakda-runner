@@ -1,6 +1,6 @@
 {
   "id": "BLUEPRINT.md",
-  "role": "doc",
+  "role": "blueprint",
   "public_api": [],
   "summary": "BLUEPRINT.md",
   "deps_out": [

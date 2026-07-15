@@ -7,9 +7,9 @@ const rootArg = process.argv.find(value => value.startsWith("--path="))?.slice("
 const outputArg = process.argv.find(value => value.startsWith("--out="))?.slice("--out=".length);
 if (!rootArg) throw new Error("usage: scan-release-package --path=<unpacked-package> [--out=<result.json>]");
 const root = resolve(rootArg);
-const allowedTopLevels = new Set(["CHANGELOG.md", "LICENSE", "README.md", "RUNBOOK.md", "dist", "package.json", "schemas"]);
+const allowedTopLevels = new Set(["CHANGELOG.md", "LICENSE", "README.md", "RUNBOOK.md", "dist", "package.json", "schemas", "vendor"]);
 const allowedExtensions = new Set([".js", ".ts", ".map", ".json", ".md"]);
-const requiredPaths = ["CHANGELOG.md", "LICENSE", "README.md", "RUNBOOK.md", "dist/index.js", "dist/index.d.ts", "package.json", "schemas/adaptive-contracts-v1.schema.json", "schemas/lakda-config-v1.schema.json"];
+const requiredPaths = ["CHANGELOG.md", "LICENSE", "README.md", "RUNBOOK.md", "dist/index.js", "dist/index.d.ts", "package.json", "schemas/adaptive-contracts-v1.schema.json", "schemas/lakda-config-v1.schema.json", "vendor/hate/v1/artifact-manifest.schema.json"];
 const sha256 = bytes => createHash("sha256").update(bytes).digest("hex");
 
 async function list(path) {

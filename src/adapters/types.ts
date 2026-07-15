@@ -1,7 +1,7 @@
-import type { ActionCandidate, AdapterCapabilities, AdapterError, EvidenceArtifactRef, ExecutionResult, Observation, TargetRef } from "../adaptive/contracts.js";
+import type { ActionCandidate, AdapterCapabilities, AdapterError, EvidenceArtifactRef, ExecutionResult, MutationKind, Observation, TargetRef } from "../adaptive/contracts.js";
 
 export type ObserveContext = { runId: string; personaRef?: string; scopeHosts: string[] };
-export type ExecuteContext = { runId: string; personaRef?: string; inputCaseRef?: string; timeoutMs: number; race?: { groupId: string; participantIndex: number; participantCount: number } };
+export type ExecuteContext = { runId: string; personaRef?: string; inputCaseRef?: string; timeoutMs: number; allowedMutationKinds?: MutationKind[]; race?: { groupId: string; participantIndex: number; participantCount: number } };
 export type RecoverContext = { runId: string; strategy: string; expectedFingerprint?: string };
 export type EvidenceRequest = { runId: string; kinds: string[] };
 export type AdapterFailure = { category: AdapterError["category"]; messageRef: string; targetRef?: TargetRef };

@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lakda.dev/schemas/adaptive-acceptance-suite-readiness-v1.schema.json",
+  "title": "Lakda adaptive acceptance suite readiness v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "suiteId",
+    "version",
+    "indexDigest",
+    "reportCount",
+    "acceptanceIds",
+    "status",
+    "p7Status",
+    "qegHandoff"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "lakda/adaptive-acceptance-suite-readiness/v1"
+    },
+    "suiteId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "indexDigest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "reportCount": {
+      "type": "integer",
+      "minimum": 16
+    },
+    "acceptanceIds": {
+      "type": "array",
+      "minItems": 16,
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^AC-AE-(00[1-9]|01[0-6])$"
+      }
+    },
+    "status": {
+      "const": "ready_for_manual_bb_qeg"
+    },
+    "p7Status": {
+      "const": "pending_external"
+    },
+    "qegHandoff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "verdictGeneratedByLakda"
+      ],
+      "properties": {
+        "status": {
+          "const": "pending_external"
+        },
+        "verdictGeneratedByLakda": {
+          "const": false
+        }
+      }
+    }
+  }
+}

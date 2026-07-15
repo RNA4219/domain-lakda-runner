@@ -1,6 +1,6 @@
 {
   "id": "RUNBOOK.md",
-  "role": "doc",
+  "role": "operations",
   "public_api": [],
   "summary": "RUNBOOK.md",
   "deps_out": [

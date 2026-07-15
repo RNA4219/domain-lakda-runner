@@ -18,7 +18,14 @@ export type Observation = {
 };
 export type LocatorRecipe = { strategy: "test-id" | "role" | "label" | "text" | "image" | "request"; value: string; name?: string; framePath?: string[] };
 export type MutationKind = "none" | "create" | "update" | "delete" | "purchase" | "publish" | "external-message" | "credential-change" | "parameter-mutation" | "skip" | "reorder" | "double-execution" | "race";
-export type ActionContract = { enabledWhen?: Record<string, unknown>; ensures?: Record<string, unknown>; invariants?: Record<string, unknown>; requirementRefs?: string[] };
+export type DialogHandling = "dismiss" | "hold" | "accept";
+export type ActionContract = {
+  enabledWhen?: Record<string, unknown>;
+  ensures?: Record<string, unknown>;
+  invariants?: Record<string, unknown>;
+  dialog?: { handling: DialogHandling; messagePattern?: string; types?: string[] };
+  requirementRefs?: string[];
+};
 export type ActionCandidate = {
   schemaVersion: AdaptiveSchemaVersion; candidateId: string; adapterId: string; targetRef: TargetRef; sourceFingerprint: string; actionKind: string;
   locatorRecipe: LocatorRecipe; inputProfileRef?: string; generatedBy: { ruleId: string; observationId: string; reason: string };

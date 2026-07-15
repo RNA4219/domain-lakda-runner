@@ -1,6 +1,6 @@
 {
   "id": "docs/acceptance/AC-20260713-03.v02-fixture.json",
-  "role": "doc",
+  "role": "acceptance",
   "public_api": [],
   "summary": "docs/acceptance/AC-20260713-03.v02-fixture.json",
   "deps_out": [

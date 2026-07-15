@@ -1,7 +1,7 @@
 ---
 task_id: TASK.20260714-08
 intent_id: INT-LAKDA-001
-status: planned
+status: fixture_accepted
 owner: RNA4219
 created_at: 2026-07-14
 updated_at: 2026-07-15
@@ -81,3 +81,12 @@ npm test
 - 本Taskの完了は共通契約の局所受入であり、adapter実装または最終ACの完了を意味しない。
 - `AC-AE-014`の最終証跡はTASK.20260714-12とTASK.20260714-34で収集する。
 - 新fieldが必要になった場合は、SPEC-01、CHECKLIST-01、評価fixture、実装計画を同一変更で更新する。
+
+
+## Evidence
+
+- 現在の状態: fixture_accepted
+- 共通契約・schema受入: [AC-20260714-03](../acceptance/AC-20260714-03.adaptive-exploration-fixture.md)
+- 追加回帰: [AC-20260715-08](../acceptance/AC-20260715-08.p3-p4-replay-hardening.md)
+- `npm run check`: 95/95 tests pass。
+- adapter実環境とP7最終ACは`pending_external`であり、本Taskのfixture受入から昇格させない。

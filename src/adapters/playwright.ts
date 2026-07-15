@@ -1,12 +1,41 @@
 import type { BrowserContext, Frame, Locator, Page } from "playwright";
 import { findSensitive, redact, sha256 } from "../core/redaction.js";
 import { fingerprintObservation } from "../adaptive/fingerprint.js";
-import type { ActionCandidate, AdapterCapabilities, EvidenceArtifactRef, ExecutionResult, LocatorRecipe, MutationKind, Observation, TargetRef } from "../adaptive/contracts.js";
+import type { ActionCandidate, AdapterCapabilities, DialogHandling, EvidenceArtifactRef, ExecutionResult, LocatorRecipe, MutationKind, Observation, TargetRef } from "../adaptive/contracts.js";
 import type { AdaptiveAdapter, AdapterFailure, EvidenceRequest, ExecuteContext, ObserveContext, RecoverContext, RecoveryResult } from "./types.js";
 
 type Target = Page | Frame;
-type Entry = { target: Target; ref: TargetRef };
-type Control = { actionKind: "click" | "fill" | "check" | "select"; role?: string; name?: string; testId?: string; href?: string; hint: string };
+type Entry = { target: Target; ref: TargetRef; pageMetadata?: { openerTargetId?: string; triggerActionId?: string; initialUrl?: string } };
+type Control = { actionKind: "click" | "fill" | "check" | "select"; role?: string; name?: string; testId?: string; fieldId?: string; href?: string; hint: string };
+type DisplayElement = { role: "heading" | "dialog" | "alert" | "status"; name: string; modal?: true; open?: boolean; level?: number };
+type DialogEvent = {
+  eventKind: "js-dialog";
+  targetRef: TargetRef;
+  type: string;
+  message?: string;
+  disposition: "dismiss-pending" | "dismissed" | "accepted" | "held" | "held-timeout" | "failed";
+  handlingPolicy: "default-deny/v1" | "explicit/v1" | "hold/v1";
+  elapsedMs?: number;
+  triggerActionId?: string;
+};
+type DialogControl = {
+  candidateId: string;
+  policy: DialogHandling;
+  startedAt: number;
+  timeoutMs: number;
+  outcome?: "dismissed" | "accepted" | "held-timeout" | "failed";
+  event?: DialogEvent;
+  timer?: ReturnType<typeof setTimeout>;
+};
+type TargetTopologyEvent = {
+  eventKind: "target-open" | "target-switch" | "target-close" | "target-return";
+  targetId?: string;
+  fromTargetId?: string;
+  toTargetId?: string;
+  parentTargetId?: string;
+  reason: string;
+};
+type BrowserEvent = { eventId: string; kind: "console-error" | "pageerror" | "crash" | "request-failed" | "http-error" | "download"; targetId: string; messageRef?: string; url?: string; status?: number; method?: string };
 type InputValueProvider = (candidate: ActionCandidate, context: ExecuteContext) => string | undefined | Promise<string | undefined>;
 export type PlaywrightAdaptiveAdapterOptions = { page: Page; context?: BrowserContext; scopeHosts: string[]; adapterId?: string; inputValueProvider?: InputValueProvider; settlePolicy?: { maxWaitMs: number; stableWindowMs: number; policyVersion?: string } };
 
@@ -15,15 +44,17 @@ const policy = { maxWaitMs: 5_000, stableWindowMs: 200, policyVersion: "lakda-se
 const allowedRoles = new Set(["button", "link", "textbox", "checkbox", "combobox", "option", "menuitem", "tab"]);
 const publicText = (value?: string): string | undefined => value ? redact(value.replace(/\s+/g, " ").trim().slice(0, 160)) : undefined;
 const publicLocator = (value?: string): value is string => Boolean(value && findSensitive(value).length === 0);
-function origin(value: string): string | undefined { try { const url = new URL(value); return `${url.protocol}//${url.host}`; } catch { return undefined; } }
+function origin(value: string): string | undefined { try { const url = new URL(value); return ["http:", "https:"].includes(url.protocol) ? url.origin : undefined; } catch { return undefined; } }
 function safeUrl(value: string): string | undefined {
   try {
     const url = new URL(value);
+    if (!["http:", "https:"].includes(url.protocol)) return undefined;
     const query = [...url.searchParams.entries()].sort(([a, av], [b, bv]) => a.localeCompare(b) || av.localeCompare(bv)).map(([key, entry]) => `${encodeURIComponent(key)}=${sha256(entry).slice(0, 12)}`);
     return `${url.origin}${url.pathname}${query.length ? `?${query.join("&")}` : ""}`;
   } catch { return undefined; }
 }
-function mutation(value: string): MutationKind {
+function mutation(value: string, actionKind: Control["actionKind"]): MutationKind {
+  if (actionKind !== "click") return "none";
   const text = value.toLowerCase();
   if (/(delete|remove|destroy|削除)/.test(text)) return "delete";
   if (/(purchase|buy|checkout|order|payment|決済|購入|注文)/.test(text)) return "purchase";
@@ -40,6 +71,16 @@ function statusFor(error: unknown): ExecutionResult["status"] {
   if (/unsupported|input value provider/i.test(text)) return "unsupported";
   return "action_failed";
 }
+function resolveDialogPolicy(candidate: ActionCandidate, context: ExecuteContext): { policy: DialogHandling; deniedReason?: string } {
+  const dialog = candidate.contract?.dialog;
+  if (!dialog) return { policy: "dismiss" };
+  const handling = (dialog as { handling?: unknown }).handling;
+  if (handling !== "dismiss" && handling !== "hold" && handling !== "accept") return { policy: "dismiss", deniedReason: "dialog_policy_invalid" };
+  if (handling === "accept" && !context.allowedMutationKinds?.includes(candidate.mutationKind)) {
+    return { policy: "dismiss", deniedReason: "dialog_accept_not_authorized" };
+  }
+  return { policy: handling };
+}
 function locator(target: Target, recipe: LocatorRecipe): Locator {
   if (recipe.strategy === "test-id") return target.getByTestId(recipe.value);
   if (recipe.strategy === "role") return target.getByRole(recipe.value as never, { name: recipe.name, exact: true });
@@ -54,22 +95,42 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
   private readonly ids = new WeakMap<object, string>();
   private readonly scopeHosts: Set<string>;
   private readonly input?: InputValueProvider;
+  private readonly contextEvents: boolean;
   private readonly settle: Required<NonNullable<PlaywrightAdaptiveAdapterOptions["settlePolicy"]>>;
-  private readonly dialogs: Array<{ type: string; disposition: string }> = [];
+  private readonly dialogs: DialogEvent[] = [];
+  private readonly network: Array<{ targetId: string; url: string; status: number; method: string }> = [];
+  private readonly events: BrowserEvent[] = [];
+  private readonly pendingPageTriggers = new Map<string, string>();
+  private candidateInFlight?: ActionCandidate;
+  private dialogInFlight?: DialogControl;
+  private readonly topologyEvents: TargetTopologyEvent[] = [];
+  private activeTargetId?: string;
   private pages = 0;
   private frames = 0;
+  private dialogEvents = 0;
+  private browserEvents = 0;
 
   constructor(options: PlaywrightAdaptiveAdapterOptions) {
     this.adapterId = options.adapterId ?? "playwright";
     this.scopeHosts = new Set(options.scopeHosts);
     this.input = options.inputValueProvider;
+    this.contextEvents = Boolean(options.context);
     this.settle = { ...policy, ...options.settlePolicy };
+    options.context?.on("console", message => {
+      if (message.type() !== "error") return;
+      const page = message.page(); const targetId = page ? this.registerPage(page).targetId : this.primaryTarget().targetId;
+      this.recordBrowserEvent(targetId, "console-error", { messageRef: sha256(redact(message.text())) });
+    });
+    options.context?.on("weberror", webError => {
+      const page = webError.page(); const targetId = page ? this.registerPage(page).targetId : this.primaryTarget().targetId; const error = webError.error();
+      this.recordBrowserEvent(targetId, "pageerror", { messageRef: sha256(redact(`${error.name}:${error.message}`)) });
+    });
     this.registerPage(options.page);
-    options.context?.on("page", page => this.registerPage(page));
+    options.context?.on("page", page => this.registerPage(page, undefined, this.candidateInFlight?.candidateId));
   }
 
   capabilities(): AdapterCapabilities {
-    return { schemaVersion: version, adapterId: this.adapterId, revision: "playwright-adapter/v1", targetKinds: ["page", "frame", "dialog"], actionKinds: ["click", "fill", "check", "select"], observationCapabilities: ["dom", "url", "forms", "dialogs", "topology"], evidenceCapabilities: ["screenshot", "trace", "network"], recoveryStrategies: ["backtrack", "reload", "dismiss-dialog"] };
+    return { schemaVersion: version, adapterId: this.adapterId, revision: "playwright-adapter/v1", targetKinds: ["page", "frame", "dialog"], actionKinds: ["click", "fill", "check", "select"], observationCapabilities: ["dom", "url", "forms", "dialogs", "topology", "network"], evidenceCapabilities: ["screenshot", "trace", "network"], recoveryStrategies: ["backtrack", "reload", "dismiss-dialog"] };
   }
 
   primaryTarget(): TargetRef {
@@ -80,14 +141,119 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
 
   activeTargets(): TargetRef[] { return [...this.targets.values()].map(entry => this.ref(entry)).filter(ref => ref.lifecycle === "active"); }
 
-  private registerPage(page: Page, parentTargetId?: string): TargetRef {
+  async switchTarget(targetRef: TargetRef, reason = "explicit"): Promise<TargetRef> {
+    const entry = this.entry(targetRef);
+    this.activateTarget(entry.ref.targetId, reason);
+    return this.ref(entry);
+  }
+
+  async closeTarget(targetRef: TargetRef, reason = "explicit-close"): Promise<{ closed: boolean; targetRef: TargetRef }> {
+    const entry = this.entry(targetRef);
+    if (entry.ref.kind !== "page") return { closed: false, targetRef: this.ref(entry) };
+    await (entry.target as Page).close({ runBeforeUnload: false });
+    this.recordTopologyEvent({ eventKind: "target-close", targetId: entry.ref.targetId, reason });
+    return { closed: true, targetRef: this.ref(entry) };
+  }
+
+  private recordTopologyEvent(event: TargetTopologyEvent): void {
+    this.topologyEvents.push({ ...event });
+    if (this.topologyEvents.length > 100) this.topologyEvents.splice(0, this.topologyEvents.length - 100);
+  }
+
+  private activateTarget(targetId: string, reason: string): void {
+    if (this.activeTargetId && this.activeTargetId !== targetId) {
+      this.recordTopologyEvent({ eventKind: "target-switch", fromTargetId: this.activeTargetId, toTargetId: targetId, reason });
+    }
+    this.activeTargetId = targetId;
+  }
+
+  private topologyChanges(): Array<Record<string, unknown>> {
+    return this.topologyEvents.slice(-50).map(event => ({ ...event }));
+  }
+
+  private recordBrowserEvent(targetId: string, kind: BrowserEvent["kind"], details: Omit<BrowserEvent, "eventId" | "kind" | "targetId"> = {}): void {
+    this.events.push({ eventId: `browser-event-${++this.browserEvents}`, kind, targetId, ...details });
+    if (this.events.length > 100) this.events.splice(0, this.events.length - 100);
+  }
+
+  private registerPage(page: Page, parentTargetId?: string, triggerActionId?: string): TargetRef {
+    const inferredTriggerActionId = triggerActionId ?? (parentTargetId ? this.pendingPageTriggers.get(parentTargetId) : undefined);
     const known = this.ids.get(page);
-    if (known) return this.ref(this.targets.get(known)!);
+    if (known) {
+      const entry = this.targets.get(known)!;
+      if (parentTargetId) { entry.ref.parentTargetId ??= parentTargetId; entry.pageMetadata ??= {}; entry.pageMetadata.openerTargetId ??= parentTargetId; }
+      if (inferredTriggerActionId) { entry.pageMetadata ??= {}; entry.pageMetadata.triggerActionId ??= inferredTriggerActionId; }
+      if (parentTargetId && inferredTriggerActionId) this.pendingPageTriggers.delete(parentTargetId);
+      return this.ref(entry);
+    }
     const ref: TargetRef = { targetId: `page-${++this.pages}`, kind: "page", ...(parentTargetId ? { parentTargetId } : {}) };
-    this.ids.set(page, ref.targetId); this.targets.set(ref.targetId, { target: page, ref });
-    page.on("close", () => { const entry = this.targets.get(ref.targetId); if (entry) entry.ref.lifecycle = "closed"; });
-    page.on("popup", popup => this.registerPage(popup, ref.targetId));
-    page.on("dialog", dialog => { void dialog.dismiss().then(() => this.dialogs.push({ type: dialog.type(), disposition: "dismissed" })).catch(() => this.dialogs.push({ type: dialog.type(), disposition: "failed" })); });
+    const initialUrl = safeUrl(page.url());
+    this.ids.set(page, ref.targetId); this.targets.set(ref.targetId, { target: page, ref, pageMetadata: { ...(parentTargetId ? { openerTargetId: parentTargetId } : {}), ...(inferredTriggerActionId ? { triggerActionId: inferredTriggerActionId } : {}), ...(initialUrl ? { initialUrl } : {}) } });
+    if (parentTargetId) this.recordTopologyEvent({ eventKind: "target-open", targetId: ref.targetId, parentTargetId, reason: "popup" });
+    if (parentTargetId && inferredTriggerActionId) this.pendingPageTriggers.delete(parentTargetId);
+    page.on("close", () => {
+      const entry = this.targets.get(ref.targetId);
+      if (!entry) return;
+      entry.ref.lifecycle = "closed";
+      this.recordTopologyEvent({ eventKind: "target-close", targetId: ref.targetId, reason: "page-closed" });
+      const openerId = entry.pageMetadata?.openerTargetId;
+      const returnId = (openerId && this.targets.get(openerId)?.ref.lifecycle !== "closed" && this.targets.get(openerId)?.ref.lifecycle !== "lost")
+        ? openerId
+        : [...this.targets.values()].find(value => value.ref.targetId !== ref.targetId && value.ref.kind === "page" && (value.ref.lifecycle ?? "active") === "active")?.ref.targetId;
+      if (returnId) {
+        this.activeTargetId = returnId;
+        this.recordTopologyEvent({ eventKind: "target-return", fromTargetId: ref.targetId, toTargetId: returnId, reason: "closed-page-opener" });
+      }
+    });
+    if (!this.contextEvents) {
+      page.on("console", message => { if (message.type() === "error") this.recordBrowserEvent(ref.targetId, "console-error", { messageRef: sha256(redact(message.text())) }); });
+      page.on("pageerror", error => this.recordBrowserEvent(ref.targetId, "pageerror", { messageRef: sha256(redact(`${error.name}:${error.message}`)) }));
+    }
+    page.on("crash", () => this.recordBrowserEvent(ref.targetId, "crash"));
+    page.on("requestfailed", request => { const url = safeUrl(request.url()); this.recordBrowserEvent(ref.targetId, "request-failed", { ...(url ? { url } : {}), method: request.method(), ...(request.failure()?.errorText ? { messageRef: sha256(redact(request.failure()!.errorText)) } : {}) }); });
+    page.on("download", download => { const url = safeUrl(download.url()); this.recordBrowserEvent(ref.targetId, "download", { ...(url ? { url } : {}), messageRef: sha256(redact(download.suggestedFilename())) }); });
+    page.on("popup", popup => this.registerPage(popup, ref.targetId, this.candidateInFlight?.candidateId));
+    page.on("framenavigated", frame => { if (frame === page.mainFrame()) { const entry = this.targets.get(ref.targetId); const firstUrl = safeUrl(frame.url()); if (entry?.pageMetadata && firstUrl) entry.pageMetadata.initialUrl ??= firstUrl; } });
+    page.on("dialog", dialog => {
+      const targetRef: TargetRef = { targetId: "dialog-" + (++this.dialogEvents), kind: "dialog", parentTargetId: ref.targetId, lifecycle: "active" };
+      const control = this.dialogInFlight && this.dialogInFlight.candidateId === this.candidateInFlight?.candidateId ? this.dialogInFlight : undefined;
+      const policy = control?.policy ?? "dismiss";
+      const message = publicText(dialog.message());
+      const event: DialogEvent = {
+        eventKind: "js-dialog",
+        targetRef,
+        type: dialog.type(),
+        ...(message ? { message } : {}),
+        disposition: policy === "hold" ? "held" : "dismiss-pending",
+        handlingPolicy: policy === "accept" ? "explicit/v1" : policy === "hold" ? "hold/v1" : "default-deny/v1",
+        ...(this.candidateInFlight ? { triggerActionId: this.candidateInFlight.candidateId } : {}),
+      };
+      if (control) control.event = event;
+      this.dialogs.push(event); if (this.dialogs.length > 20) this.dialogs.splice(0, this.dialogs.length - 20);
+      const close = (disposition: DialogEvent["disposition"], outcome: DialogControl["outcome"]) => {
+        event.disposition = disposition;
+        if (control) event.elapsedMs = Date.now() - control.startedAt;
+        event.targetRef.lifecycle = disposition === "failed" ? "lost" : "closed";
+        if (control) control.outcome = outcome;
+      };
+      if (policy === "accept") {
+        void dialog.accept().then(() => close("accepted", "accepted")).catch(() => close("failed", "failed"));
+      } else if (policy === "hold" && control) {
+        control.timer = setTimeout(() => {
+          void dialog.dismiss().then(() => close("held-timeout", "held-timeout")).catch(() => close("failed", "failed"));
+        }, Math.max(1, control.timeoutMs));
+      } else {
+        void dialog.dismiss().then(() => close("dismissed", "dismissed")).catch(() => close("failed", "failed"));
+      }
+    });
+    void page.opener().then(opener => { if (opener) this.registerPage(page, this.registerPage(opener).targetId); }).catch(() => undefined);
+    page.on("response", response => {
+      const url = safeUrl(response.url());
+      if (!url) return;
+      if (response.status() >= 500) this.recordBrowserEvent(ref.targetId, "http-error", { url, status: response.status(), method: response.request().method() });
+      this.network.push({ targetId: ref.targetId, url, status: response.status(), method: response.request().method() });
+      if (this.network.length > 200) this.network.splice(0, this.network.length - 200);
+    });
     this.registerFrames(page);
     return this.ref(this.targets.get(ref.targetId)!);
   }
@@ -108,13 +274,36 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
   private ref(entry: Entry): TargetRef {
     let lifecycle = entry.ref.lifecycle ?? "active"; let url: string | undefined;
     try { url = entry.target.url(); } catch { lifecycle = "lost"; }
+    if (entry.ref.kind === "frame" && (entry.target as Frame).isDetached()) lifecycle = "lost";
     return { ...entry.ref, ...(entry.ref.framePath ? { framePath: [...entry.ref.framePath] } : {}), ...(url && origin(url) ? { origin: origin(url) } : {}), lifecycle };
+  }
+
+  private currentNetworkSummary(targetId: string, currentUrl?: string): Array<Record<string, unknown>> {
+    const unique = new Map<string, { targetId: string; url: string; status: number; method: string }>();
+    for (const item of this.network) if (item.targetId === targetId && (!currentUrl || item.url === currentUrl)) unique.set(`${item.method}\u0000${item.url}\u0000${item.status}`, item);
+    return [...unique.values()].slice(-50);
+  }
+
+  private targetDetails(): Array<Record<string, unknown>> {
+    return [...this.targets.values()].map(entry => {
+      const ref = this.ref(entry); let settledUrl: string | undefined; try { settledUrl = safeUrl(entry.target.url()); } catch { settledUrl = undefined; }
+      let allowScope: "allowed" | "denied" | "unknown" = "unknown";
+      if (settledUrl) try { allowScope = this.scopeHosts.has(new URL(settledUrl).hostname) ? "allowed" : "denied"; } catch { allowScope = "unknown"; }
+      return { targetId: ref.targetId, kind: ref.kind, ...(ref.contextId ? { contextId: ref.contextId } : {}), ...(ref.parentTargetId ? { parentTargetId: ref.parentTargetId } : {}), ...(ref.framePath ? { framePath: [...ref.framePath] } : {}), ...(ref.origin ? { origin: ref.origin } : {}), ...(entry.pageMetadata?.openerTargetId ? { openerTargetId: entry.pageMetadata.openerTargetId } : {}), ...(entry.pageMetadata?.triggerActionId ? { triggerActionId: entry.pageMetadata.triggerActionId } : {}), ...(entry.pageMetadata?.initialUrl ? { initialUrl: entry.pageMetadata.initialUrl } : {}), ...(settledUrl ? { settledUrl } : {}), allowScope, active: ref.targetId === this.activeTargetId, lifecycle: ref.lifecycle };
+    });
   }
 
   private entry(ref: TargetRef): Entry {
     const entry = this.targets.get(ref.targetId);
     if (!entry || this.ref(entry).lifecycle !== "active") throw new Error("target_lost");
     return entry;
+  }
+
+  private inScope(entry: Entry): boolean {
+    try {
+      const url = new URL(entry.target.url());
+      return ["http:", "https:"].includes(url.protocol) && this.scopeHosts.has(url.hostname);
+    } catch { return false; }
   }
 
   private async controls(target: Target): Promise<Control[]> {
@@ -138,32 +327,87 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
       return [...new Set([...document.querySelectorAll(query)])].flatMap(element => {
         const html = element as HTMLElement; const rect = html.getBoundingClientRect(); const style = getComputedStyle(html); const r = role(element); const a = r ? action(r) : undefined;
         if (!r || !a || rect.width <= 0 || rect.height <= 0 || style.display === "none" || style.visibility === "hidden" || html.hidden || element.getAttribute("aria-hidden") === "true" || (element as HTMLInputElement).disabled || element.getAttribute("aria-disabled") === "true") return [];
-        return [{ actionKind: a, role: r, name: name(element), testId: element.getAttribute("data-testid") ?? undefined, href: element instanceof HTMLAnchorElement ? element.href : undefined, hint: `${name(element)} ${element.getAttribute("type") ?? ""}` }];
+        const fieldId = element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement
+          ? element.id || element.getAttribute("data-testid") || element.getAttribute("name") || (element.form ? `field-${[...element.form.elements].indexOf(element)}` : undefined)
+          : undefined;
+        return [{ actionKind: a, role: r, name: name(element), testId: element.getAttribute("data-testid") ?? undefined, fieldId, href: element instanceof HTMLAnchorElement ? element.href : undefined, hint: `${name(element)} ${element.getAttribute("type") ?? ""}` }];
+      });
+    });
+  }
+
+  private async displayElements(target: Target): Promise<DisplayElement[]> {
+    return target.evaluate(() => {
+      const selector = "h1,h2,h3,h4,h5,h6,dialog,[role='heading'],[role='dialog'],[role='alert'],[role='status']";
+      return [...document.querySelectorAll(selector)].flatMap(element => {
+        const html = element as HTMLElement; const rect = html.getBoundingClientRect(); const style = getComputedStyle(html);
+        if (rect.width <= 0 || rect.height <= 0 || style.display === "none" || style.visibility === "hidden" || html.hidden || element.getAttribute("aria-hidden") === "true") return [];
+        const explicit = element.getAttribute("role");
+        const tag = element.tagName.toLowerCase();
+        const role = explicit === "heading" || explicit === "dialog" || explicit === "alert" || explicit === "status"
+          ? explicit : /^h[1-6]$/.test(tag) ? "heading" : tag === "dialog" ? "dialog" : undefined;
+        if (!role) return [];
+        const name = (element.getAttribute("aria-label") ?? html.innerText ?? element.textContent ?? "").replace(/\s+/g, " ").trim();
+        const level = role === "heading" ? Number(element.getAttribute("aria-level") ?? (/^h[1-6]$/.test(tag) ? tag.slice(1) : "0")) : 0;
+        return [{ role, name, ...(role === "dialog" ? { modal: true as const, open: true } : {}), ...(level > 0 ? { level } : {}) }];
       });
     });
   }
 
   private async forms(target: Target): Promise<Array<Record<string, unknown>>> {
-    return target.evaluate(() => [...document.forms].map((form, index) => ({ formId: form.id || `form-${index}`, fields: [...form.elements].flatMap((field, fieldIndex) => field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement ? [{ fieldId: field.id || `field-${fieldIndex}`, name: field.getAttribute("name") || undefined, type: field.getAttribute("type") || field.tagName.toLowerCase(), required: field.required, disabled: field.disabled }] : []) })));
+    return target.evaluate(() => [...document.forms].map((form, index) => ({
+      formId: form.id || `form-${index}`,
+      fields: [...form.elements].flatMap((field, fieldIndex) => {
+        if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement)) return [];
+        const minLength = "minLength" in field && field.minLength >= 0 ? field.minLength : undefined;
+        const maxLength = "maxLength" in field && field.maxLength >= 0 ? field.maxLength : undefined;
+        const minimum = field instanceof HTMLInputElement && field.min !== "" && Number.isFinite(Number(field.min)) ? Number(field.min) : undefined;
+        const maximum = field instanceof HTMLInputElement && field.max !== "" && Number.isFinite(Number(field.max)) ? Number(field.max) : undefined;
+        const pattern = field instanceof HTMLInputElement && field.pattern ? field.pattern : undefined;
+        return [{
+          fieldId: field.id || field.getAttribute("data-testid") || field.getAttribute("name") || `field-${fieldIndex}`,
+          name: field.getAttribute("name") || undefined,
+          type: field.getAttribute("type") || field.tagName.toLowerCase(),
+          required: field.required,
+          disabled: field.disabled,
+          ...(minLength !== undefined ? { minLength } : {}),
+          ...(maxLength !== undefined ? { maxLength } : {}),
+          ...(minimum !== undefined ? { minimum } : {}),
+          ...(maximum !== undefined ? { maximum } : {}),
+          ...(pattern ? { pattern } : {}),
+        }];
+      }),
+    })));
   }
 
   async observe(targetRef: TargetRef, context: ObserveContext): Promise<Observation> {
     const entry = this.entry(targetRef); const page = entry.ref.kind === "frame" ? (entry.target as Frame).page() : entry.target as Page;
-    this.registerFrames(page); const controls = await this.controls(entry.target); const url = safeUrl(entry.target.url()); const targets = this.activeTargets();
-    return { schemaVersion: version, observationId: `obs-${sha256(`${context.runId}:${Date.now()}:${targetRef.targetId}`).slice(0, 16)}`, observedAt: new Date().toISOString(), targetRef: this.ref(entry), completeness: "complete", ...(url ? { url } : {}), ...(context.personaRef ? { personaRef: context.personaRef } : {}), ui: { primaryElements: controls.slice(0, 100).map(control => ({ actionKind: control.actionKind, role: control.role, ...(publicText(control.name) ? { name: publicText(control.name) } : {}), ...(control.testId ? { testId: control.testId } : {}) })) }, forms: await this.forms(entry.target), dialogs: this.dialogs.slice(-20), topology: { activeTargetId: targetRef.targetId, targets, targetCount: targets.length }, obligations: {}, provenance: { adapterId: this.adapterId, runtime: "playwright", capabilityRevision: "playwright-adapter/v1" } };
+    this.activateTarget(entry.ref.targetId, "observe");
+    this.registerFrames(page); const url = safeUrl(entry.target.url()); const targets = this.activeTargets(); const events = this.events.slice(-50);
+    const common = { schemaVersion: version, observationId: `obs-${sha256(`${context.runId}:${Date.now()}:${targetRef.targetId}`).slice(0, 16)}`, observedAt: new Date().toISOString(), targetRef: this.ref(entry), ...(url ? { url } : {}), ...(context.personaRef ? { personaRef: context.personaRef } : {}), dialogs: this.dialogs.slice(-20), topology: { activeTargetId: targetRef.targetId, targets, targetDetails: this.targetDetails(), targetCount: targets.length }, networkSummary: this.currentNetworkSummary(targetRef.contextId ?? targetRef.targetId, url), obligations: {}, provenance: { adapterId: this.adapterId, runtime: "playwright", capabilityRevision: "playwright-adapter/v1" } };
+    const topology = { ...common.topology, activeTargetId: this.activeTargetId ?? targetRef.targetId, events: this.topologyChanges() };
+    if (!this.inScope(entry)) return { ...common, topology, completeness: "partial", ui: { primaryElements: [], events }, forms: [] };
+    const controls = await this.controls(entry.target);
+    const displays = (await this.displayElements(entry.target)).slice(0, 100).map(display => ({ role: display.role, ...(publicText(display.name) ? { name: publicText(display.name) } : {}), ...(display.modal ? { modal: true, open: display.open } : {}), ...(display.level ? { level: display.level } : {}) }));
+    const primaryElements = [...controls.slice(0, 100).map(control => ({ actionKind: control.actionKind, role: control.role, ...(publicText(control.name) ? { name: publicText(control.name) } : {}), ...(control.testId ? { testId: control.testId } : {}) })), ...displays];
+    return { ...common, topology, completeness: "complete", ui: { primaryElements, domModals: displays.filter(display => display.role === "dialog"), events }, forms: await this.forms(entry.target) };
   }
 
   async generateCandidates(observation: Observation): Promise<ActionCandidate[]> {
-    if (observation.provenance.adapterId !== this.adapterId) return [];
+    if (observation.provenance.adapterId !== this.adapterId || observation.completeness !== "complete") return [];
     const controls = await this.controls(this.entry(observation.targetRef).target); const sourceFingerprint = fingerprintObservation(observation).value;
+    const fieldIds = new Set(observation.forms.flatMap(form => Array.isArray(form.fields) ? form.fields.flatMap(field => field && typeof field === "object" && typeof (field as Record<string, unknown>).fieldId === "string" ? [(field as Record<string, string>).fieldId] : []) : []));
     const counts = new Map<string, number>(); for (const control of controls) { const key = control.testId ? `t:${control.testId}` : `r:${control.role}:${control.name}`; counts.set(key, (counts.get(key) ?? 0) + 1); }
     return controls.flatMap(control => {
       if (!allowedRoles.has(control.role ?? "")) return [];
+      if ((control.actionKind === "fill" || control.actionKind === "select") && (!control.fieldId || !fieldIds.has(control.fieldId))) return [];
       if (control.href) try { if (!this.scopeHosts.has(new URL(control.href).hostname)) return []; } catch { return []; }
-      const recipe: LocatorRecipe | undefined = control.testId && counts.get(`t:${control.testId}`) === 1 ? { strategy: "test-id", value: control.testId } : control.role && publicLocator(control.name) && counts.get(`r:${control.role}:${control.name}`) === 1 ? { strategy: "role", value: control.role, name: control.name } : undefined;
+      const framePath = observation.targetRef.framePath ? { framePath: [...observation.targetRef.framePath] } : {};
+      const recipe: LocatorRecipe | undefined = control.testId && counts.get(`t:${control.testId}`) === 1 ? { strategy: "test-id", value: control.testId, ...framePath } : control.role && publicLocator(control.name) && counts.get(`r:${control.role}:${control.name}`) === 1 ? { strategy: "role", value: control.role, name: control.name, ...framePath } : undefined;
       if (!recipe) return [];
-      const mutationKind = mutation(control.hint); const candidateId = `pw-${sha256(`${observation.targetRef.targetId}:${control.actionKind}:${recipe.strategy}:${recipe.value}:${recipe.name ?? ""}`).slice(0, 20)}`;
-      return [{ schemaVersion: version, candidateId, adapterId: this.adapterId, targetRef: observation.targetRef, sourceFingerprint, actionKind: control.actionKind, locatorRecipe: recipe, ...(control.actionKind === "fill" || control.actionKind === "select" ? { inputProfileRef: `generated-input:${candidateId}` } : {}), generatedBy: { ruleId: "visible-enabled-control/v1", observationId: observation.observationId, reason: "visible-enabled-unique-control" }, risk: { weight: mutationKind === "none" ? 1 : mutationKind === "update" ? 4 : 10, mutationCost: mutationKind === "none" ? 1 : 4 }, mutationKind }];
+      const mutationKind = mutation(control.hint, control.actionKind);
+      const inputProfileRef = control.actionKind === "fill" || control.actionKind === "select" ? `input-field:${control.fieldId}` : undefined;
+      const candidateId = `pw-${sha256(`${observation.targetRef.targetId}:${control.actionKind}:${recipe.strategy}:${recipe.value}:${recipe.name ?? ""}:${inputProfileRef ?? ""}`).slice(0, 20)}`;
+      return [{ schemaVersion: version, candidateId, adapterId: this.adapterId, targetRef: observation.targetRef, sourceFingerprint, actionKind: control.actionKind, locatorRecipe: recipe, ...(inputProfileRef ? { inputProfileRef } : {}), generatedBy: { ruleId: "visible-enabled-control/v1", observationId: observation.observationId, reason: "visible-enabled-unique-control" }, risk: { weight: mutationKind === "none" ? 1 : mutationKind === "update" ? 4 : 10, mutationCost: mutationKind === "none" ? 1 : 4 }, mutationKind }];
     });
   }
 
@@ -178,21 +422,61 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
   }
 
   async execute(candidate: ActionCandidate, context: ExecuteContext): Promise<ExecutionResult> {
-    const startedAt = new Date().toISOString(); const started = Date.now(); const base = { schemaVersion: version, executionId: `exec-${sha256(`${context.runId}:${candidate.candidateId}:${startedAt}`).slice(0, 16)}`, candidateId: candidate.candidateId, startedAt, targetChanges: [] as Array<Record<string, unknown>>, evidenceRefs: [] as EvidenceArtifactRef[] };
+    const startedAt = new Date().toISOString(); const started = Date.now();
+    const base = { schemaVersion: version, executionId: "exec-" + sha256(context.runId + ":" + candidate.candidateId + ":" + startedAt).slice(0, 16), candidateId: candidate.candidateId, startedAt, targetChanges: [] as Array<Record<string, unknown>>, evidenceRefs: [] as EvidenceArtifactRef[] };
+    let dialogControl: DialogControl | undefined;
     try {
       if (candidate.adapterId !== this.adapterId) throw new Error("unsupported adapter candidate");
-      const before = await this.observe(candidate.targetRef, { runId: context.runId, ...(context.personaRef ? { personaRef: context.personaRef } : {}), scopeHosts: [...this.scopeHosts] }); const preFingerprint = fingerprintObservation(before).value;
+      const before = await this.observe(candidate.targetRef, { runId: context.runId, ...(context.personaRef ? { personaRef: context.personaRef } : {}), scopeHosts: [...this.scopeHosts] });
+      const preFingerprint = fingerprintObservation(before).value;
+      if (before.completeness !== "complete") return { ...base, preFingerprint, endedAt: new Date().toISOString(), status: "denied", failureSignature: "target_out_of_scope", recoveryStatus: "not_required", settleResult: { policyVersion: this.settle.policyVersion, status: "aborted", elapsedMs: Date.now() - started, reasons: ["observation-not-complete"] } };
       if (preFingerprint !== candidate.sourceFingerprint) return { ...base, preFingerprint, endedAt: new Date().toISOString(), status: "denied", failureSignature: "stale_candidate", recoveryStatus: "not_required", settleResult: { policyVersion: this.settle.policyVersion, status: "aborted", elapsedMs: Date.now() - started, reasons: ["source-fingerprint-mismatch"] } };
+      const dialogDecision = resolveDialogPolicy(candidate, context);
+      if (dialogDecision.deniedReason) return { ...base, preFingerprint, endedAt: new Date().toISOString(), status: "denied", failureSignature: dialogDecision.deniedReason, recoveryStatus: "not_required", settleResult: { policyVersion: this.settle.policyVersion, status: "aborted", elapsedMs: Date.now() - started, reasons: [dialogDecision.deniedReason] } };
       const entry = this.entry(candidate.targetRef); const targetLocator = locator(entry.target, candidate.locatorRecipe);
+      const actionTimeout = dialogDecision.policy === "hold" ? Math.max(context.timeoutMs + 100, context.timeoutMs * 2) : context.timeoutMs;
       if (await targetLocator.count() !== 1) throw new Error("locator is no longer unique");
-      if (candidate.actionKind === "click") await targetLocator.click({ timeout: context.timeoutMs });
-      else if (candidate.actionKind === "check") await targetLocator.check({ timeout: context.timeoutMs });
-      else if (candidate.actionKind === "fill" || candidate.actionKind === "select") { const value = await this.input?.(candidate, context); if (value === undefined) throw new Error("input value provider is unavailable"); if (candidate.actionKind === "fill") await targetLocator.fill(value, { timeout: context.timeoutMs }); else await targetLocator.selectOption(value, { timeout: context.timeoutMs }); }
-      else throw new Error("unsupported action kind");
-      const settleResult = await this.waitSettled(entry.target, started); const after = await this.observe(candidate.targetRef, { runId: context.runId, scopeHosts: [...this.scopeHosts] });
-      return { ...base, preFingerprint, postFingerprint: fingerprintObservation(after).value, endedAt: new Date().toISOString(), status: settleResult.status === "settled" ? "executed" : "timeout", recoveryStatus: "not_required", targetChanges: this.activeTargets().map(ref => ({ targetId: ref.targetId, kind: ref.kind, lifecycle: ref.lifecycle })), settleResult };
+      const targetsBefore = new Set(this.targets.keys());
+      if (candidate.actionKind === "click") {
+        const openerTargetId = entry.ref.kind === "frame" ? entry.ref.contextId : entry.ref.targetId;
+        if (openerTargetId) this.pendingPageTriggers.set(openerTargetId, candidate.candidateId);
+      }
+      dialogControl = { candidateId: candidate.candidateId, policy: dialogDecision.policy, startedAt: Date.now(), timeoutMs: context.timeoutMs };
+      this.dialogInFlight = dialogControl;
+      this.candidateInFlight = candidate;
+      if (candidate.actionKind === "click") await targetLocator.click({ timeout: actionTimeout });
+      else if (candidate.actionKind === "check") await targetLocator.check({ timeout: actionTimeout });
+      else if (candidate.actionKind === "fill" || candidate.actionKind === "select") {
+        const value = await this.input?.(candidate, context);
+        if (value === undefined) throw new Error("input value provider is unavailable");
+        if (candidate.actionKind === "fill") await targetLocator.fill(value, { timeout: actionTimeout });
+        else await targetLocator.selectOption(value, { timeout: actionTimeout });
+      } else throw new Error("unsupported action kind");
+      const targetClosed = this.ref(entry).lifecycle !== "active";
+      const settleResult = targetClosed
+        ? { policyVersion: this.settle.policyVersion, status: "settled" as const, elapsedMs: Date.now() - started, reasons: ["target-closed"] }
+        : await this.waitSettled(entry.target, started);
+      for (const [targetId, added] of this.targets) if (!targetsBefore.has(targetId) && added.pageMetadata) added.pageMetadata.triggerActionId ??= candidate.candidateId;
+      const returnEntry = targetClosed && this.activeTargetId ? this.targets.get(this.activeTargetId) : undefined;
+      const after = targetClosed
+        ? returnEntry && this.ref(returnEntry).lifecycle === "active"
+          ? await this.observe(this.ref(returnEntry), { runId: context.runId, scopeHosts: [...this.scopeHosts] })
+          : undefined
+        : await this.observe(candidate.targetRef, { runId: context.runId, scopeHosts: [...this.scopeHosts] });
+      const postFingerprint = after ? fingerprintObservation(after).value : undefined;
+      const dialogChange = dialogControl.event ? [{ ...dialogControl.event }] : [];
+      const targetChanges = [...this.targetDetails(), ...this.topologyChanges(), ...dialogChange];
+      if (dialogControl.outcome === "held-timeout") {
+        return { ...base, preFingerprint, ...(postFingerprint ? { postFingerprint } : {}), endedAt: new Date().toISOString(), status: "timeout", failureSignature: "dialog_hold_timeout", recoveryStatus: "not_attempted", targetChanges, settleResult: { policyVersion: this.settle.policyVersion, status: "timed_out", elapsedMs: Date.now() - started, reasons: ["dialog-hold-timeout"] } };
+      }
+      return { ...base, preFingerprint, ...(postFingerprint ? { postFingerprint } : {}), endedAt: new Date().toISOString(), status: settleResult.status === "settled" ? "executed" : "timeout", recoveryStatus: "not_required", targetChanges, settleResult };
     } catch (error) {
-      const status = statusFor(error); return { ...base, preFingerprint: candidate.sourceFingerprint, endedAt: new Date().toISOString(), status, failureSignature: error instanceof Error ? error.name : "adapter_error", recoveryStatus: "not_attempted", settleResult: { policyVersion: this.settle.policyVersion, status: status === "target_lost" ? "target_lost" : "aborted", elapsedMs: Date.now() - started, reasons: [status] } };
+      const status = statusFor(error);
+      return { ...base, preFingerprint: candidate.sourceFingerprint, endedAt: new Date().toISOString(), status, failureSignature: error instanceof Error ? error.name : "adapter_error", recoveryStatus: "not_attempted", targetChanges: [...this.targetDetails(), ...this.topologyChanges()], settleResult: { policyVersion: this.settle.policyVersion, status: status === "target_lost" ? "target_lost" : "aborted", elapsedMs: Date.now() - started, reasons: [status] } };
+    } finally {
+      if (dialogControl?.timer) clearTimeout(dialogControl.timer);
+      if (this.dialogInFlight === dialogControl) this.dialogInFlight = undefined;
+      if (this.candidateInFlight?.candidateId === candidate.candidateId) this.candidateInFlight = undefined;
     }
   }
 

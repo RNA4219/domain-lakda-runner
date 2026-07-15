@@ -2,7 +2,7 @@
 document_id: LAKDA-CHK-AE-003
 status: review-ready
 version: 0.1.0-draft
-last_updated: 2026-07-14
+last_updated: 2026-07-15
 specification: SPEC-03-REPLAY-ORACLE-EVIDENCE.md
 ---
 
@@ -30,16 +30,16 @@ specification: SPEC-03-REPLAY-ORACLE-EVIDENCE.md
 
 | 完了 | チェックID | 要件ID | 仕様節 | 検証方法 | 証跡 |
 |---|---|---|---|---|---|
-| [ ] | CHK-AE-003-I-001 | REQ-INP-001 | §3 InputGenerator | schema・replay・oracle/evidence試験 | 未取得 |
-| [ ] | CHK-AE-003-I-002 | REQ-INP-002 | §3 InputGenerator | schema・replay・oracle/evidence試験 | 未取得 |
-| [ ] | CHK-AE-003-I-003 | REQ-INP-003 | §3 InputGenerator | schema・replay・oracle/evidence試験 | 未取得 |
-| [ ] | CHK-AE-003-I-004 | REQ-INP-004 | §3 InputGenerator | schema・replay・oracle/evidence試験 | 未取得 |
-| [ ] | CHK-AE-003-I-005 | REQ-INP-005 | §3 InputGenerator | schema・replay・oracle/evidence試験 | 未取得 |
+| [x] | CHK-AE-003-I-001 | REQ-INP-001 | §3 InputGenerator | schema・replay・oracle/evidence試験 | [AC-20260715-08](../../acceptance/AC-20260715-08.p3-p4-replay-hardening.md) |
+| [x] | CHK-AE-003-I-002 | REQ-INP-002 | §3 InputGenerator | schema・replay・oracle/evidence試験 | [AC-20260715-08](../../acceptance/AC-20260715-08.p3-p4-replay-hardening.md) |
+| [x] | CHK-AE-003-I-003 | REQ-INP-003 | §3 InputGenerator | schema・replay・oracle/evidence試験 | [AC-20260715-08](../../acceptance/AC-20260715-08.p3-p4-replay-hardening.md) |
+| [x] | CHK-AE-003-I-004 | REQ-INP-004 | §3 InputGenerator | schema・replay・oracle/evidence試験 | [AC-20260715-08](../../acceptance/AC-20260715-08.p3-p4-replay-hardening.md) |
+| [x] | CHK-AE-003-I-005 | REQ-INP-005 | §3 InputGenerator | schema・replay・oracle/evidence試験 | [AC-20260715-08](../../acceptance/AC-20260715-08.p3-p4-replay-hardening.md) |
 | [ ] | CHK-AE-003-I-006 | REQ-INP-006 | §3 InputGenerator | schema・replay・oracle/evidence試験 | 未取得 |
-| [ ] | CHK-AE-003-I-007 | REQ-REP-001 | §4・§5 trace/replay | schema・replay・oracle/evidence試験 | 未取得 |
-| [ ] | CHK-AE-003-I-008 | REQ-REP-002 | §4・§5 trace/replay | schema・replay・oracle/evidence試験 | 未取得 |
-| [ ] | CHK-AE-003-I-009 | REQ-REP-003 | §4・§5 trace/replay | schema・replay・oracle/evidence試験 | 未取得 |
-| [ ] | CHK-AE-003-I-010 | REQ-REP-004 | §4・§5 trace/replay | schema・replay・oracle/evidence試験 | 未取得 |
+| [x] | CHK-AE-003-I-007 | REQ-REP-001 | §4・§5 trace/replay | schema・replay・oracle/evidence試験 | [AC-20260715-08](../../acceptance/AC-20260715-08.p3-p4-replay-hardening.md) |
+| [x] | CHK-AE-003-I-008 | REQ-REP-002 | §4・§5 trace/replay | schema・replay・oracle/evidence試験 | [AC-20260715-08](../../acceptance/AC-20260715-08.p3-p4-replay-hardening.md) |
+| [x] | CHK-AE-003-I-009 | REQ-REP-003 | §4・§5 trace/replay | schema・replay・oracle/evidence試験 | [AC-20260715-08](../../acceptance/AC-20260715-08.p3-p4-replay-hardening.md) |
+| [x] | CHK-AE-003-I-010 | REQ-REP-004 | §4・§5 trace/replay | schema・replay・oracle/evidence試験 | [AC-20260715-08](../../acceptance/AC-20260715-08.p3-p4-replay-hardening.md) |
 | [ ] | CHK-AE-003-I-011 | REQ-REP-005 | §4・§5 trace/replay | schema・replay・oracle/evidence試験 | 未取得 |
 | [ ] | CHK-AE-003-I-012 | REQ-REP-006 | §4・§5 trace/replay | schema・replay・oracle/evidence試験 | 未取得 |
 | [ ] | CHK-AE-003-I-013 | REQ-SHR-001 | §6 shrinking | schema・replay・oracle/evidence試験 | 未取得 |
@@ -48,8 +48,8 @@ specification: SPEC-03-REPLAY-ORACLE-EVIDENCE.md
 | [ ] | CHK-AE-003-I-016 | REQ-SHR-004 | §6 shrinking | schema・replay・oracle/evidence試験 | 未取得 |
 | [ ] | CHK-AE-003-I-017 | REQ-SHR-005 | §6 shrinking | schema・replay・oracle/evidence試験 | 未取得 |
 | [ ] | CHK-AE-003-I-018 | REQ-ORC-001 | §7 oracle | schema・replay・oracle/evidence試験 | 未取得 |
-| [ ] | CHK-AE-003-I-019 | REQ-ORC-002 | §7 oracle | schema・replay・oracle/evidence試験 | 未取得 |
-| [ ] | CHK-AE-003-I-020 | REQ-ORC-003 | §7 oracle | schema・replay・oracle/evidence試験 | 未取得 |
+| [x] | CHK-AE-003-I-019 | REQ-ORC-002 | §7 oracle | schema・replay・oracle/evidence試験 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
+| [x] | CHK-AE-003-I-020 | REQ-ORC-003 | §7 oracle | schema・replay・oracle/evidence試験 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
 | [ ] | CHK-AE-003-I-021 | REQ-ORC-004 | §7 oracle | schema・replay・oracle/evidence試験 | 未取得 |
 | [ ] | CHK-AE-003-I-022 | REQ-ORC-005 | §7 oracle | schema・replay・oracle/evidence試験 | 未取得 |
 | [ ] | CHK-AE-003-I-023 | REQ-ORC-006 | §7 oracle | schema・replay・oracle/evidence試験 | 未取得 |

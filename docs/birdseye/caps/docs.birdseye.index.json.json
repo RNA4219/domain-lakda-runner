@@ -1,6 +1,6 @@
 {
   "id": "docs/birdseye/index.json",
-  "role": "doc",
+  "role": "index",
   "public_api": [],
   "summary": "docs/birdseye/index.json",
   "deps_out": [
