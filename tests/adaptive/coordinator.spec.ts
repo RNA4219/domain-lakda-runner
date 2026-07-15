@@ -344,3 +344,86 @@ test("adaptive trace records the exact versioned InputCase and replays it", asyn
     await rm(outputDir, { recursive: true, force: true });
   }
 });
+
+
+test("adaptive timeout quarantines the timed-out candidate and records recovery safety evidence", async () => {
+  const observation: Observation = {
+    schemaVersion: "lakda/adaptive-contracts/v1",
+    observationId: "quarantine-observation",
+    observedAt: "2026-07-15T00:00:00Z",
+    targetRef: { targetId: "device-1", kind: "device" },
+    completeness: "complete",
+    personaRef: "guest",
+    ui: { screen: "root" },
+    forms: [],
+    dialogs: [],
+    topology: { activeTargetId: "device-1" },
+    obligations: {},
+    provenance: { adapterId: "airtest-poco", runtime: "operator-bridge", capabilityRevision: "1" },
+  };
+  const fingerprint = fingerprintObservation(observation).value;
+  const makeCandidate = (candidateId: string) => ({
+    schemaVersion: "lakda/adaptive-contracts/v1",
+    candidateId,
+    adapterId: "airtest-poco",
+    targetRef: observation.targetRef,
+    sourceFingerprint: fingerprint,
+    actionKind: "tap",
+    locatorRecipe: { strategy: "image", value: candidateId },
+    generatedBy: { ruleId: "fixture", observationId: observation.observationId, reason: "visible" },
+    risk: { weight: 1 },
+    mutationKind: "none",
+  });
+  const timeoutCandidate = makeCandidate("a-timeout");
+  const safeCandidate = makeCandidate("b-safe");
+  let timeoutExecutions = 0;
+  const fixture = await startFixture((url, method, body) => {
+    if (method !== "POST") return { status: 405, body: "POST required" };
+    if (url.pathname === "/capabilities") return { contentType: "application/json", body: JSON.stringify({ schemaVersion: "lakda/adaptive-contracts/v1", adapterId: "airtest-poco", revision: "1", targetKinds: ["device"], actionKinds: ["tap"], observationCapabilities: ["screen"], evidenceCapabilities: ["screenshot", "trace", "network"], recoveryStrategies: ["backtrack"] }) };
+    if (url.pathname === "/observe") return { contentType: "application/json", body: JSON.stringify(observation) };
+    if (url.pathname === "/generate-candidates") return { contentType: "application/json", body: JSON.stringify([timeoutCandidate, safeCandidate]) };
+    if (url.pathname === "/execute") {
+      const request = JSON.parse(body) as { candidate: { candidateId: string } };
+      if (request.candidate.candidateId === timeoutCandidate.candidateId) {
+        timeoutExecutions += 1;
+        return { contentType: "application/json", body: JSON.stringify({ schemaVersion: "lakda/adaptive-contracts/v1", executionId: "timeout-execution-" + timeoutExecutions, candidateId: timeoutCandidate.candidateId, preFingerprint: fingerprint, postFingerprint: "state:timeout", startedAt: "2026-07-15T00:00:01Z", endedAt: "2026-07-15T00:00:02Z", status: "timeout", failureSignature: "bridge-timeout", recoveryStatus: "not_attempted", targetChanges: [], settleResult: { policyVersion: "bridge/v1", status: "timed_out", elapsedMs: 1000, reasons: ["fixture-timeout"] }, evidenceRefs: [] }) };
+      }
+      return { contentType: "application/json", body: JSON.stringify({ schemaVersion: "lakda/adaptive-contracts/v1", executionId: "safe-execution", candidateId: safeCandidate.candidateId, preFingerprint: fingerprint, postFingerprint: "state:done", startedAt: "2026-07-15T00:00:03Z", endedAt: "2026-07-15T00:00:04Z", status: "executed", recoveryStatus: "not_required", targetChanges: [], settleResult: { policyVersion: "bridge/v1", status: "settled", elapsedMs: 1, reasons: [] }, evidenceRefs: [] }) };
+    }
+    if (url.pathname === "/recover") return { contentType: "application/json", body: JSON.stringify({ recovered: true, strategy: "backtrack", targetRef: observation.targetRef, evidenceRefs: [] }) };
+    if (url.pathname === "/capture-evidence") return { contentType: "application/json", body: JSON.stringify([]) };
+    return { status: 404, body: "missing" };
+  });
+  const outputDir = await mkdtemp(join(tmpdir(), "lakda-adaptive-timeout-quarantine-"));
+  try {
+    const config = loadConfig(undefined, {
+      baseUrl: fixture.baseUrl,
+      outputDir,
+      seed: 23,
+      maxActions: 2,
+      mode: "adaptive-explore",
+      adaptive: {
+        schemaVersion: "lakda/adaptive-config/v1",
+        adapter: { id: "airtest-poco", endpoint: fixture.baseUrl, initialTarget: observation.targetRef },
+        generator: { strategy: "least-visited-transition" },
+        stopWhen: { any: [{ type: "actionCoverage", atLeast: 1 }] },
+        settlePolicy: { policyVersion: "settle/v1", maxWaitMs: 1_000, stableWindowMs: 20 },
+        fingerprintPolicy: { algorithmVersion: "sha256/v1", canonicalizationVersion: "canonical/v1" },
+        recovery: { maxBacktracks: 1, maxAttemptsPerState: 1 },
+        safety: { allowTargetKinds: ["device"], denyActionIds: [], allowMutationKinds: ["none"] },
+      },
+    });
+    const result = await runLakda(config);
+    const trace = JSON.parse(await readFile(join(dirname(result.actionSequencePath!), "adaptive", "trace.json"), "utf8")) as { trace: Array<Record<string, unknown>> };
+    const executions = trace.trace.filter(entry => entry.type === "execution").map(entry => (entry.executionResult as { candidateId: string; status: string }));
+    expect(executions.map(entry => entry.candidateId)).toEqual([timeoutCandidate.candidateId, safeCandidate.candidateId]);
+    expect(executions[0].status).toBe("timeout");
+    expect(timeoutExecutions).toBe(1);
+    expect(trace.trace.some(entry => entry.type === "candidate-quarantined" && entry.candidateId === timeoutCandidate.candidateId && entry.revisitBudget === 1)).toBe(true);
+    expect(trace.trace.some(entry => entry.type === "timeout-evidence" && entry.candidateId === timeoutCandidate.candidateId && entry.preFingerprint === fingerprint && entry.captureRequested)).toBe(true);
+    expect(trace.trace.some(entry => entry.type === "recovery" && entry.matchedExpectedState === true && entry.recoveryChecks)).toBe(true);
+  } finally {
+    await fixture.close();
+    await rm(outputDir, { recursive: true, force: true });
+  }
+});

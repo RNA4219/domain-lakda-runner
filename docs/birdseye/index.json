@@ -1,5 +1,5 @@
 {
-  "generated_at": "00028",
+  "generated_at": "00029",
   "nodes": {
     "README.md": {
       "role": "overview",
@@ -350,6 +350,10 @@
     "docs/acceptance/AC-20260715-11.playwright-dialog-target-topology.md": {
       "role": "doc",
       "caps": "docs/birdseye/caps/docs.acceptance.AC-20260715-11.playwright-dialog-target-topology.md.json"
+    },
+    "docs/acceptance/AC-20260715-12.timeout-quarantine-recovery-safety.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260715-12.timeout-quarantine-recovery-safety.md.json"
     }
   },
   "edges": [

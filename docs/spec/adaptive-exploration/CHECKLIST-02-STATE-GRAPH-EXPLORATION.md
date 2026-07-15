@@ -66,9 +66,9 @@ specification: SPEC-02-STATE-GRAPH-EXPLORATION.md
 | [ ] | CHK-AE-002-I-035 | REQ-REC-001 | §8・§9 循環・復旧 | 決定的fixture・graph/trace検証 | 未取得 |
 | [x] | CHK-AE-002-I-036 | REQ-REC-002 | §8・§9 循環・復旧 | 決定的fixture・graph/trace検証 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
 | [x] | CHK-AE-002-I-037 | REQ-REC-003 | §8・§9 循環・復旧 | 決定的fixture・graph/trace検証 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
-| [ ] | CHK-AE-002-I-038 | REQ-REC-004 | §8・§9 循環・復旧 | 決定的fixture・graph/trace検証 | 未取得 |
-| [ ] | CHK-AE-002-I-039 | REQ-REC-005 | §8・§9 循環・復旧 | 決定的fixture・graph/trace検証 | 未取得 |
-| [ ] | CHK-AE-002-I-040 | REQ-REC-006 | §8・§9 循環・復旧 | 決定的fixture・graph/trace検証 | 未取得 |
+| [x] | CHK-AE-002-I-038 | REQ-REC-004 | §8・§9 循環・復旧 | 決定的fixture・graph/trace検証 | [AC-20260715-12](../../acceptance/AC-20260715-12.timeout-quarantine-recovery-safety.md) |
+| [x] | CHK-AE-002-I-039 | REQ-REC-005 | §8・§9 循環・復旧 | 決定的fixture・graph/trace検証 | [AC-20260715-12](../../acceptance/AC-20260715-12.timeout-quarantine-recovery-safety.md) |
+| [x] | CHK-AE-002-I-040 | REQ-REC-006 | §8・§9 循環・復旧 | 決定的fixture・graph/trace検証 | [AC-20260715-12](../../acceptance/AC-20260715-12.timeout-quarantine-recovery-safety.md) |
 | [x] | CHK-AE-002-I-041 | REQ-REC-007 | §8・§9 循環・復旧 | 決定的fixture・graph/trace検証 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
 
 ## C. 受入Gate

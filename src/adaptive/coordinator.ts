@@ -120,6 +120,18 @@ function random(seed: number): () => number {
 function category(status: string): "unsupported" | "denied" | "timeout" | "target_lost" | "action_failed" | "infrastructure_error" {
   return ["unsupported", "denied", "timeout", "target_lost", "action_failed"].includes(status) ? status as "unsupported" | "denied" | "timeout" | "target_lost" | "action_failed" : "infrastructure_error";
 }
+
+function recoveryScopeAllowed(config: LakdaConfig, observation: Observation): boolean {
+  const candidateUrl = observation.url ?? observation.targetRef.origin;
+  if (!candidateUrl) return true;
+  try { return config.safety.allowHosts.includes(new URL(candidateUrl).hostname); } catch { return false; }
+}
+
+function recoveryInvariantAllowed(candidate: ActionCandidate, before: Observation, after: Observation | undefined, execution: ExecutionResult): boolean {
+  if (!candidate.contract?.invariants) return true;
+  const result = evaluateActionPostconditions(candidate, before, after, execution);
+  return result.every(oracle => !(oracle.oracleClass === "product" && oracle.verdict === "fail" && oracle.message.startsWith("invariant-mismatch:")));
+}
 function inputFields(observation: Observation): InputField[] {
   return observation.forms.flatMap(form => Array.isArray(form.fields) ? form.fields.flatMap(field => {
     if (!field || typeof field !== "object") return [];
@@ -224,7 +236,7 @@ export async function runAdaptiveExplore(config: LakdaConfig, collector: Artifac
   const budget = runtime.actionBudget ?? new ActionBudget(config.safety.maxActionsPerMinute, runtime.clock);
   const graph = new StateGraph(); const trace: Array<Record<string, unknown>> = []; const killSwitch = new KillSwitch();
   const observations: Observation[] = []; const observationsByFingerprint = new Map<string, Observation>(); const candidateSnapshots: Array<{ observationId: string; candidates: ActionCandidate[] }> = []; const oracleResults: OracleResult[] = [];
-  const generatedInputs: GeneratedInput[] = []; const shrinkSteps: ShrinkStep[] = []; let failureStep: ShrinkStep | undefined; let recoveryAttempts = 0;
+  const generatedInputs: GeneratedInput[] = []; const shrinkSteps: ShrinkStep[] = []; let failureStep: ShrinkStep | undefined; let recoveryAttempts = 0; const timeoutQuarantine = new Map<string, { timeoutCount: number; revisitBudget: number; blockedUntilAction: number }>();
   let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined; let context: BrowserContext | undefined; let page: Page | undefined; let adapter!: AdaptiveAdapter; let securityController: SecurityExecutionController | undefined; let activeTargets!: () => TargetRef[];
   let actions = 0; let outcome: RunOutcome = "error"; let terminationReason: TerminationReason = "executor_error";
   try {
@@ -293,7 +305,13 @@ export async function runAdaptiveExplore(config: LakdaConfig, collector: Artifac
           else {
             const securityReason = securityController ? await securityController.denyReason(candidate) : undefined;
             if (securityReason) trace.push({ type: "candidate-denied", candidateId: candidate.candidateId, reason: securityReason });
-            else safeCandidates.push(candidate);
+            else {
+              const quarantine = timeoutQuarantine.get(candidate.sourceFingerprint + ":" + candidate.candidateId);
+              const quarantined = !replay && quarantine && (actions < quarantine.blockedUntilAction || quarantine.timeoutCount >= quarantine.revisitBudget);
+              if (quarantined) {
+                trace.push({ type: "candidate-quarantined", candidateId: candidate.candidateId, sourceFingerprint: candidate.sourceFingerprint, reason: "timeout", timeoutCount: quarantine.timeoutCount, revisitBudget: quarantine.revisitBudget, blockedUntilAction: quarantine.blockedUntilAction });
+              } else safeCandidates.push(candidate);
+            }
           }
         }
       }
@@ -338,8 +356,16 @@ export async function runAdaptiveExplore(config: LakdaConfig, collector: Artifac
       const securityExecution = securityController && candidate.mutationKind !== "none"
         ? await securityController.execute(candidate, executionContext)
         : undefined;
-      const result = securityExecution?.result ?? await adapter.execute(candidate, executionContext);
+      let result = securityExecution?.result ?? await adapter.execute(candidate, executionContext);
       if (securityExecution) trace.push(...securityExecution.trace);
+      if (result.status === "timeout") {
+        try {
+          const captureRefs = await adapter.captureEvidence({ runId: collector.metadata.runId, kinds: ["screenshot", "trace", "network"] });
+          if (captureRefs.length) result = { ...result, evidenceRefs: [...result.evidenceRefs, ...captureRefs] };
+        } catch {
+          trace.push({ type: "timeout-evidence-unavailable", candidateId: candidate.candidateId, reason: "capture-failed" });
+        }
+      }
       actions += 1;
       const shrinkStep: ShrinkStep = { id: "step-" + actions, candidate, expectedStatus: result.status as Exclude<ExecutionResult["status"], "executed"> };
       shrinkSteps.push(shrinkStep);
@@ -361,6 +387,28 @@ export async function runAdaptiveExplore(config: LakdaConfig, collector: Artifac
           trace.push({ type: "observation-unavailable", phase: "post-action", candidateId: candidate.candidateId });
         }
       } else trace.push({ type: "observation-unavailable", phase: "post-action", candidateId: candidate.candidateId, reason: "target-not-active" });
+      if (result.status === "timeout") {
+        const quarantineKey = candidate.sourceFingerprint + ":" + candidate.candidateId;
+        const previousQuarantine = timeoutQuarantine.get(quarantineKey);
+        const timeoutCount = (previousQuarantine?.timeoutCount ?? 0) + 1;
+        const revisitBudget = config.adaptive.recovery.maxAttemptsPerState;
+        const quarantine = { timeoutCount, revisitBudget, blockedUntilAction: actions + 1 };
+        timeoutQuarantine.set(quarantineKey, quarantine);
+        trace.push({ type: "candidate-quarantined", candidateId: candidate.candidateId, sourceFingerprint: candidate.sourceFingerprint, reason: "timeout", ...quarantine });
+        trace.push({
+          type: "timeout-evidence",
+          candidateId: candidate.candidateId,
+          targetRef: candidate.targetRef,
+          preObservationId: preObservation.observationId,
+          ...(postObservation ? { postObservationId: postObservation.observationId } : {}),
+          preFingerprint: result.preFingerprint,
+          ...(result.postFingerprint ? { postFingerprint: result.postFingerprint } : {}),
+          elapsedMs: result.settleResult.elapsedMs,
+          failureSignatureRef: sha256(result.failureSignature ?? "timeout"),
+          captureRequested: ["screenshot", "trace", "network"],
+          evidenceRefs: result.evidenceRefs.map(ref => ref.artifactId),
+        });
+      }
       const productOracles = evaluateActionPostconditions(candidate, preObservation, postObservation, result);
       const generic = genericOracle(result, preObservation, postObservation);
       const security = securityOracle(candidate, result);
@@ -404,18 +452,28 @@ export async function runAdaptiveExplore(config: LakdaConfig, collector: Artifac
         }
       }
       const recoveryPostFingerprint = recoveryObservation ? fingerprintObservation(recoveryObservation).value : undefined;
-      const matchedExpectedState = recovered.recovered && recoveryPostFingerprint === expectedFingerprint;
+      const recoveryChecks = {
+        targetReobserved: recovered.recovered && recoveryObservation?.completeness === "complete",
+        scopeAllowed: Boolean(recoveryObservation && recoveryScopeAllowed(config, recoveryObservation)),
+        personaPreserved: recoveryObservation?.personaRef === config.persona,
+        invariantPreserved: recoveryInvariantAllowed(candidate, preObservation, recoveryObservation, result),
+        criticalOracleClear: !stepOracles.some(oracle => oracle.severity === "critical" && ["fail", "confirmed"].includes(oracle.verdict)),
+        artifactSecurityClear: !result.evidenceRefs.some(ref => ref.securityStatus === "fail" || ref.redactionStatus === "failed"),
+      };
+      const recoveryFailures = Object.entries(recoveryChecks).filter(([, passed]) => !passed).map(([name]) => name);
+      const matchedExpectedState = recovered.recovered && recoveryPostFingerprint === expectedFingerprint && recoveryFailures.length === 0;
+      const recoveryFailureSignature = recoveryFailures.length ? "recovery-safety-divergence" : recovered.recovered ? "recovery-divergence" : "recovery-failed";
       const recoveryEdgeKind: "backtrack" | "reset" | "recovery" = recovered.strategy === "backtrack" ? "backtrack" : recovered.strategy.includes("reset") ? "reset" : "recovery";
       graph.recordControlTransition({
-        from: recoveryPreFingerprint, candidateId: `recovery:${recovered.strategy}:${candidate.candidateId}:${recoveryAttempts}`,
+        from: recoveryPreFingerprint, candidateId: "recovery-" + recovered.strategy + ":" + candidate.candidateId + ":" + recoveryAttempts,
         ...(recoveryPostFingerprint ? { to: recoveryPostFingerprint } : {}), edgeKind: recoveryEdgeKind,
         status: matchedExpectedState ? "recovered" : recovered.recovered ? "diverged" : "not_recovered",
-        ...(!matchedExpectedState ? { failureSignature: recovered.recovered ? "recovery-divergence" : "recovery-failed" } : {}),
+        ...(!matchedExpectedState ? { failureSignature: recoveryFailureSignature } : {}),
         evidenceArtifactIds: recovered.evidenceRefs.map(ref => ref.artifactId), actionIndex: actions,
       });
-      trace.push({ type: "recovery", candidateId: candidate.candidateId, recovered: recovered.recovered, strategy: recovered.strategy, preFingerprint: recoveryPreFingerprint, expectedFingerprint, ...(recoveryPostFingerprint ? { postFingerprint: recoveryPostFingerprint } : {}), matchedExpectedState });
+      trace.push({ type: "recovery", candidateId: candidate.candidateId, recovered: recovered.recovered, strategy: recovered.strategy, preFingerprint: recoveryPreFingerprint, expectedFingerprint, ...(recoveryPostFingerprint ? { postFingerprint: recoveryPostFingerprint } : {}), matchedExpectedState, recoveryChecks, recoveryFailures });
       if (recovered.recovered && !matchedExpectedState) {
-        trace.push({ type: "recovery-divergence", candidateId: candidate.candidateId, strategy: recovered.strategy, expectedFingerprint, actualFingerprint: recoveryPostFingerprint ?? null });
+        trace.push({ type: "recovery-divergence", candidateId: candidate.candidateId, strategy: recovered.strategy, expectedFingerprint, actualFingerprint: recoveryPostFingerprint ?? null, recoveryFailures });
         outcome = "failed"; terminationReason = "machine_failure"; break;
       }
       if (!recovered.recovered) { outcome = "failed"; terminationReason = "machine_failure"; stop = true; }
