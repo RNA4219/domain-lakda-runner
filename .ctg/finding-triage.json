@@ -21,7 +21,7 @@
       "rationale": "The environment value is parsed with URL and passed through Lakda host allowlist validation before browser use."
     },
     {
-      "fingerprint": "f2951c73fcc3499a",
+      "fingerprint": "559ebdc9553a3460",
       "ruleId": "LARGE_MODULE",
       "path": "scripts/check-docs.mjs",
       "disposition": "planned-refactor",

@@ -39,6 +39,8 @@
     "pack:check": "npm pack --dry-run",
     "acceptance:fixture": "npm run build && node scripts/run-acceptance.mjs",
     "acceptance:adaptive": "npm run build && npx playwright test tests/adaptive",
+    "acceptance:adaptive:real": "npm run build && node scripts/run-adaptive-real-acceptance.mjs",
+    "acceptance:adaptive:verify-real": "node scripts/verify-adaptive-real-acceptance.mjs",
     "acceptance:real-llm": "npm run acceptance:real-llm:full",
     "check:hate": "node scripts/check-hate-upstream.mjs",
     "acceptance:real-llm:full": "npm run build && node scripts/run-real-llm-acceptance.mjs --profile=full",
