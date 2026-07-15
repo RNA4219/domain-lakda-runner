@@ -59,6 +59,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
   private readonly ids = new WeakMap<object, string>();
   private readonly scopeHosts: Set<string>;
   private readonly input?: InputValueProvider;
+  private readonly contextEvents: boolean;
   private readonly settle: Required<NonNullable<PlaywrightAdaptiveAdapterOptions["settlePolicy"]>>;
   private readonly dialogs: DialogEvent[] = [];
   private readonly network: Array<{ targetId: string; url: string; status: number; method: string }> = [];
@@ -74,7 +75,17 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
     this.adapterId = options.adapterId ?? "playwright";
     this.scopeHosts = new Set(options.scopeHosts);
     this.input = options.inputValueProvider;
+    this.contextEvents = Boolean(options.context);
     this.settle = { ...policy, ...options.settlePolicy };
+    options.context?.on("console", message => {
+      if (message.type() !== "error") return;
+      const page = message.page(); const targetId = page ? this.registerPage(page).targetId : this.primaryTarget().targetId;
+      this.recordBrowserEvent(targetId, "console-error", { messageRef: sha256(redact(message.text())) });
+    });
+    options.context?.on("weberror", webError => {
+      const page = webError.page(); const targetId = page ? this.registerPage(page).targetId : this.primaryTarget().targetId; const error = webError.error();
+      this.recordBrowserEvent(targetId, "pageerror", { messageRef: sha256(redact(`${error.name}:${error.message}`)) });
+    });
     this.registerPage(options.page);
     options.context?.on("page", page => this.registerPage(page, undefined, this.candidateInFlight?.candidateId));
   }
@@ -111,8 +122,10 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
     this.ids.set(page, ref.targetId); this.targets.set(ref.targetId, { target: page, ref, pageMetadata: { ...(parentTargetId ? { openerTargetId: parentTargetId } : {}), ...(inferredTriggerActionId ? { triggerActionId: inferredTriggerActionId } : {}), ...(initialUrl ? { initialUrl } : {}) } });
     if (parentTargetId && inferredTriggerActionId) this.pendingPageTriggers.delete(parentTargetId);
     page.on("close", () => { const entry = this.targets.get(ref.targetId); if (entry) entry.ref.lifecycle = "closed"; });
-    page.on("console", message => { if (message.type() === "error") this.recordBrowserEvent(ref.targetId, "console-error", { messageRef: sha256(redact(message.text())) }); });
-    page.on("pageerror", error => this.recordBrowserEvent(ref.targetId, "pageerror", { messageRef: sha256(redact(`${error.name}:${error.message}`)) }));
+    if (!this.contextEvents) {
+      page.on("console", message => { if (message.type() === "error") this.recordBrowserEvent(ref.targetId, "console-error", { messageRef: sha256(redact(message.text())) }); });
+      page.on("pageerror", error => this.recordBrowserEvent(ref.targetId, "pageerror", { messageRef: sha256(redact(`${error.name}:${error.message}`)) }));
+    }
     page.on("crash", () => this.recordBrowserEvent(ref.targetId, "crash"));
     page.on("requestfailed", request => { const url = safeUrl(request.url()); this.recordBrowserEvent(ref.targetId, "request-failed", { ...(url ? { url } : {}), method: request.method(), ...(request.failure()?.errorText ? { messageRef: sha256(redact(request.failure()!.errorText)) } : {}) }); });
     page.on("download", download => { const url = safeUrl(download.url()); this.recordBrowserEvent(ref.targetId, "download", { ...(url ? { url } : {}), messageRef: sha256(redact(download.suggestedFilename())) }); });
@@ -153,6 +166,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
   private ref(entry: Entry): TargetRef {
     let lifecycle = entry.ref.lifecycle ?? "active"; let url: string | undefined;
     try { url = entry.target.url(); } catch { lifecycle = "lost"; }
+    if (entry.ref.kind === "frame" && (entry.target as Frame).isDetached()) lifecycle = "lost";
     return { ...entry.ref, ...(entry.ref.framePath ? { framePath: [...entry.ref.framePath] } : {}), ...(url && origin(url) ? { origin: origin(url) } : {}), lifecycle };
   }
 
@@ -167,7 +181,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
       const ref = this.ref(entry); let settledUrl: string | undefined; try { settledUrl = safeUrl(entry.target.url()); } catch { settledUrl = undefined; }
       let allowScope: "allowed" | "denied" | "unknown" = "unknown";
       if (settledUrl) try { allowScope = this.scopeHosts.has(new URL(settledUrl).hostname) ? "allowed" : "denied"; } catch { allowScope = "unknown"; }
-      return { targetId: ref.targetId, kind: ref.kind, ...(entry.pageMetadata?.openerTargetId ? { openerTargetId: entry.pageMetadata.openerTargetId } : {}), ...(entry.pageMetadata?.triggerActionId ? { triggerActionId: entry.pageMetadata.triggerActionId } : {}), ...(entry.pageMetadata?.initialUrl ? { initialUrl: entry.pageMetadata.initialUrl } : {}), ...(settledUrl ? { settledUrl } : {}), allowScope, lifecycle: ref.lifecycle };
+      return { targetId: ref.targetId, kind: ref.kind, ...(ref.contextId ? { contextId: ref.contextId } : {}), ...(ref.parentTargetId ? { parentTargetId: ref.parentTargetId } : {}), ...(ref.framePath ? { framePath: [...ref.framePath] } : {}), ...(ref.origin ? { origin: ref.origin } : {}), ...(entry.pageMetadata?.openerTargetId ? { openerTargetId: entry.pageMetadata.openerTargetId } : {}), ...(entry.pageMetadata?.triggerActionId ? { triggerActionId: entry.pageMetadata.triggerActionId } : {}), ...(entry.pageMetadata?.initialUrl ? { initialUrl: entry.pageMetadata.initialUrl } : {}), ...(settledUrl ? { settledUrl } : {}), allowScope, lifecycle: ref.lifecycle };
     });
   }
 
@@ -277,7 +291,8 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
       if (!allowedRoles.has(control.role ?? "")) return [];
       if ((control.actionKind === "fill" || control.actionKind === "select") && (!control.fieldId || !fieldIds.has(control.fieldId))) return [];
       if (control.href) try { if (!this.scopeHosts.has(new URL(control.href).hostname)) return []; } catch { return []; }
-      const recipe: LocatorRecipe | undefined = control.testId && counts.get(`t:${control.testId}`) === 1 ? { strategy: "test-id", value: control.testId } : control.role && publicLocator(control.name) && counts.get(`r:${control.role}:${control.name}`) === 1 ? { strategy: "role", value: control.role, name: control.name } : undefined;
+      const framePath = observation.targetRef.framePath ? { framePath: [...observation.targetRef.framePath] } : {};
+      const recipe: LocatorRecipe | undefined = control.testId && counts.get(`t:${control.testId}`) === 1 ? { strategy: "test-id", value: control.testId, ...framePath } : control.role && publicLocator(control.name) && counts.get(`r:${control.role}:${control.name}`) === 1 ? { strategy: "role", value: control.role, name: control.name, ...framePath } : undefined;
       if (!recipe) return [];
       const mutationKind = mutation(control.hint, control.actionKind);
       const inputProfileRef = control.actionKind === "fill" || control.actionKind === "select" ? `input-field:${control.fieldId}` : undefined;

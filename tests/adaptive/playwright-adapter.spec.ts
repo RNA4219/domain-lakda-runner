@@ -54,6 +54,17 @@ test("Playwright adapter re-observes dynamic DOM and rejects stale candidates", 
     expect(outsideObservation.completeness).toBe("partial");
     expect(outsideObservation.ui.primaryElements).toEqual([]);
     expect(await adapter.generateCandidates(outsideObservation)).toEqual([]);
+    const insideFrame = adapter.activeTargets().find(target => target.kind === "frame" && target.origin === new URL(fixture.baseUrl).origin);
+    expect(insideFrame).toBeTruthy();
+    const frameObservation = await adapter.observe(insideFrame!, { runId: "adapter-test", scopeHosts: ["127.0.0.1"] });
+    expect(frameObservation.completeness).toBe("complete");
+    const frameCandidate = (await adapter.generateCandidates(frameObservation)).find(candidate => candidate.locatorRecipe.value === "inside-frame");
+    expect(frameCandidate).toMatchObject({
+      targetRef: { kind: "frame", parentTargetId: first.targetRef.targetId, framePath: insideFrame!.framePath },
+      locatorRecipe: { strategy: "test-id", value: "inside-frame", framePath: insideFrame!.framePath },
+    });
+    const frameDetail = (first.topology.targetDetails as Array<Record<string, unknown>>).find(detail => detail.targetId === insideFrame!.targetId);
+    expect(frameDetail).toMatchObject({ kind: "frame", parentTargetId: first.targetRef.targetId, framePath: insideFrame!.framePath, origin: new URL(fixture.baseUrl).origin });
     expect(firstCandidates.some(candidate => candidate.locatorRecipe.value === "disabled")).toBe(false);
 
     const popup = firstCandidates.find(candidate => candidate.locatorRecipe.value === "popup");
@@ -94,6 +105,7 @@ test("Playwright adapter re-observes dynamic DOM and rejects stale candidates", 
     const after = await adapter.observe(adapter.primaryTarget(), { runId: "adapter-test", scopeHosts: ["127.0.0.1"] });
     expect((await adapter.generateCandidates(after)).some(candidate => candidate.locatorRecipe.value === "finish")).toBe(true);
     expect((await adapter.execute(advance!, { runId: "adapter-test", timeoutMs: 2_000 })).status).toBe("denied");
+    expect((await adapter.execute(frameCandidate!, { runId: "adapter-test", timeoutMs: 2_000 })).status).toBe("target_lost");
   } finally {
     await context.close();
     await browser.close();
@@ -102,9 +114,11 @@ test("Playwright adapter re-observes dynamic DOM and rejects stale candidates", 
 });
 
 test("Playwright adapter integrates generic browser failures into Observation", async () => {
-  const fixture = await startFixture(url => url.pathname === "/"
-    ? { body: `<button data-testid="emit-errors" onclick="console.error('fixture-console'); setTimeout(() => { throw new Error('fixture-pageerror'); }, 0); fetch('/failure')">Emit</button>` }
-    : undefined);
+  const fixture = await startFixture(url => {
+    if (url.pathname === "/") return { body: `<button data-testid="emit-errors" onclick="console.error('fixture-console'); setTimeout(() => { throw new Error('fixture-pageerror'); }, 0); fetch('/failure')">Emit</button><a data-testid="off-page" target="_blank" href="/off-page">Off page</a>` };
+    if (url.pathname === "/off-page") return { body: `<script>setTimeout(() => { console.error('off-page-console'); throw new Error('off-page-error'); }, 0);</script>` };
+    return undefined;
+  });
   const browser = await chromium.launch(); const context = await browser.newContext(); const page = await context.newPage();
   const adapter = new PlaywrightAdaptiveAdapter({ page, context, scopeHosts: ["127.0.0.1"], settlePolicy: { maxWaitMs: 2_000, stableWindowMs: 20 } });
   try {
@@ -120,6 +134,22 @@ test("Playwright adapter integrates generic browser failures into Observation", 
     expect(events.every(event => typeof event.eventId === "string" && typeof event.targetId === "string")).toBe(true);
     expect(JSON.stringify(events)).not.toContain("fixture-console");
     expect(JSON.stringify(events)).not.toContain("fixture-pageerror");
+    const offPageCandidate = (await adapter.generateCandidates(after)).find(value => value.locatorRecipe.value === "off-page");
+    expect(offPageCandidate).toBeTruthy();
+    const popupOpened = context.waitForEvent("page");
+    await adapter.execute(offPageCandidate!, { runId: "event-test", timeoutMs: 2_000 });
+    const offPage = await popupOpened;
+    await offPage.waitForTimeout(50);
+    const popupTarget = adapter.activeTargets().find(target => target.kind === "page" && target.targetId !== adapter.primaryTarget().targetId);
+    expect(popupTarget).toBeTruthy();
+    const afterOffPage = await adapter.observe(adapter.primaryTarget(), { runId: "event-test", scopeHosts: ["127.0.0.1"] });
+    const offPageEvents = afterOffPage.ui.events as Array<Record<string, unknown>>;
+    expect(offPageEvents).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "console-error", targetId: popupTarget!.targetId }),
+      expect.objectContaining({ kind: "pageerror", targetId: popupTarget!.targetId }),
+    ]));
+    expect(JSON.stringify(offPageEvents)).not.toContain("off-page-console");
+    expect(JSON.stringify(offPageEvents)).not.toContain("off-page-error");
   } finally { await context.close(); await browser.close(); await fixture.close(); }
 });
 
