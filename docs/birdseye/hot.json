@@ -1,5 +1,5 @@
 {
-  "generated_at": "00027",
+  "generated_at": "00028",
   "index_snapshot": "docs/birdseye/index.json",
   "refresh_command": "uv run python -m tools.codemap.update --repo-root C:\\Users\\ryo-n\\Codex_dev\\domain-lakda-runner --targets docs/birdseye/index.json,docs/birdseye/hot.json --emit index+caps",
   "curation_notes": "v1 PoCの正本、受入、運用資料を最小hopで参照するためのホットリスト。",

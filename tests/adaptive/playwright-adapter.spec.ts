@@ -173,3 +173,127 @@ test("Playwright adapter backtracks after an execution failure without exposing 
     expect(fingerprintObservation(recoveredObservation).value).toBe(fingerprintObservation(observation).value);
   } finally { await context.close(); await browser.close(); await fixture.close(); }
 });
+
+
+test("Playwright adapter enforces explicit JavaScript dialog policy fail-closed", async () => {
+  const fixture = await startFixture(() => ({
+    body: `<main>
+      <output data-testid="result">idle</output>
+      <button data-testid="confirm" onclick="const accepted = confirm('safe-confirm'); document.querySelector('[data-testid=result]').textContent = accepted ? 'accepted' : 'dismissed';">Confirm</button>
+      <button data-testid="hold" onclick="const accepted = confirm('hold-confirm'); document.querySelector('[data-testid=result]').textContent = accepted ? 'accepted' : 'dismissed';">Hold</button>
+    </main>`,
+  }));
+  const browser = await chromium.launch();
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const adapter = new PlaywrightAdaptiveAdapter({
+    page,
+    context,
+    scopeHosts: ["127.0.0.1"],
+    settlePolicy: { maxWaitMs: 500, stableWindowMs: 20 },
+  });
+  try {
+    await page.goto(fixture.baseUrl);
+    const observe = () => adapter.observe(adapter.primaryTarget(), { runId: "dialog-policy-test", scopeHosts: ["127.0.0.1"] });
+    const candidateFor = async (testId: string) => {
+      const observation = await observe();
+      return (await adapter.generateCandidates(observation)).find(candidate => candidate.locatorRecipe.value === testId);
+    };
+
+    const unauthorized = await candidateFor("confirm");
+    expect(unauthorized).toBeTruthy();
+    const unauthorizedAccept = {
+      ...unauthorized!,
+      contract: { dialog: { handling: "accept" as const } },
+    };
+    expect((await adapter.execute(unauthorizedAccept, { runId: "dialog-policy-test", timeoutMs: 100, allowedMutationKinds: ["none"] })).status).toBe("denied");
+    expect(await page.getByTestId("result").textContent()).toBe("idle");
+
+    const authorized = await candidateFor("confirm");
+    expect(authorized).toBeTruthy();
+    const explicitAccept = {
+      ...authorized!,
+      contract: { dialog: { handling: "accept" as const } },
+    };
+    const accepted = await adapter.execute(explicitAccept, {
+      runId: "dialog-policy-test",
+      timeoutMs: 100,
+      allowedMutationKinds: ["update"],
+    });
+    expect(accepted.status).toBe("executed");
+    expect(await page.getByTestId("result").textContent()).toBe("accepted");
+    const acceptedObservation = await observe();
+    expect(acceptedObservation.dialogs.at(-1)).toMatchObject({
+      type: "confirm",
+      disposition: "accepted",
+      handlingPolicy: "explicit/v1",
+      triggerActionId: explicitAccept.candidateId,
+    });
+
+    const holdCandidate = await candidateFor("hold");
+    expect(holdCandidate).toBeTruthy();
+    const held = {
+      ...holdCandidate!,
+      contract: { dialog: { handling: "hold" as const } },
+    };
+    const heldResult = await adapter.execute(held, { runId: "dialog-policy-test", timeoutMs: 50 });
+    expect(heldResult.status).toBe("timeout");
+    expect(heldResult.failureSignature).toBe("dialog_hold_timeout");
+    expect(await page.getByTestId("result").textContent()).toBe("dismissed");
+    const heldObservation = await observe();
+    expect(heldObservation.dialogs.at(-1)).toMatchObject({
+      type: "confirm",
+      disposition: "held-timeout",
+      handlingPolicy: "hold/v1",
+      triggerActionId: held.candidateId,
+    });
+  } finally {
+    await context.close();
+    await browser.close();
+    await fixture.close();
+  }
+});
+
+
+test("Playwright adapter records active target switch, popup close, and opener return", async () => {
+  const fixture = await startFixture(url => url.pathname === "/popup"
+    ? { body: "<h1>Popup</h1><button data-testid='close' onclick='window.close()'>Close popup</button>" }
+    : { body: "<h1>Home</h1><a data-testid='popup' target='_blank' href='/popup'>Open popup</a><button data-testid='home-action'>Home action</button>" });
+  const browser = await chromium.launch();
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const adapter = new PlaywrightAdaptiveAdapter({ page, context, scopeHosts: ["127.0.0.1"], settlePolicy: { maxWaitMs: 500, stableWindowMs: 20 } });
+  try {
+    await page.goto(fixture.baseUrl);
+    const home = await adapter.observe(adapter.primaryTarget(), { runId: "target-topology-test", scopeHosts: ["127.0.0.1"] });
+    const open = (await adapter.generateCandidates(home)).find(candidate => candidate.locatorRecipe.value === "popup");
+    expect(open).toBeTruthy();
+    const popupOpened = context.waitForEvent("page");
+    expect((await adapter.execute(open!, { runId: "target-topology-test", timeoutMs: 500 })).status).toBe("executed");
+    const popup = await popupOpened;
+    await popup.waitForLoadState("domcontentloaded");
+    const popupTarget = adapter.activeTargets().find(target => target.kind === "page" && target.targetId !== adapter.primaryTarget().targetId);
+    expect(popupTarget).toBeTruthy();
+    const popupObservation = await adapter.observe(popupTarget!, { runId: "target-topology-test", scopeHosts: ["127.0.0.1"] });
+    expect(popupObservation.topology).toMatchObject({ activeTargetId: popupTarget!.targetId });
+    const close = (await adapter.generateCandidates(popupObservation)).find(candidate => candidate.locatorRecipe.value === "close");
+    expect(close).toBeTruthy();
+    const closed = popup.waitForEvent("close");
+    const closeResult = await adapter.execute(close!, { runId: "target-topology-test", timeoutMs: 500 });
+    await closed;
+    expect(closeResult.status).toBe("executed");
+    expect(closeResult.targetChanges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ eventKind: "target-switch", toTargetId: popupTarget!.targetId }),
+      expect.objectContaining({ eventKind: "target-close", targetId: popupTarget!.targetId }),
+      expect.objectContaining({ eventKind: "target-return", fromTargetId: popupTarget!.targetId, toTargetId: adapter.primaryTarget().targetId }),
+    ]));
+    expect(adapter.activeTargets().some(target => target.targetId === popupTarget!.targetId)).toBe(false);
+    expect((await adapter.observe(adapter.primaryTarget(), { runId: "target-topology-test", scopeHosts: ["127.0.0.1"] })).topology).toMatchObject({
+      activeTargetId: adapter.primaryTarget().targetId,
+    });
+  } finally {
+    await context.close();
+    await browser.close();
+    await fixture.close();
+  }
+});

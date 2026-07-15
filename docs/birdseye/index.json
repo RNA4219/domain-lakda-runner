@@ -1,5 +1,5 @@
 {
-  "generated_at": "00027",
+  "generated_at": "00028",
   "nodes": {
     "README.md": {
       "role": "overview",
@@ -346,6 +346,10 @@
     "docs/acceptance/AC-20260715-10.playwright-frame-offpage-events.md": {
       "role": "doc",
       "caps": "docs/birdseye/caps/docs.acceptance.AC-20260715-10.playwright-frame-offpage-events.md.json"
+    },
+    "docs/acceptance/AC-20260715-11.playwright-dialog-target-topology.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260715-11.playwright-dialog-target-topology.md.json"
     }
   },
   "edges": [

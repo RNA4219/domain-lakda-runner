@@ -1,14 +1,40 @@
 import type { BrowserContext, Frame, Locator, Page } from "playwright";
 import { findSensitive, redact, sha256 } from "../core/redaction.js";
 import { fingerprintObservation } from "../adaptive/fingerprint.js";
-import type { ActionCandidate, AdapterCapabilities, EvidenceArtifactRef, ExecutionResult, LocatorRecipe, MutationKind, Observation, TargetRef } from "../adaptive/contracts.js";
+import type { ActionCandidate, AdapterCapabilities, DialogHandling, EvidenceArtifactRef, ExecutionResult, LocatorRecipe, MutationKind, Observation, TargetRef } from "../adaptive/contracts.js";
 import type { AdaptiveAdapter, AdapterFailure, EvidenceRequest, ExecuteContext, ObserveContext, RecoverContext, RecoveryResult } from "./types.js";
 
 type Target = Page | Frame;
 type Entry = { target: Target; ref: TargetRef; pageMetadata?: { openerTargetId?: string; triggerActionId?: string; initialUrl?: string } };
 type Control = { actionKind: "click" | "fill" | "check" | "select"; role?: string; name?: string; testId?: string; fieldId?: string; href?: string; hint: string };
 type DisplayElement = { role: "heading" | "dialog" | "alert" | "status"; name: string; modal?: true; open?: boolean; level?: number };
-type DialogEvent = { eventKind: "js-dialog"; targetRef: TargetRef; type: string; message?: string; disposition: "dismiss-pending" | "dismissed" | "failed"; handlingPolicy: "default-deny/v1"; triggerActionId?: string };
+type DialogEvent = {
+  eventKind: "js-dialog";
+  targetRef: TargetRef;
+  type: string;
+  message?: string;
+  disposition: "dismiss-pending" | "dismissed" | "accepted" | "held" | "held-timeout" | "failed";
+  handlingPolicy: "default-deny/v1" | "explicit/v1" | "hold/v1";
+  elapsedMs?: number;
+  triggerActionId?: string;
+};
+type DialogControl = {
+  candidateId: string;
+  policy: DialogHandling;
+  startedAt: number;
+  timeoutMs: number;
+  outcome?: "dismissed" | "accepted" | "held-timeout" | "failed";
+  event?: DialogEvent;
+  timer?: ReturnType<typeof setTimeout>;
+};
+type TargetTopologyEvent = {
+  eventKind: "target-open" | "target-switch" | "target-close" | "target-return";
+  targetId?: string;
+  fromTargetId?: string;
+  toTargetId?: string;
+  parentTargetId?: string;
+  reason: string;
+};
 type BrowserEvent = { eventId: string; kind: "console-error" | "pageerror" | "crash" | "request-failed" | "http-error" | "download"; targetId: string; messageRef?: string; url?: string; status?: number; method?: string };
 type InputValueProvider = (candidate: ActionCandidate, context: ExecuteContext) => string | undefined | Promise<string | undefined>;
 export type PlaywrightAdaptiveAdapterOptions = { page: Page; context?: BrowserContext; scopeHosts: string[]; adapterId?: string; inputValueProvider?: InputValueProvider; settlePolicy?: { maxWaitMs: number; stableWindowMs: number; policyVersion?: string } };
@@ -45,6 +71,16 @@ function statusFor(error: unknown): ExecutionResult["status"] {
   if (/unsupported|input value provider/i.test(text)) return "unsupported";
   return "action_failed";
 }
+function resolveDialogPolicy(candidate: ActionCandidate, context: ExecuteContext): { policy: DialogHandling; deniedReason?: string } {
+  const dialog = candidate.contract?.dialog;
+  if (!dialog) return { policy: "dismiss" };
+  const handling = (dialog as { handling?: unknown }).handling;
+  if (handling !== "dismiss" && handling !== "hold" && handling !== "accept") return { policy: "dismiss", deniedReason: "dialog_policy_invalid" };
+  if (handling === "accept" && !context.allowedMutationKinds?.includes(candidate.mutationKind)) {
+    return { policy: "dismiss", deniedReason: "dialog_accept_not_authorized" };
+  }
+  return { policy: handling };
+}
 function locator(target: Target, recipe: LocatorRecipe): Locator {
   if (recipe.strategy === "test-id") return target.getByTestId(recipe.value);
   if (recipe.strategy === "role") return target.getByRole(recipe.value as never, { name: recipe.name, exact: true });
@@ -66,6 +102,9 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
   private readonly events: BrowserEvent[] = [];
   private readonly pendingPageTriggers = new Map<string, string>();
   private candidateInFlight?: ActionCandidate;
+  private dialogInFlight?: DialogControl;
+  private readonly topologyEvents: TargetTopologyEvent[] = [];
+  private activeTargetId?: string;
   private pages = 0;
   private frames = 0;
   private dialogEvents = 0;
@@ -102,6 +141,36 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
 
   activeTargets(): TargetRef[] { return [...this.targets.values()].map(entry => this.ref(entry)).filter(ref => ref.lifecycle === "active"); }
 
+  async switchTarget(targetRef: TargetRef, reason = "explicit"): Promise<TargetRef> {
+    const entry = this.entry(targetRef);
+    this.activateTarget(entry.ref.targetId, reason);
+    return this.ref(entry);
+  }
+
+  async closeTarget(targetRef: TargetRef, reason = "explicit-close"): Promise<{ closed: boolean; targetRef: TargetRef }> {
+    const entry = this.entry(targetRef);
+    if (entry.ref.kind !== "page") return { closed: false, targetRef: this.ref(entry) };
+    await (entry.target as Page).close({ runBeforeUnload: false });
+    this.recordTopologyEvent({ eventKind: "target-close", targetId: entry.ref.targetId, reason });
+    return { closed: true, targetRef: this.ref(entry) };
+  }
+
+  private recordTopologyEvent(event: TargetTopologyEvent): void {
+    this.topologyEvents.push({ ...event });
+    if (this.topologyEvents.length > 100) this.topologyEvents.splice(0, this.topologyEvents.length - 100);
+  }
+
+  private activateTarget(targetId: string, reason: string): void {
+    if (this.activeTargetId && this.activeTargetId !== targetId) {
+      this.recordTopologyEvent({ eventKind: "target-switch", fromTargetId: this.activeTargetId, toTargetId: targetId, reason });
+    }
+    this.activeTargetId = targetId;
+  }
+
+  private topologyChanges(): Array<Record<string, unknown>> {
+    return this.topologyEvents.slice(-50).map(event => ({ ...event }));
+  }
+
   private recordBrowserEvent(targetId: string, kind: BrowserEvent["kind"], details: Omit<BrowserEvent, "eventId" | "kind" | "targetId"> = {}): void {
     this.events.push({ eventId: `browser-event-${++this.browserEvents}`, kind, targetId, ...details });
     if (this.events.length > 100) this.events.splice(0, this.events.length - 100);
@@ -120,8 +189,22 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
     const ref: TargetRef = { targetId: `page-${++this.pages}`, kind: "page", ...(parentTargetId ? { parentTargetId } : {}) };
     const initialUrl = safeUrl(page.url());
     this.ids.set(page, ref.targetId); this.targets.set(ref.targetId, { target: page, ref, pageMetadata: { ...(parentTargetId ? { openerTargetId: parentTargetId } : {}), ...(inferredTriggerActionId ? { triggerActionId: inferredTriggerActionId } : {}), ...(initialUrl ? { initialUrl } : {}) } });
+    if (parentTargetId) this.recordTopologyEvent({ eventKind: "target-open", targetId: ref.targetId, parentTargetId, reason: "popup" });
     if (parentTargetId && inferredTriggerActionId) this.pendingPageTriggers.delete(parentTargetId);
-    page.on("close", () => { const entry = this.targets.get(ref.targetId); if (entry) entry.ref.lifecycle = "closed"; });
+    page.on("close", () => {
+      const entry = this.targets.get(ref.targetId);
+      if (!entry) return;
+      entry.ref.lifecycle = "closed";
+      this.recordTopologyEvent({ eventKind: "target-close", targetId: ref.targetId, reason: "page-closed" });
+      const openerId = entry.pageMetadata?.openerTargetId;
+      const returnId = (openerId && this.targets.get(openerId)?.ref.lifecycle !== "closed" && this.targets.get(openerId)?.ref.lifecycle !== "lost")
+        ? openerId
+        : [...this.targets.values()].find(value => value.ref.targetId !== ref.targetId && value.ref.kind === "page" && (value.ref.lifecycle ?? "active") === "active")?.ref.targetId;
+      if (returnId) {
+        this.activeTargetId = returnId;
+        this.recordTopologyEvent({ eventKind: "target-return", fromTargetId: ref.targetId, toTargetId: returnId, reason: "closed-page-opener" });
+      }
+    });
     if (!this.contextEvents) {
       page.on("console", message => { if (message.type() === "error") this.recordBrowserEvent(ref.targetId, "console-error", { messageRef: sha256(redact(message.text())) }); });
       page.on("pageerror", error => this.recordBrowserEvent(ref.targetId, "pageerror", { messageRef: sha256(redact(`${error.name}:${error.message}`)) }));
@@ -132,11 +215,36 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
     page.on("popup", popup => this.registerPage(popup, ref.targetId, this.candidateInFlight?.candidateId));
     page.on("framenavigated", frame => { if (frame === page.mainFrame()) { const entry = this.targets.get(ref.targetId); const firstUrl = safeUrl(frame.url()); if (entry?.pageMetadata && firstUrl) entry.pageMetadata.initialUrl ??= firstUrl; } });
     page.on("dialog", dialog => {
-      const targetRef: TargetRef = { targetId: `dialog-${++this.dialogEvents}`, kind: "dialog", parentTargetId: ref.targetId, lifecycle: "active" };
+      const targetRef: TargetRef = { targetId: "dialog-" + (++this.dialogEvents), kind: "dialog", parentTargetId: ref.targetId, lifecycle: "active" };
+      const control = this.dialogInFlight && this.dialogInFlight.candidateId === this.candidateInFlight?.candidateId ? this.dialogInFlight : undefined;
+      const policy = control?.policy ?? "dismiss";
       const message = publicText(dialog.message());
-      const event: DialogEvent = { eventKind: "js-dialog", targetRef, type: dialog.type(), ...(message ? { message } : {}), disposition: "dismiss-pending", handlingPolicy: "default-deny/v1", ...(this.candidateInFlight ? { triggerActionId: this.candidateInFlight.candidateId } : {}) };
+      const event: DialogEvent = {
+        eventKind: "js-dialog",
+        targetRef,
+        type: dialog.type(),
+        ...(message ? { message } : {}),
+        disposition: policy === "hold" ? "held" : "dismiss-pending",
+        handlingPolicy: policy === "accept" ? "explicit/v1" : policy === "hold" ? "hold/v1" : "default-deny/v1",
+        ...(this.candidateInFlight ? { triggerActionId: this.candidateInFlight.candidateId } : {}),
+      };
+      if (control) control.event = event;
       this.dialogs.push(event); if (this.dialogs.length > 20) this.dialogs.splice(0, this.dialogs.length - 20);
-      void dialog.dismiss().then(() => { event.disposition = "dismissed"; event.targetRef.lifecycle = "closed"; }).catch(() => { event.disposition = "failed"; event.targetRef.lifecycle = "lost"; });
+      const close = (disposition: DialogEvent["disposition"], outcome: DialogControl["outcome"]) => {
+        event.disposition = disposition;
+        if (control) event.elapsedMs = Date.now() - control.startedAt;
+        event.targetRef.lifecycle = disposition === "failed" ? "lost" : "closed";
+        if (control) control.outcome = outcome;
+      };
+      if (policy === "accept") {
+        void dialog.accept().then(() => close("accepted", "accepted")).catch(() => close("failed", "failed"));
+      } else if (policy === "hold" && control) {
+        control.timer = setTimeout(() => {
+          void dialog.dismiss().then(() => close("held-timeout", "held-timeout")).catch(() => close("failed", "failed"));
+        }, Math.max(1, control.timeoutMs));
+      } else {
+        void dialog.dismiss().then(() => close("dismissed", "dismissed")).catch(() => close("failed", "failed"));
+      }
     });
     void page.opener().then(opener => { if (opener) this.registerPage(page, this.registerPage(opener).targetId); }).catch(() => undefined);
     page.on("response", response => {
@@ -181,7 +289,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
       const ref = this.ref(entry); let settledUrl: string | undefined; try { settledUrl = safeUrl(entry.target.url()); } catch { settledUrl = undefined; }
       let allowScope: "allowed" | "denied" | "unknown" = "unknown";
       if (settledUrl) try { allowScope = this.scopeHosts.has(new URL(settledUrl).hostname) ? "allowed" : "denied"; } catch { allowScope = "unknown"; }
-      return { targetId: ref.targetId, kind: ref.kind, ...(ref.contextId ? { contextId: ref.contextId } : {}), ...(ref.parentTargetId ? { parentTargetId: ref.parentTargetId } : {}), ...(ref.framePath ? { framePath: [...ref.framePath] } : {}), ...(ref.origin ? { origin: ref.origin } : {}), ...(entry.pageMetadata?.openerTargetId ? { openerTargetId: entry.pageMetadata.openerTargetId } : {}), ...(entry.pageMetadata?.triggerActionId ? { triggerActionId: entry.pageMetadata.triggerActionId } : {}), ...(entry.pageMetadata?.initialUrl ? { initialUrl: entry.pageMetadata.initialUrl } : {}), ...(settledUrl ? { settledUrl } : {}), allowScope, lifecycle: ref.lifecycle };
+      return { targetId: ref.targetId, kind: ref.kind, ...(ref.contextId ? { contextId: ref.contextId } : {}), ...(ref.parentTargetId ? { parentTargetId: ref.parentTargetId } : {}), ...(ref.framePath ? { framePath: [...ref.framePath] } : {}), ...(ref.origin ? { origin: ref.origin } : {}), ...(entry.pageMetadata?.openerTargetId ? { openerTargetId: entry.pageMetadata.openerTargetId } : {}), ...(entry.pageMetadata?.triggerActionId ? { triggerActionId: entry.pageMetadata.triggerActionId } : {}), ...(entry.pageMetadata?.initialUrl ? { initialUrl: entry.pageMetadata.initialUrl } : {}), ...(settledUrl ? { settledUrl } : {}), allowScope, active: ref.targetId === this.activeTargetId, lifecycle: ref.lifecycle };
     });
   }
 
@@ -273,13 +381,15 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
 
   async observe(targetRef: TargetRef, context: ObserveContext): Promise<Observation> {
     const entry = this.entry(targetRef); const page = entry.ref.kind === "frame" ? (entry.target as Frame).page() : entry.target as Page;
+    this.activateTarget(entry.ref.targetId, "observe");
     this.registerFrames(page); const url = safeUrl(entry.target.url()); const targets = this.activeTargets(); const events = this.events.slice(-50);
     const common = { schemaVersion: version, observationId: `obs-${sha256(`${context.runId}:${Date.now()}:${targetRef.targetId}`).slice(0, 16)}`, observedAt: new Date().toISOString(), targetRef: this.ref(entry), ...(url ? { url } : {}), ...(context.personaRef ? { personaRef: context.personaRef } : {}), dialogs: this.dialogs.slice(-20), topology: { activeTargetId: targetRef.targetId, targets, targetDetails: this.targetDetails(), targetCount: targets.length }, networkSummary: this.currentNetworkSummary(targetRef.contextId ?? targetRef.targetId, url), obligations: {}, provenance: { adapterId: this.adapterId, runtime: "playwright", capabilityRevision: "playwright-adapter/v1" } };
-    if (!this.inScope(entry)) return { ...common, completeness: "partial", ui: { primaryElements: [], events }, forms: [] };
+    const topology = { ...common.topology, activeTargetId: this.activeTargetId ?? targetRef.targetId, events: this.topologyChanges() };
+    if (!this.inScope(entry)) return { ...common, topology, completeness: "partial", ui: { primaryElements: [], events }, forms: [] };
     const controls = await this.controls(entry.target);
     const displays = (await this.displayElements(entry.target)).slice(0, 100).map(display => ({ role: display.role, ...(publicText(display.name) ? { name: publicText(display.name) } : {}), ...(display.modal ? { modal: true, open: display.open } : {}), ...(display.level ? { level: display.level } : {}) }));
     const primaryElements = [...controls.slice(0, 100).map(control => ({ actionKind: control.actionKind, role: control.role, ...(publicText(control.name) ? { name: publicText(control.name) } : {}), ...(control.testId ? { testId: control.testId } : {}) })), ...displays];
-    return { ...common, completeness: "complete", ui: { primaryElements, domModals: displays.filter(display => display.role === "dialog"), events }, forms: await this.forms(entry.target) };
+    return { ...common, topology, completeness: "complete", ui: { primaryElements, domModals: displays.filter(display => display.role === "dialog"), events }, forms: await this.forms(entry.target) };
   }
 
   async generateCandidates(observation: Observation): Promise<ActionCandidate[]> {
@@ -312,31 +422,62 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
   }
 
   async execute(candidate: ActionCandidate, context: ExecuteContext): Promise<ExecutionResult> {
-    const startedAt = new Date().toISOString(); const started = Date.now(); const base = { schemaVersion: version, executionId: `exec-${sha256(`${context.runId}:${candidate.candidateId}:${startedAt}`).slice(0, 16)}`, candidateId: candidate.candidateId, startedAt, targetChanges: [] as Array<Record<string, unknown>>, evidenceRefs: [] as EvidenceArtifactRef[] };
+    const startedAt = new Date().toISOString(); const started = Date.now();
+    const base = { schemaVersion: version, executionId: "exec-" + sha256(context.runId + ":" + candidate.candidateId + ":" + startedAt).slice(0, 16), candidateId: candidate.candidateId, startedAt, targetChanges: [] as Array<Record<string, unknown>>, evidenceRefs: [] as EvidenceArtifactRef[] };
+    let dialogControl: DialogControl | undefined;
     try {
       if (candidate.adapterId !== this.adapterId) throw new Error("unsupported adapter candidate");
-      const before = await this.observe(candidate.targetRef, { runId: context.runId, ...(context.personaRef ? { personaRef: context.personaRef } : {}), scopeHosts: [...this.scopeHosts] }); const preFingerprint = fingerprintObservation(before).value;
+      const before = await this.observe(candidate.targetRef, { runId: context.runId, ...(context.personaRef ? { personaRef: context.personaRef } : {}), scopeHosts: [...this.scopeHosts] });
+      const preFingerprint = fingerprintObservation(before).value;
       if (before.completeness !== "complete") return { ...base, preFingerprint, endedAt: new Date().toISOString(), status: "denied", failureSignature: "target_out_of_scope", recoveryStatus: "not_required", settleResult: { policyVersion: this.settle.policyVersion, status: "aborted", elapsedMs: Date.now() - started, reasons: ["observation-not-complete"] } };
       if (preFingerprint !== candidate.sourceFingerprint) return { ...base, preFingerprint, endedAt: new Date().toISOString(), status: "denied", failureSignature: "stale_candidate", recoveryStatus: "not_required", settleResult: { policyVersion: this.settle.policyVersion, status: "aborted", elapsedMs: Date.now() - started, reasons: ["source-fingerprint-mismatch"] } };
+      const dialogDecision = resolveDialogPolicy(candidate, context);
+      if (dialogDecision.deniedReason) return { ...base, preFingerprint, endedAt: new Date().toISOString(), status: "denied", failureSignature: dialogDecision.deniedReason, recoveryStatus: "not_required", settleResult: { policyVersion: this.settle.policyVersion, status: "aborted", elapsedMs: Date.now() - started, reasons: [dialogDecision.deniedReason] } };
       const entry = this.entry(candidate.targetRef); const targetLocator = locator(entry.target, candidate.locatorRecipe);
+      const actionTimeout = dialogDecision.policy === "hold" ? Math.max(context.timeoutMs + 100, context.timeoutMs * 2) : context.timeoutMs;
       if (await targetLocator.count() !== 1) throw new Error("locator is no longer unique");
       const targetsBefore = new Set(this.targets.keys());
       if (candidate.actionKind === "click") {
         const openerTargetId = entry.ref.kind === "frame" ? entry.ref.contextId : entry.ref.targetId;
         if (openerTargetId) this.pendingPageTriggers.set(openerTargetId, candidate.candidateId);
       }
+      dialogControl = { candidateId: candidate.candidateId, policy: dialogDecision.policy, startedAt: Date.now(), timeoutMs: context.timeoutMs };
+      this.dialogInFlight = dialogControl;
       this.candidateInFlight = candidate;
-      if (candidate.actionKind === "click") await targetLocator.click({ timeout: context.timeoutMs });
-      else if (candidate.actionKind === "check") await targetLocator.check({ timeout: context.timeoutMs });
-      else if (candidate.actionKind === "fill" || candidate.actionKind === "select") { const value = await this.input?.(candidate, context); if (value === undefined) throw new Error("input value provider is unavailable"); if (candidate.actionKind === "fill") await targetLocator.fill(value, { timeout: context.timeoutMs }); else await targetLocator.selectOption(value, { timeout: context.timeoutMs }); }
-      else throw new Error("unsupported action kind");
-      const settleResult = await this.waitSettled(entry.target, started);
+      if (candidate.actionKind === "click") await targetLocator.click({ timeout: actionTimeout });
+      else if (candidate.actionKind === "check") await targetLocator.check({ timeout: actionTimeout });
+      else if (candidate.actionKind === "fill" || candidate.actionKind === "select") {
+        const value = await this.input?.(candidate, context);
+        if (value === undefined) throw new Error("input value provider is unavailable");
+        if (candidate.actionKind === "fill") await targetLocator.fill(value, { timeout: actionTimeout });
+        else await targetLocator.selectOption(value, { timeout: actionTimeout });
+      } else throw new Error("unsupported action kind");
+      const targetClosed = this.ref(entry).lifecycle !== "active";
+      const settleResult = targetClosed
+        ? { policyVersion: this.settle.policyVersion, status: "settled" as const, elapsedMs: Date.now() - started, reasons: ["target-closed"] }
+        : await this.waitSettled(entry.target, started);
       for (const [targetId, added] of this.targets) if (!targetsBefore.has(targetId) && added.pageMetadata) added.pageMetadata.triggerActionId ??= candidate.candidateId;
-      const after = await this.observe(candidate.targetRef, { runId: context.runId, scopeHosts: [...this.scopeHosts] });
-      return { ...base, preFingerprint, postFingerprint: fingerprintObservation(after).value, endedAt: new Date().toISOString(), status: settleResult.status === "settled" ? "executed" : "timeout", recoveryStatus: "not_required", targetChanges: this.targetDetails(), settleResult };
+      const returnEntry = targetClosed && this.activeTargetId ? this.targets.get(this.activeTargetId) : undefined;
+      const after = targetClosed
+        ? returnEntry && this.ref(returnEntry).lifecycle === "active"
+          ? await this.observe(this.ref(returnEntry), { runId: context.runId, scopeHosts: [...this.scopeHosts] })
+          : undefined
+        : await this.observe(candidate.targetRef, { runId: context.runId, scopeHosts: [...this.scopeHosts] });
+      const postFingerprint = after ? fingerprintObservation(after).value : undefined;
+      const dialogChange = dialogControl.event ? [{ ...dialogControl.event }] : [];
+      const targetChanges = [...this.targetDetails(), ...this.topologyChanges(), ...dialogChange];
+      if (dialogControl.outcome === "held-timeout") {
+        return { ...base, preFingerprint, ...(postFingerprint ? { postFingerprint } : {}), endedAt: new Date().toISOString(), status: "timeout", failureSignature: "dialog_hold_timeout", recoveryStatus: "not_attempted", targetChanges, settleResult: { policyVersion: this.settle.policyVersion, status: "timed_out", elapsedMs: Date.now() - started, reasons: ["dialog-hold-timeout"] } };
+      }
+      return { ...base, preFingerprint, ...(postFingerprint ? { postFingerprint } : {}), endedAt: new Date().toISOString(), status: settleResult.status === "settled" ? "executed" : "timeout", recoveryStatus: "not_required", targetChanges, settleResult };
     } catch (error) {
-      const status = statusFor(error); return { ...base, preFingerprint: candidate.sourceFingerprint, endedAt: new Date().toISOString(), status, failureSignature: error instanceof Error ? error.name : "adapter_error", recoveryStatus: "not_attempted", settleResult: { policyVersion: this.settle.policyVersion, status: status === "target_lost" ? "target_lost" : "aborted", elapsedMs: Date.now() - started, reasons: [status] } };
-    } finally { if (this.candidateInFlight?.candidateId === candidate.candidateId) this.candidateInFlight = undefined; }
+      const status = statusFor(error);
+      return { ...base, preFingerprint: candidate.sourceFingerprint, endedAt: new Date().toISOString(), status, failureSignature: error instanceof Error ? error.name : "adapter_error", recoveryStatus: "not_attempted", targetChanges: [...this.targetDetails(), ...this.topologyChanges()], settleResult: { policyVersion: this.settle.policyVersion, status: status === "target_lost" ? "target_lost" : "aborted", elapsedMs: Date.now() - started, reasons: [status] } };
+    } finally {
+      if (dialogControl?.timer) clearTimeout(dialogControl.timer);
+      if (this.dialogInFlight === dialogControl) this.dialogInFlight = undefined;
+      if (this.candidateInFlight?.candidateId === candidate.candidateId) this.candidateInFlight = undefined;
+    }
   }
 
   async recover(failure: AdapterFailure, context: RecoverContext): Promise<RecoveryResult> {

@@ -31,7 +31,7 @@ Chromium実行と証跡が得られるまで未チェックとする。
 | 完了 | チェックID | 要件ID | 仕様節 | 検証方法 | 証跡 |
 |---|---|---|---|---|---|
 | [x] | CHK-AE-004-I-001 | REQ-WEB-001 | §4・§7〜§9 target topology | Chromium固定corpus・trace検証 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
-| [ ] | CHK-AE-004-I-002 | REQ-WEB-002 | §4・§7〜§9 target topology | Chromium固定corpus・trace検証 | 未取得 |
+| [x] | CHK-AE-004-I-002 | REQ-WEB-002 | §4・§7〜§9 target topology | Chromium固定corpus・trace検証 | [AC-20260715-11](../../acceptance/AC-20260715-11.playwright-dialog-target-topology.md) |
 | [x] | CHK-AE-004-I-003 | REQ-WEB-003 | §4・§7〜§9 target topology | Chromium固定corpus・trace検証 | [AC-20260715-10](../../acceptance/AC-20260715-10.playwright-frame-offpage-events.md) |
 | [x] | CHK-AE-004-I-004 | REQ-WEB-004 | §4・§7〜§9 target topology | Chromium固定corpus・trace検証 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |
 | [x] | CHK-AE-004-I-005 | REQ-WEB-005 | §4・§7〜§9 target topology | Chromium固定corpus・trace検証 | [AC-20260715-09](../../acceptance/AC-20260715-09.adaptive-contract-topology-recovery.md) |

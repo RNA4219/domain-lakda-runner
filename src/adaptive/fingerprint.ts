@@ -11,6 +11,7 @@ const VOLATILE_KEYS = new Set([
   "capturedAt",
   "receivedAt",
   "durationMs",
+  "events",
 ]);
 
 function normalizedUrl(value: string): string {

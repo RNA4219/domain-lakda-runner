@@ -334,7 +334,7 @@ export async function runAdaptiveExplore(config: LakdaConfig, collector: Artifac
       }
       if (!budget.tryConsume()) { outcome = "partial"; terminationReason = "rate_limit"; break; }
       trace.push({ type: "candidate", candidate, ...(inputCase ? { inputCase } : {}) });
-      const executionContext = { runId: collector.metadata.runId, personaRef: config.persona, timeoutMs: Math.min(config.adaptive.settlePolicy.maxWaitMs, Math.max(1, config.durationMs - elapsed)), ...(inputCase ? { inputCaseRef: inputCase.caseId } : {}) };
+      const executionContext = { runId: collector.metadata.runId, personaRef: config.persona, timeoutMs: Math.min(config.adaptive.settlePolicy.maxWaitMs, Math.max(1, config.durationMs - elapsed)), allowedMutationKinds: config.adaptive.safety.allowMutationKinds, ...(inputCase ? { inputCaseRef: inputCase.caseId } : {}) };
       const securityExecution = securityController && candidate.mutationKind !== "none"
         ? await securityController.execute(candidate, executionContext)
         : undefined;
