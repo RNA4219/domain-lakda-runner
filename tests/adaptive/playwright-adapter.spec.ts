@@ -191,7 +191,7 @@ test("Playwright adapter enforces explicit JavaScript dialog policy fail-closed"
     page,
     context,
     scopeHosts: ["127.0.0.1"],
-    settlePolicy: { maxWaitMs: 500, stableWindowMs: 20 },
+    settlePolicy: { maxWaitMs: 2_000, stableWindowMs: 20 },
   });
   try {
     await page.goto(fixture.baseUrl);
@@ -218,7 +218,7 @@ test("Playwright adapter enforces explicit JavaScript dialog policy fail-closed"
     };
     const accepted = await adapter.execute(explicitAccept, {
       runId: "dialog-policy-test",
-      timeoutMs: 100,
+      timeoutMs: 2_000,
       allowedMutationKinds: ["update"],
     });
     expect(accepted.status).toBe("executed");

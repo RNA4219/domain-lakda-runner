@@ -419,8 +419,10 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
     });
   }
 
-  private async waitSettled(target: Target, started: number): Promise<ExecutionResult["settleResult"]> {
-    let before = await target.evaluate(() => [location.href, document.querySelectorAll("button,a,input,select,textarea,[role]").length, document.body?.innerText.slice(0, 512) ?? ""].join("|")); let stable = Date.now();
+  private async waitSettled(target: Target): Promise<ExecutionResult["settleResult"]> {
+    const beforeSnapshot = await target.evaluate(() => [location.href, document.querySelectorAll("button,a,input,select,textarea,[role]").length, document.body?.innerText.slice(0, 512) ?? ""].join("|"));
+    const started = Date.now();
+    let before = beforeSnapshot; let stable = started;
     while (Date.now() - started < this.settle.maxWaitMs) {
       await new Promise(resolve => setTimeout(resolve, Math.min(50, this.settle.stableWindowMs)));
       const after = await target.evaluate(() => [location.href, document.querySelectorAll("button,a,input,select,textarea,[role]").length, document.body?.innerText.slice(0, 512) ?? ""].join("|"));
@@ -442,7 +444,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
       const dialogDecision = resolveDialogPolicy(candidate, context);
       if (dialogDecision.deniedReason) return { ...base, preFingerprint, endedAt: new Date().toISOString(), status: "denied", failureSignature: dialogDecision.deniedReason, recoveryStatus: "not_required", settleResult: { policyVersion: this.settle.policyVersion, status: "aborted", elapsedMs: Date.now() - started, reasons: [dialogDecision.deniedReason] } };
       const entry = this.entry(candidate.targetRef); const targetLocator = locator(entry.target, candidate.locatorRecipe);
-      const actionTimeout = dialogDecision.policy === "hold" ? Math.max(context.timeoutMs + 100, context.timeoutMs * 2) : context.timeoutMs;
+      const actionTimeout = dialogDecision.policy === "hold" ? context.timeoutMs + Math.max(this.settle.maxWaitMs, 1_000) : context.timeoutMs;
       if (await targetLocator.count() !== 1) throw new Error("locator is no longer unique");
       const targetsBefore = new Set(this.targets.keys());
       if (candidate.actionKind === "click") {
@@ -463,7 +465,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
       const targetClosed = this.ref(entry).lifecycle !== "active";
       const settleResult = targetClosed
         ? { policyVersion: this.settle.policyVersion, status: "settled" as const, elapsedMs: Date.now() - started, reasons: ["target-closed"] }
-        : await this.waitSettled(entry.target, started);
+        : await this.waitSettled(entry.target);
       for (const [targetId, added] of this.targets) if (!targetsBefore.has(targetId) && added.pageMetadata) added.pageMetadata.triggerActionId ??= candidate.candidateId;
       const returnEntry = targetClosed && this.activeTargetId ? this.targets.get(this.activeTargetId) : undefined;
       const after = targetClosed
