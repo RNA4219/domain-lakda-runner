@@ -1,5 +1,5 @@
 {
-  "generated_at": "00031",
+  "generated_at": "00033",
   "nodes": {
     "README.md": {
       "role": "overview",
@@ -358,6 +358,46 @@
     "docs/acceptance/AC-20260715-13.manual-bb-package-boundary.md": {
       "role": "doc",
       "caps": "docs/birdseye/caps/docs.acceptance.AC-20260715-13.manual-bb-package-boundary.md.json"
+    },
+    "docs/spec/Lakda拡張要件定義書.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.spec.Lakda拡張要件定義書.md.json"
+    },
+    "docs/IMPLEMENTATION-PLAN-LAKDA-EXTENSION.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.IMPLEMENTATION-PLAN-LAKDA-EXTENSION.md.json"
+    },
+    "docs/spec/lakda-extension/CHECKLIST-01-COMBINATION-TESTING.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.spec.lakda-extension.CHECKLIST-01-COMBINATION-TESTING.md.json"
+    },
+    "docs/spec/lakda-extension/CHECKLIST-02-SIGNAL-LLM-SCOUTING.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.spec.lakda-extension.CHECKLIST-02-SIGNAL-LLM-SCOUTING.md.json"
+    },
+    "docs/spec/lakda-extension/CHECKLIST-03-INVESTIGATE-EVIDENCE.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.spec.lakda-extension.CHECKLIST-03-INVESTIGATE-EVIDENCE.md.json"
+    },
+    "docs/spec/lakda-extension/EVALUATION-LAKDA-EXTENSION.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.spec.lakda-extension.EVALUATION-LAKDA-EXTENSION.md.json"
+    },
+    "docs/spec/lakda-extension/README.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.spec.lakda-extension.README.md.json"
+    },
+    "docs/spec/lakda-extension/SPEC-01-COMBINATION-TESTING.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.spec.lakda-extension.SPEC-01-COMBINATION-TESTING.md.json"
+    },
+    "docs/spec/lakda-extension/SPEC-02-SIGNAL-LLM-SCOUTING.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.spec.lakda-extension.SPEC-02-SIGNAL-LLM-SCOUTING.md.json"
+    },
+    "docs/spec/lakda-extension/SPEC-03-INVESTIGATE-EVIDENCE.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.spec.lakda-extension.SPEC-03-INVESTIGATE-EVIDENCE.md.json"
     }
   },
   "edges": [
