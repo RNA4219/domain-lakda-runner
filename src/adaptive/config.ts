@@ -39,6 +39,7 @@ export function validateAdaptiveConfig(adaptive: AdaptiveConfig | undefined, con
   if (groups.length === 0 || groups.some(group => group.length === 0)) throw new Error("adaptive stopWhenには空でないanyまたはallが必要です");
   groups.flat().forEach(assertStopCondition);
   if (!adaptive.settlePolicy.policyVersion || !Number.isInteger(adaptive.settlePolicy.maxWaitMs) || adaptive.settlePolicy.maxWaitMs < 1 || !Number.isInteger(adaptive.settlePolicy.stableWindowMs) || adaptive.settlePolicy.stableWindowMs < 0) throw new Error("adaptive settlePolicyが不正です");
+  if (adaptive.settlePolicy.readiness && !adaptive.settlePolicy.readiness.testId && !adaptive.settlePolicy.readiness.role) throw new Error("adaptive settlePolicy readinessにはtestIdまたはroleが必要です");
   if (!adaptive.fingerprintPolicy.algorithmVersion || !adaptive.fingerprintPolicy.canonicalizationVersion) throw new Error("adaptive fingerprintPolicyが不正です");
   if (!Number.isInteger(adaptive.recovery.maxBacktracks) || adaptive.recovery.maxBacktracks < 0 || !Number.isInteger(adaptive.recovery.maxAttemptsPerState) || adaptive.recovery.maxAttemptsPerState < 1) throw new Error("adaptive recoveryが不正です");
   if (!adaptive.safety.allowTargetKinds.length || adaptive.safety.allowMutationKinds.includes("delete") || adaptive.safety.allowMutationKinds.includes("purchase") || adaptive.safety.allowMutationKinds.includes("publish") || adaptive.safety.allowMutationKinds.includes("external-message") || adaptive.safety.allowMutationKinds.includes("credential-change")) {
