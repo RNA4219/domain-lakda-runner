@@ -1,13 +1,13 @@
 import type { BrowserContext, Frame, Locator, Page } from "playwright";
 import { findSensitive, redact, sha256 } from "../core/redaction.js";
 import { fingerprintObservation } from "../adaptive/fingerprint.js";
-import type { ActionCandidate, AdapterCapabilities, CandidateDiscoveryResult, CoverageDebt, DialogHandling, EvidenceArtifactRef, ExecutionResult, LocatorRecipe, LocatorScope, MutationKind, Observation, TargetRef } from "../adaptive/contracts.js";
+import type { ActionCandidate, AdapterCapabilities, CandidateDiscoveryResult, CoverageDebt, DialogHandling, EvidenceArtifactRef, ExecutionResult, LocatorRecipe, LocatorScope, MutationClassification, MutationKind, Observation, ProductActionContract, TargetRef } from "../adaptive/contracts.js";
 import type { AdaptiveAdapter, AdapterFailure, EvidenceRequest, ExecuteContext, ObserveContext, RecoverContext, RecoveryResult } from "./types.js";
 
 type Target = Page | Frame;
 type Entry = { target: Target; ref: TargetRef; pageMetadata?: { openerTargetId?: string; triggerActionId?: string; initialUrl?: string } };
 type ScopeHint = { boundary: LocatorScope["boundary"]; role: string; testId?: string; name?: string; identifierHash?: string; keySource: LocatorScope["keySource"]; };
-type Control = { ordinal: number; actionKind: "click" | "fill" | "check" | "select"; role?: string; name?: string; testId?: string; fieldId?: string; href?: string; hint: string; disabled: boolean; scopeHints: ScopeHint[] };
+type Control = { ordinal: number; actionKind: "click" | "fill" | "check" | "select"; role?: string; name?: string; testId?: string; fieldId?: string; href?: string; actionId?: string; declaredMutationKind?: string; formMethod?: string; hint: string; disabled: boolean; scopeHints: ScopeHint[] };
 type DisplayElement = { role: "heading" | "dialog" | "alert" | "status"; name: string; modal?: true; open?: boolean; level?: number };
 type DialogEvent = {
   eventKind: "js-dialog";
@@ -38,10 +38,10 @@ type TargetTopologyEvent = {
 };
 type BrowserEvent = { eventId: string; kind: "console-error" | "pageerror" | "crash" | "request-failed" | "http-error" | "download"; targetId: string; messageRef?: string; url?: string; status?: number; method?: string };
 type InputValueProvider = (candidate: ActionCandidate, context: ExecuteContext) => string | undefined | Promise<string | undefined>;
-export type PlaywrightAdaptiveAdapterOptions = { page: Page; context?: BrowserContext; scopeHosts: string[]; adapterId?: string; inputValueProvider?: InputValueProvider; settlePolicy?: { maxWaitMs: number; stableWindowMs: number; policyVersion?: string } };
+export type PlaywrightAdaptiveAdapterOptions = { page: Page; context?: BrowserContext; scopeHosts: string[]; adapterId?: string; inputValueProvider?: InputValueProvider; actionContracts?: ProductActionContract[]; settlePolicy?: { maxWaitMs: number; stableWindowMs: number; policyVersion?: string } };
 
 const version = "lakda/adaptive-contracts/v1" as const;
-const policy = { maxWaitMs: 5_000, stableWindowMs: 200, policyVersion: "lakda-settle/v1" };
+const policy = { maxWaitMs: 5_000, stableWindowMs: 200, policyVersion: "lightweight-dom/v1" };
 const allowedRoles = new Set(["button", "link", "textbox", "checkbox", "combobox", "option", "menuitem", "tab"]);
 const publicText = (value?: string): string | undefined => value ? redact(value.replace(/\s+/g, " ").trim().slice(0, 160)) : undefined;
 const publicLocator = (value?: string): value is string => Boolean(value && findSensitive(value).length === 0);
@@ -54,16 +54,26 @@ function safeUrl(value: string): string | undefined {
     return `${url.origin}${url.pathname}${query.length ? `?${query.join("&")}` : ""}`;
   } catch { return undefined; }
 }
-function mutation(value: string, actionKind: Control["actionKind"]): MutationKind {
+type ClassifiedMutation = { mutationKind: MutationKind; mutationClassification: MutationClassification };
+const mutationKinds = new Set<MutationKind>(["none", "create", "update", "delete", "purchase", "publish", "external-message", "credential-change", "parameter-mutation", "skip", "reorder", "double-execution", "race", "unknown"]);
+function methodMutation(method: string): MutationKind | undefined {
+  if (["get", "head", "options"].includes(method)) return "none";
+  if (["post", "put", "patch"].includes(method)) return "update";
+  if (method === "delete") return "delete";
+  return undefined;
+}
+function heuristicMutation(value: string, actionKind: Control["actionKind"]): MutationKind | undefined {
   if (actionKind !== "click") return "none";
   const text = value.toLowerCase();
+  if (/(?:not\s+(?:save|submit|change|delete)|(?:save|submit|変更|保存)しない)/.test(text)) return undefined;
   if (/(delete|remove|destroy|削除)/.test(text)) return "delete";
   if (/(purchase|buy|checkout|order|payment|決済|購入|注文)/.test(text)) return "purchase";
   if (/(publish|post|公開|投稿)/.test(text)) return "publish";
   if (/(send|message|email|送信)/.test(text)) return "external-message";
   if (/(password|credential|認証情報|パスワード)/.test(text)) return "credential-change";
-  if (/(create|save|submit|confirm|update|登録|保存|更新|変更|作成|追加|確定)/.test(text) && !/(search|filter|next|previous|back|open|view|detail|検索|絞り込み|次|前|戻る|表示|詳細)/.test(text)) return "update";
-  return "none";
+  if (/(search|filter|next|previous|back|open|view|detail|close|cancel|検索|絞り込み|次|前|戻る|表示|詳細|閉じる|キャンセル)/.test(text)) return "none";
+  if (/(create|save|submit|update|登録|保存|更新|変更|作成|追加)/.test(text)) return "update";
+  return undefined;
 }
 function statusFor(error: unknown): ExecutionResult["status"] {
   const text = error instanceof Error ? error.message : "";
@@ -103,6 +113,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
   private readonly targets = new Map<string, Entry>();
   private readonly ids = new WeakMap<object, string>();
   private readonly scopeHosts: Set<string>;
+  private readonly actionContracts = new Map<string, MutationKind>();
   private readonly input?: InputValueProvider;
   private readonly contextEvents: boolean;
   private readonly settle: Required<NonNullable<PlaywrightAdaptiveAdapterOptions["settlePolicy"]>>;
@@ -122,6 +133,10 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
   constructor(options: PlaywrightAdaptiveAdapterOptions) {
     this.adapterId = options.adapterId ?? "playwright";
     this.scopeHosts = new Set(options.scopeHosts);
+    for (const contract of options.actionContracts ?? []) {
+      if (!contract.actionId.trim() || this.actionContracts.has(contract.actionId)) throw new Error("actionContractsには一意なactionIdが必要です");
+      this.actionContracts.set(contract.actionId, contract.mutationKind);
+    }
     this.input = options.inputValueProvider;
     this.contextEvents = Boolean(options.context);
     this.settle = { ...policy, ...options.settlePolicy };
@@ -358,7 +373,12 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
           ? element.id || element.getAttribute("data-testid") || element.getAttribute("name") || (element.form ? `field-${[...element.form.elements].indexOf(element)}` : undefined)
           : undefined;
         const disabled = (element instanceof HTMLInputElement || element instanceof HTMLButtonElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement) && element.disabled || element.getAttribute("aria-disabled") === "true";
-        return [{ ordinal, actionKind: a, role: r, name: name(element), testId: element.getAttribute("data-testid") ?? undefined, fieldId, href: element instanceof HTMLAnchorElement ? element.href : undefined, hint: `${name(element)} ${element.getAttribute("type") ?? ""}`, disabled, scopeHints: scopeHints(element) }];
+        const actionId = element.getAttribute("data-lakda-action-id")?.trim() || undefined;
+        const declaredMutationKind = element.getAttribute("data-lakda-mutation-kind")?.trim().toLowerCase() || undefined;
+        const explicitMethod = element.getAttribute("data-lakda-http-method")?.trim().toLowerCase() || undefined;
+        const submitter = (element instanceof HTMLButtonElement || element instanceof HTMLInputElement) && Boolean(element.form) && ["submit", "image"].includes(element.type);
+        const formMethod = explicitMethod ?? (submitter ? (element.getAttribute("formmethod") ?? element.form?.getAttribute("method") ?? "get").trim().toLowerCase() : undefined);
+        return [{ ordinal, actionKind: a, role: r, name: name(element), testId: element.getAttribute("data-testid") ?? undefined, fieldId, href: element instanceof HTMLAnchorElement ? element.href : undefined, ...(actionId ? { actionId } : {}), ...(declaredMutationKind ? { declaredMutationKind } : {}), ...(formMethod ? { formMethod } : {}), hint: `${name(element)} ${element.getAttribute("type") ?? ""}`, disabled, scopeHints: scopeHints(element) }];
       });
     });
   }
@@ -440,12 +460,31 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
     return scopes;
   }
 
+  private classifyMutation(control: Control): ClassifiedMutation {
+    const actionId = control.actionId ? { actionId: control.actionId } : {};
+    if (control.declaredMutationKind && !mutationKinds.has(control.declaredMutationKind as MutationKind)) {
+      return { mutationKind: "unknown", mutationClassification: { source: "unknown", ruleId: "invalid-data-lakda-mutation-kind/v1", ...actionId } };
+    }
+    if (control.formMethod && !methodMutation(control.formMethod)) {
+      return { mutationKind: "unknown", mutationClassification: { source: "unknown", ruleId: "unsupported-http-method/v1", ...actionId } };
+    }
+    const evidence: ClassifiedMutation[] = [];
+    if (control.declaredMutationKind) evidence.push({ mutationKind: control.declaredMutationKind as MutationKind, mutationClassification: { source: "mechanical", ruleId: "data-lakda-mutation-kind/v1", ...actionId } });
+    if (control.formMethod) evidence.push({ mutationKind: methodMutation(control.formMethod)!, mutationClassification: { source: "mechanical", ruleId: `http-method/${control.formMethod}/v1`, ...actionId } });
+    const contracted = control.actionId ? this.actionContracts.get(control.actionId) : undefined;
+    if (contracted) evidence.push({ mutationKind: contracted, mutationClassification: { source: "action-contract", ruleId: "action-contract/v1", ...actionId } });
+    const inferred = heuristicMutation(control.hint, control.actionKind);
+    if (inferred !== undefined) evidence.push({ mutationKind: inferred, mutationClassification: { source: "heuristic", ruleId: "label-heuristic/v1", ...actionId } });
+    if (!evidence.length) return { mutationKind: "unknown", mutationClassification: { source: "unknown", ruleId: control.actionId ? "unmapped-action-id/v1" : "unclassified-control/v1", ...actionId } };
+    if (new Set(evidence.map(value => value.mutationKind)).size > 1) return { mutationKind: "unknown", mutationClassification: { source: "conflict", ruleId: "mutation-classification-conflict/v1", ...actionId } };
+    return evidence[0]!;
+  }
   private candidate(observation: Observation, control: Control, sourceFingerprint: string, recipe: LocatorRecipe): ActionCandidate {
     const inputProfileRef = control.actionKind === "fill" || control.actionKind === "select" ? `input-field:${control.fieldId}` : undefined;
     const scope = recipe.scope ? `${recipe.scope.strategy}:${recipe.scope.value}:${recipe.scope.name ?? ""}` : "";
     const framePath = observation.targetRef.framePath ? { framePath: [...observation.targetRef.framePath] } : {};
     const locatorRecipe = { ...recipe, ...framePath };
-    const mutationKind = mutation(control.hint, control.actionKind);
+    const { mutationKind, mutationClassification } = this.classifyMutation(control);
     return {
       schemaVersion: version,
       candidateId: `pw-${sha256(`${observation.targetRef.targetId}:${control.actionKind}:${recipe.strategy}:${recipe.value}:${recipe.name ?? ""}:${scope}:${inputProfileRef ?? ""}`).slice(0, 20)}`,
@@ -458,6 +497,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
       generatedBy: { ruleId: recipe.strategy === "scoped-role" ? "visible-enabled-scoped-control/v1" : "visible-enabled-unique-control/v1", observationId: observation.observationId, reason: recipe.strategy === "scoped-role" ? "visible-enabled-scoped-control" : "visible-enabled-unique-control" },
       risk: { weight: mutationKind === "none" ? 1 : mutationKind === "update" ? 4 : 10, mutationCost: mutationKind === "none" ? 1 : 4 },
       mutationKind,
+      mutationClassification,
     };
   }
 

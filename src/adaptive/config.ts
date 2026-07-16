@@ -30,6 +30,11 @@ export function validateAdaptiveConfig(adaptive: AdaptiveConfig | undefined, con
     if (!config.safety.allowHosts.includes(host)) throw new Error("external initialTarget host must be in allowlist");
   }
   if (!strategies.has(adaptive.generator.strategy)) throw new Error("adaptive generator strategyが未対応です");
+  const actionIds = new Set<string>();
+  for (const contract of adaptive.actionContracts ?? []) {
+    if (!contract.actionId.trim() || actionIds.has(contract.actionId)) throw new Error("adaptive actionContractsには一意なactionIdが必要です");
+    actionIds.add(contract.actionId);
+  }
   const groups = [adaptive.stopWhen.any, adaptive.stopWhen.all].filter((value): value is AdaptiveStopCondition[] => value !== undefined);
   if (groups.length === 0 || groups.some(group => group.length === 0)) throw new Error("adaptive stopWhenには空でないanyまたはallが必要です");
   groups.flat().forEach(assertStopCondition);
