@@ -4,6 +4,13 @@
 
 - P7の固定corpus実環境受入、実機Airtest/Poco、認可済みSecurity target、manual-bb/QEG Gateを継続する。
 
+## 0.3.0-rc.3 - 2026-07-16
+
+### Fixed
+
+- `--trace` と `--config` のどちらが欠けても target 接続前に fail-closed することを fixture で個別に検証。
+- `lakda/investigation/v1` の `traceRef`、`configDigest`、`divergenceReason`、`terminationReason` を公開Schemaへ反映し、portable ref以外を拒否。
+
 ## 0.3.0-rc.2 - 2026-07-16
 
 ### Added

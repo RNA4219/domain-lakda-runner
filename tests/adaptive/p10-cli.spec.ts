@@ -1,15 +1,27 @@
 import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { createRequire } from "node:module";
+import { dirname, join, resolve } from "node:path";
 import { runCli } from "../../src/cli.js";
 import { loadConfig } from "../../src/core/config.js";
 import { runLakda } from "../../src/core/runner.js";
 import { canonicalJson } from "../../src/core/plan.js";
 import { startFixture } from "../fixtures/server.js";
-import { createInvestigation, assertPromotionReady, promoteInvestigation, runStrictReplay } from "../../src/adaptive/investigation.js";
+import { createInvestigation, assertInvestigation, assertPromotionReady, promoteInvestigation, runStrictReplay } from "../../src/adaptive/investigation.js";
 import { candidateDivergence, executionDivergence, oracleDivergence, validateAdaptiveReplayTrace, validateReplayScope } from "../../src/adaptive/replay.js";
 import type { ActionCandidate, ExecutionResult, OracleResult } from "../../src/adaptive/contracts.js";
 import type { ExplorationLead } from "../../src/adaptive/scouting.js";
+
+type Validator = ((value: unknown) => boolean) & { errors?: unknown };
+type AjvInstance = { compile(schema: object): Validator };
+type AjvConstructor = new (options: object) => AjvInstance;
+const Ajv = createRequire(import.meta.url)("ajv/dist/2020").default as AjvConstructor;
+
+function investigationValidator(): Validator {
+  const schema = JSON.parse(readFileSync(resolve("schemas/lakda-investigation-v1.schema.json"), "utf8")) as object;
+  return new Ajv({ allErrors: true, strict: false, validateFormats: false }).compile(schema);
+}
 
 function candidate(overrides: Partial<ActionCandidate> = {}): ActionCandidate {
   return {
@@ -93,6 +105,24 @@ test("P10 investigation is deterministic for fixed input and clock", async () =>
   expect(canonicalJson(first)).toBe(canonicalJson(second));
 });
 
+test("P10 investigation schema accepts portable replay metadata and rejects unsafe refs", async () => {
+  const investigation = await runStrictReplay(createInvestigation(lead(), "reviewer:test", "2026-07-16T00:00:00.000Z"), () => ({
+    reproduced: true,
+    oracleRefs: ["oracle:sha256:" + "b".repeat(64)],
+    evidenceRefs: ["adaptive/trace.json"],
+    traceRef: "adaptive/trace.json",
+    configDigest: "sha256:" + "c".repeat(64),
+    terminationReason: "completed",
+    details: { stable: true },
+  }));
+  const validate = investigationValidator();
+  expect(validate(investigation)).toBe(true);
+  expect(validate({ ...investigation, extra: true })).toBe(false);
+  expect(validate({ ...investigation, evidenceRefs: ["C:/private/trace.json"] })).toBe(false);
+  expect(() => assertInvestigation({ ...investigation, evidenceRefs: ["adaptive/secret.json"] })).toThrow(/evidenceRefs/);
+  expect(() => assertInvestigation({ ...investigation, traceRef: "/private/trace.json" })).toThrow(/traceRef/);
+});
+
 test("P10 reproduced investigation can be promoted and parent digest is derived", async () => {
   const investigation = await runStrictReplay(createInvestigation(lead(), "reviewer:test", "2026-07-16T00:00:00.000Z"), () => ({ reproduced: true, oracleRefs: ["oracle:sha256:" + "b".repeat(64)], evidenceRefs: ["adaptive/trace.json"], details: { stable: true } }));
   assertPromotionReady(investigation, "trace", ["adaptive/trace.json"], () => true);
@@ -123,15 +153,21 @@ test("P10 generated trace with partial replay expectations is rejected, divergen
   const divergenceOnly = { schemaVersion: "lakda/adaptive-trace/v1" as const, seed: 42, trace: [{ type: "replay-divergence", reason: "candidate-unresolved" }] };
   expect(() => validateAdaptiveReplayTrace(divergenceOnly, { requireReplayable: false })).not.toThrow();
 });
-test("P10 preflight missing trace/config never reaches target", async () => {
+test("P10 preflight missing trace or config never reaches target", async () => {
   let requests = 0;
   const fixture = await startFixture(() => { requests += 1; return { body: "<main>ok</main>" }; });
   const dir = await mkdtemp(join(process.cwd(), "test-results", "p10-preflight-"));
   try {
     const configPath = join(dir, "config.json");
     await writeFile(configPath, JSON.stringify({ schemaVersion: "lakda/v1", mode: "adaptive-explore", baseUrl: fixture.baseUrl, seed: 42, outputDir: dir, adaptive: { schemaVersion: "lakda/adaptive-config/v1", adapter: { id: "playwright" }, generator: { strategy: "least-visited-transition" }, stopWhen: { any: [{ type: "actionCoverage", atLeast: 1 }] }, settlePolicy: { policyVersion: "settle/v1", maxWaitMs: 500, stableWindowMs: 10 }, fingerprintPolicy: { algorithmVersion: "sha256/v1", canonicalizationVersion: "canonical/v1" }, recovery: { maxBacktracks: 0, maxAttemptsPerState: 1 }, safety: { allowTargetKinds: ["page"], denyActionIds: [], allowMutationKinds: ["none"] } }, safety: { allowHosts: ["127.0.0.1"] } }));
-    const code = await runCli(["investigate", "--lead", join(dir, "missing-lead.json"), "--trace", join(dir, "missing-trace.json"), "--config", configPath, "--reviewer", "reviewer:test", "--out", join(dir, "out.json")]);
-    expect(code).not.toBe(0);
+    const leadPath = join(dir, "lead.json");
+    const tracePath = join(dir, "trace.json");
+    await writeFile(leadPath, JSON.stringify(lead()));
+    await writeFile(tracePath, JSON.stringify(traceFor()));
+    const missingTrace = await runCli(["investigate", "--lead", leadPath, "--trace", join(dir, "missing-trace.json"), "--config", configPath, "--reviewer", "reviewer:test", "--out", join(dir, "missing-trace.json")]);
+    const missingConfig = await runCli(["investigate", "--lead", leadPath, "--trace", tracePath, "--config", join(dir, "missing-config.json"), "--reviewer", "reviewer:test", "--out", join(dir, "missing-config.json")]);
+    expect(missingTrace).not.toBe(0);
+    expect(missingConfig).not.toBe(0);
     expect(requests).toBe(0);
   } finally { await fixture.close(); await rm(dir, { recursive: true, force: true }); }
 });

@@ -39,6 +39,8 @@ REQ-LX-EVD-001, REQ-LX-EVD-002, REQ-LX-EVD-003, REQ-LX-EVD-004, REQ-LX-EVD-005, 
 
 investigate開始時に `--lead`、`--trace`、`--config`、`--reviewer`、`--out` を必須とし、Lead、source run、trace、Signal、CombinationCase、artifactの存在、schema version、SHA-256を検証する。configのseed、base URL/allowHosts、target kind、URL scopeも対象接続前に検証し、検証失敗は非0 exitで対象へ接続しない。再構築や別refへの暗黙置換をしない。
 
+Investigationは既存のlakda/investigation/v1を維持し、eplayCount: 1、replayDigest、oracleRefs、evidenceRefsを記録する。必要時の	raceRef、configDigest、divergenceReason、	erminationReasonも同schemaの後方互換な任意項目であり、refは絶対path、storageState、secret/PIIを含まないportableな値だけを許可する。
+
 参照runは一回だけstrict replayし、生成candidateを元candidateへ再解決したうえで、execution status、pre/post fingerprint、settle status、popup/iframe/new-tabを含むtarget topology、generic/product/security oracleの安定署名を比較する。正常に一致した `reproduced` だけをstep-by-step人手調査へ移行する。candidate unresolved、scope/safety違反、divergence、target lost、artifact欠落はfail-closedで、`replay_diverged` または `inconclusive` の理由付きrecordを確定する。
 
 ### Promote

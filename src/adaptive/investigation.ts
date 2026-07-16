@@ -72,7 +72,7 @@ export function assertInvestigation(value: unknown): asserts value is Investigat
   if (current.investigationId !== expectedId) throw new Error("investigationId does not match parent digest");
   if (current.replayDigest !== undefined && (typeof current.replayDigest !== "string" || !/^sha256:[0-9a-f]{64}$/.test(current.replayDigest))) throw new Error("replayDigest must be sha256");
   for (const key of ["oracleRefs", "evidenceRefs"] as const) {
-    if (current[key] !== undefined && (!Array.isArray(current[key]) || current[key].some(ref => typeof ref !== "string" || !ref.trim()))) throw new Error(key + " must be string refs");
+    if (current[key] !== undefined && (!Array.isArray(current[key]) || current[key].some(ref => typeof ref !== "string" || !portableRef(ref)))) throw new Error(key + " must be portable public refs");
   }
   if (current.status === "reproduced" && (!current.replayDigest || !Array.isArray(current.oracleRefs) || current.oracleRefs.length === 0 || !Array.isArray(current.evidenceRefs) || current.evidenceRefs.length === 0)) throw new Error("reproduced investigation requires replayDigest, oracleRefs, and evidenceRefs");
   if (current.traceRef !== undefined && (typeof current.traceRef !== "string" || !portableRef(current.traceRef))) throw new Error("traceRef must be portable");
