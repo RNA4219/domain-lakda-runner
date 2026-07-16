@@ -198,6 +198,40 @@ test("Playwright adapter classifies mutation from mechanical data, product contr
     expect(candidate("unknown")).toMatchObject({ mutationKind: "unknown", mutationClassification: { source: "unknown", ruleId: "unclassified-control/v1" } });
   } finally { await context.close(); await browser.close(); await fixture.close(); }
 });
+test("Playwright adapter consensus settle requires DOM, network, topology, and readiness signals", async () => {
+  const fixture = await startFixture(url => url.pathname === "/popup" ? { body: "<h1>Popup</h1>" } : { body: `<main>
+    <output data-testid="ready" hidden>pending</output>
+    <button data-testid="render" onclick="fetch('/slow').then(() => { document.querySelector('[data-testid=ready]').hidden = false; document.querySelector('[data-testid=ready]').textContent = 'ready'; })">Render</button>
+    <button data-testid="poll" onclick="window.polling = setInterval(() => fetch('/poll'), 5)">Poll</button>
+    <button data-testid="dialog-consensus" onclick="alert('fixture dialog')">Dialog</button>
+    <a data-testid="popup-consensus" target="_blank" href="/popup">Open popup</a>
+  </main>` });
+  const browser = await chromium.launch(); const context = await browser.newContext(); const page = await context.newPage();
+  await page.route("**/slow", async route => { await new Promise(resolve => setTimeout(resolve, 35)); await route.fulfill({ body: "ok" }); });
+  const adapter = new PlaywrightAdaptiveAdapter({ page, context, scopeHosts: ["127.0.0.1"], settlePolicy: { policyVersion: "consensus/v1", maxWaitMs: 1_000, stableWindowMs: 25, readiness: { testId: "ready", state: "visible" } } });
+  try {
+    await page.goto(fixture.baseUrl);
+    const candidate = async (testId: string) => (await adapter.generateCandidates(await adapter.observe(adapter.primaryTarget(), { runId: "consensus-settle", scopeHosts: ["127.0.0.1"] }))).find(value => value.locatorRecipe.value === testId)!;
+    const rendered = await adapter.execute(await candidate("render"), { runId: "consensus-settle", timeoutMs: 1_000 });
+    expect(rendered.settleResult).toMatchObject({ policyVersion: "consensus/v1", status: "settled", signals: { domMutation: { state: "quiet" }, network: { state: "quiet" }, topology: { state: "quiet" }, readiness: { state: "met" } } });
+
+    const dialog = await adapter.execute(await candidate("dialog-consensus"), { runId: "consensus-settle", timeoutMs: 1_000 });
+    expect(dialog.status).toBe("executed");
+    expect((await adapter.observe(adapter.primaryTarget(), { runId: "consensus-settle", scopeHosts: ["127.0.0.1"] })).dialogs.at(-1)).toMatchObject({ disposition: "dismissed" });
+
+    const popupOpened = context.waitForEvent("page");
+    const popup = await adapter.execute(await candidate("popup-consensus"), { runId: "consensus-settle", timeoutMs: 1_000 });
+    await popupOpened;
+    expect(popup.settleResult).toMatchObject({ status: "settled", signals: { topology: { state: "quiet" } } });
+
+    const polling = new PlaywrightAdaptiveAdapter({ page, context, scopeHosts: ["127.0.0.1"], settlePolicy: { policyVersion: "consensus/v1", maxWaitMs: 100, stableWindowMs: 25 } });
+    const pollObservation = await polling.observe(polling.primaryTarget(), { runId: "consensus-poll", scopeHosts: ["127.0.0.1"] });
+    const pollCandidate = (await polling.generateCandidates(pollObservation)).find(value => value.locatorRecipe.value === "poll")!;
+    const timedOut = await polling.execute(pollCandidate, { runId: "consensus-poll", timeoutMs: 100 });
+    expect(timedOut.settleResult).toMatchObject({ policyVersion: "consensus/v1", status: "timed_out", reasons: ["consensus-timeout"], signals: { network: { state: "pending" } } });
+    await page.evaluate(() => clearInterval((window as Window & { polling?: number }).polling));
+  } finally { await context.close(); await browser.close(); await fixture.close(); }
+});
 test("Playwright adapter integrates generic browser failures into Observation", async () => {
   const fixture = await startFixture(url => {
     if (url.pathname === "/") return { body: `<button data-testid="emit-errors" onclick="console.error('fixture-console'); setTimeout(() => { throw new Error('fixture-pageerror'); }, 0); fetch('/failure')">Emit</button><a data-testid="off-page" target="_blank" href="/off-page">Off page</a>` };
