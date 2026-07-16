@@ -150,6 +150,27 @@ test("Playwright adapter scopes repeated controls and records every non-candidat
     expect((await adapter.execute(staleScope, { runId: "scope-debt-test", timeoutMs: 2_000 })).status).toBe("action_failed");
   } finally { await context.close(); await browser.close(); await fixture.close(); }
 });
+test("Playwright adapter accepts an explicit hashed card scope without a generic CSS fallback", async () => {
+  const firstKey = "a".repeat(64); const secondKey = "b".repeat(64);
+  const fixture = await startFixture(() => ({ body: `<main>
+    <article data-lakda-scope="card" data-lakda-scope-key="${firstKey}"><button onclick="this.parentElement.dataset.visited = 'yes'">Details</button></article>
+    <article data-lakda-scope="card" data-lakda-scope-key="${secondKey}"><button>Details</button></article>
+  </main>` }));
+  const browser = await chromium.launch(); const context = await browser.newContext(); const page = await context.newPage();
+  const adapter = new PlaywrightAdaptiveAdapter({ page, context, scopeHosts: ["127.0.0.1"], settlePolicy: { maxWaitMs: 2_000, stableWindowMs: 20 } });
+  try {
+    await page.goto(fixture.baseUrl);
+    const observation = await adapter.observe(adapter.primaryTarget(), { runId: "stable-key-test", scopeHosts: ["127.0.0.1"] });
+    const details = (await adapter.discoverCandidates(observation)).candidates.filter(candidate => candidate.locatorRecipe.strategy === "scoped-role" && candidate.locatorRecipe.name === "Details");
+    expect(details).toHaveLength(2);
+    expect(details.map(candidate => candidate.locatorRecipe.scope)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ strategy: "stable-key", value: firstKey, boundary: "card", keySource: "identifier-hash" }),
+      expect.objectContaining({ strategy: "stable-key", value: secondKey, boundary: "card", keySource: "identifier-hash" }),
+    ]));
+    expect((await adapter.execute(details.find(candidate => candidate.locatorRecipe.scope?.value === firstKey)!, { runId: "stable-key-test", timeoutMs: 2_000 })).status).toBe("executed");
+    expect(await page.locator(`[data-lakda-scope-key="${firstKey}"]`).getAttribute("data-visited")).toBe("yes");
+  } finally { await context.close(); await browser.close(); await fixture.close(); }
+});
 test("Playwright adapter integrates generic browser failures into Observation", async () => {
   const fixture = await startFixture(url => {
     if (url.pathname === "/") return { body: `<button data-testid="emit-errors" onclick="console.error('fixture-console'); setTimeout(() => { throw new Error('fixture-pageerror'); }, 0); fetch('/failure')">Emit</button><a data-testid="off-page" target="_blank" href="/off-page">Off page</a>` };
