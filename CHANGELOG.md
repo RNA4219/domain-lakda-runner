@@ -4,6 +4,13 @@
 
 - P7の固定corpus実環境受入、実機Airtest/Poco、認可済みSecurity target、manual-bb/QEG Gateを継続する。
 
+## 0.3.0-rc.5 - 2026-07-16
+
+### Changed
+
+- 現行source revisionを固定して再検証するrc.5 Gate運用へ更新し、RanD・reference staging・manual-bb・QEGの証跡連鎖を明確化。
+- QEGを唯一の最終Go判定として、QEG Go後だけtag/releaseを許可するCI workflowへ更新。
+- CLI、artifact、HATE manifest、package検査のruntime producer versionを`0.3.0-rc.5`に統一。
 ## 0.3.0-rc.4 - 2026-07-16
 
 ### Fixed

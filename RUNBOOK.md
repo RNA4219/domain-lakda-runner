@@ -116,15 +116,22 @@ qeg gate --input <qeg-record>
 ```
 
 Lakdaの責務はHATE/v1 manifestまでである。HATE adapterがQEG IDへ変換し、QEGがGateを決定する。
-### v0.2.1 historical Release Candidate Gate
+### v0.3.0-rc.5 revision-bound Release Candidate Gate
 
-以下はv0.2.1の実Qwen/staging evidence契約として保持する。v0.3.0-rc.1 P6の実機・Security受入またはP7 Gateを満たす証跡として流用しない。
+`.github/workflows/release-evidence.yml`は手動起動の二段階Gateです。対象は`candidate_ref`で固定した40桁SHAであり、`package.json`のrc versionと一致しなければなりません。workflowはこのSHA以外のcommitやdirty worktreeを受け入れません。
 
-`.github/workflows/release-evidence.yml`をself-hosted Windows/Qwen runnerで手動起動する。GitHub Environmentの`staging`へHTTPS staging URL、allowlist、認証secretを設定し、manual-bb recordにはsecret値を入れない。実行順はdeterministic CI → full 90-run → worker-smoke 20-run → bundle/security検証 → Code-to-gate strict → HATE upstream → manual-bb real staging → QEG validate/gate/recordである。
+`prepare`はself-hosted Windows/Qwen runnerで次を順に実行します。
 
-manual recordは[manual-bb schema](schemas/manual-bb-release-record-v1.schema.json)に従い、対象40桁revision、HTTPS staging origin、明示allowlist、`testExecutionMode=real`、全caseのpass結果、operator、実行時刻、参照artifactのsize/SHA-256を持つ。`testExecutionMode=mock`、full/worker証跡欠落、HATE upstream未確認、Code-to-gate strict未達では`npm run release:prepare-gate`がQEG入力を作らない。
+1. retryなし・single workerの`npm run check`、fixture、adaptive、package、HATE upstream。
+2. 承認済みreference stagingのimmutable config/corpus/caseを使うP11 real acceptanceとverifier。
+3. 固定`b431504...`のRanD audit、固定revisionのCode-to-gateとHATE、実Qwen full 90-runとworker-smoke 20-run。
+4. sanitized prepared evidenceのsecurity scanとdigest固定。
 
-staging入力またはself-hosted runnerがない場合、workflowを成功扱いにせずRCを`hold`にする。Lakdaが生成するのはsanitized QEG入力候補までであり、`qeg gate`と`qeg record`を実行してverdict/recordを生成する主体はQEGである。PRをreadyにするのは全必須checkとQEG `go`後だけとする。 security scan済みrelease packageだけをActions artifact（90日）とrelease attachmentへ保存し、raw Code-to-gate/HATE出力、manual record、失敗途中のpartial packageはuploadしない。Medium findingは`triage-verification.json`へfingerprint、根拠、担当、期限、入力hashを残し、未分類・stale・blanket suppressionをGate前に拒否する。
+reference stagingのconfig、corpus、case、target revision、allowlist、kill switchが欠ける場合は`pending_external`相当のHOLDで停止する。fixture、mock、RanD fixtureは実targetの代替ではない。
+
+`finalize`はprepared artifactとstrict manual-bb recordを同じcandidate SHAで照合してから、外部QEGのschema-check、evidence verify、gate、recordを実行する。RanD → Code-to-gate → HATE → manual-bb-test-harness → QEGのcommit、artifact hash、QEG policy hash、final verdictはworkflow-cookbookのfive-tool manifestで再検証する。QEG `go`とP0/P1 blockerなし以外ではrelease tagを作成しない。
+
+`publish_release=true`を明示した場合だけ、QEG `go`後に`release_tag=v<package version>`を対象SHAへ作成し、sanitized evidence zipをprereleaseへ添付する。`600a037`の過去証跡は履歴であり、rc.5のGateを省略する根拠にはならない。
 
 ## 4. Confirm
 

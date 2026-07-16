@@ -1,6 +1,6 @@
 {
   "name": "domain-lakda-runner",
-  "version": "0.3.0-rc.4",
+  "version": "0.3.0-rc.5",
   "private": true,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -33,7 +33,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "check:docs": "node scripts/check-docs.mjs",
-    "test": "playwright test",
+    "test": "playwright test --workers=1",
+    "test:parallel": "playwright test",
     "test:headed": "playwright test tests/headed.spec.ts --headed",
     "smoke:external": "npm run build && node scripts/run-external-smoke.mjs",
     "check": "npm run check:docs && npm run typecheck && npm run lint && npm run build && npm test",
@@ -54,6 +55,8 @@
     "coverage:v8-to-lcov": "node scripts/v8-coverage-to-lcov.mjs",
     "release:prepare-hate": "node scripts/prepare-hate-rc-input.mjs",
     "release:prepare-gate": "npm run build && node scripts/prepare-release-gate.mjs",
+    "release:prepare-rand": "npm run build && node scripts/prepare-rand-release-summary.mjs",
+    "release:prepare-reference-staging": "npm run build && node scripts/prepare-reference-staging-summary.mjs",
     "release:scan-evidence": "npm run build && node scripts/scan-release-evidence.mjs",
     "release:scan-package": "npm run build && node scripts/scan-release-package.mjs"
   },

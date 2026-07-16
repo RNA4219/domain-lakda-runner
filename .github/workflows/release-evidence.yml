@@ -3,42 +3,74 @@ name: Release evidence gate
 on:
   workflow_dispatch:
     inputs:
-      staging_origin:
-        description: HTTPS staging origin present in the manual evidence record
+      candidate_ref:
+        description: Frozen candidate commit SHA (defaults to the dispatch ref)
+        required: false
+        type: string
+      reference_staging_origin:
+        description: Approved HTTPS reference staging origin
+        required: true
+        type: string
+      reference_config_path:
+        description: Self-hosted runner path to the approved immutable P11 config
+        required: true
+        type: string
+      reference_corpus_path:
+        description: Self-hosted runner path to the approved immutable P11 corpus
+        required: true
+        type: string
+      reference_case_id:
+        description: Approved P11 case ID from the immutable corpus
+        required: true
+        type: string
+      reference_target_revision:
+        description: Immutable reference staging target revision from the corpus
         required: true
         type: string
       manual_evidence_path:
-        description: Path on the self-hosted runner to manual-release-record.json
+        description: Self-hosted runner path to the completed strict manual-bb record
         required: true
         type: string
       release_tag:
-        description: Existing GitHub release tag to receive the sanitized evidence zip
+        description: Tag to create after QEG go; must equal v plus package version when publishing
         required: false
         type: string
-      mark_pr_ready:
-        description: Mark PR #3 ready only after QEG returns go
+      publish_release:
+        description: Create the rc tag and prerelease after QEG go
         required: false
         default: false
         type: boolean
 
 permissions:
   contents: write
-  pull-requests: write
+
+concurrency:
+  group: lakda-release-evidence-${{ inputs.candidate_ref || github.sha }}
+  cancel-in-progress: false
 
 defaults:
   run:
     shell: pwsh
 
 jobs:
-  release-gate:
-    name: Qwen RC evidence and QEG gate
+  prepare:
+    name: Freeze candidate and prepare independent evidence
     runs-on: [self-hosted, Windows, X64, lakda-qwen]
-    timeout-minutes: 240
+    timeout-minutes: 300
     environment: staging
+    outputs:
+      revision: ${{ steps.freeze.outputs.revision }}
+      release_version: ${{ steps.freeze.outputs.release_version }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
+          ref: ${{ inputs.candidate_ref || github.sha }}
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          repository: RNA4219/RanD
+          ref: b4315040fd1cb823421cff53a0c7eda6f9d89c4a
+          path: .tools/rand
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           repository: RNA4219/code-to-gate
@@ -56,9 +88,9 @@ jobs:
           path: .tools/manual-bb
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
-          repository: RNA4219/quality-evidence-graph
-          ref: 6e33d77399611016f64e81d7147580b05387185b
-          path: .tools/qeg
+          repository: RNA4219/workflow-cookbook
+          ref: db3b2141c1fef0f4835170dd82f85aabc6000fc3
+          path: .tools/workflow-cookbook
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: .node-version
@@ -68,78 +100,50 @@ jobs:
           python-version: "3.13"
       - uses: astral-sh/setup-uv@e06108dd0aef18192324c70427afc47652e63a82 # v7.6.0
 
-      - name: Validate RC inputs
+      - id: freeze
+        name: Freeze candidate identity
         run: |
-          if ($env:STAGING_ORIGIN -notmatch '^https://[^/?#]+$') { throw "staging_origin must be an HTTPS origin" }
-          if (-not (Test-Path -LiteralPath $env:MANUAL_EVIDENCE_PATH -PathType Leaf)) { throw "HOLD: manual staging evidence is unavailable" }
-          if (-not $env:LAKDA_REAL_LLM_MODEL -or -not (Test-Path -LiteralPath $env:LAKDA_REAL_LLM_MODEL -PathType Leaf)) { throw "HOLD: real Qwen GGUF is unavailable" }
-          if (-not $env:LAKDA_REAL_LLM_MODEL_ID) { throw "HOLD: expected model ID is unavailable" }
-          if ($env:LAKDA_REAL_LLM_MODEL_SHA256 -notmatch '^[0-9a-fA-F]{64}$') { throw "HOLD: expected GGUF SHA-256 is unavailable" }
+          $revision = git rev-parse HEAD
+          if ($revision -notmatch '^[0-9a-f]{40}$') { throw "candidate revision is invalid" }
+          if (git status --porcelain) { throw "candidate worktree must be clean" }
+          $version = node -p "JSON.parse(require('node:fs').readFileSync('package.json','utf8')).version"
+          if ($version -notmatch '^\d+\.\d+\.\d+-rc\.\d+$') { throw "package version must be an rc semver" }
+          "revision=$revision" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "release_version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          New-Item -ItemType Directory -Force .lakda/rc/prepared | Out-Null
+          @{ revision = $revision; releaseVersion = $version; preparedAt = (Get-Date).ToUniversalTime().ToString('o') } | ConvertTo-Json | Set-Content -Encoding utf8 .lakda/rc/prepared/candidate.json
+
+      - name: Validate approved real-target inputs
         env:
-          STAGING_ORIGIN: ${{ inputs.staging_origin }}
-          MANUAL_EVIDENCE_PATH: ${{ inputs.manual_evidence_path }}
+          REFERENCE_STAGING_ORIGIN: ${{ inputs.reference_staging_origin }}
+          REFERENCE_CONFIG_PATH: ${{ inputs.reference_config_path }}
+          REFERENCE_CORPUS_PATH: ${{ inputs.reference_corpus_path }}
+          REFERENCE_CASE_ID: ${{ inputs.reference_case_id }}
+          REFERENCE_TARGET_REVISION: ${{ inputs.reference_target_revision }}
           LAKDA_REAL_LLM_MODEL: ${{ vars.LAKDA_REAL_LLM_MODEL }}
           LAKDA_REAL_LLM_MODEL_ID: ${{ vars.LAKDA_REAL_LLM_MODEL_ID }}
           LAKDA_REAL_LLM_MODEL_SHA256: ${{ vars.LAKDA_REAL_LLM_MODEL_SHA256 }}
+        run: |
+          if ($env:REFERENCE_STAGING_ORIGIN -notmatch '^https://[^/?#]+$') { throw "reference staging origin must be an HTTPS origin" }
+          if (-not (Test-Path -LiteralPath $env:REFERENCE_CONFIG_PATH -PathType Leaf)) { throw "HOLD: approved P11 config is unavailable" }
+          if (-not (Test-Path -LiteralPath $env:REFERENCE_CORPUS_PATH -PathType Leaf)) { throw "HOLD: immutable P11 corpus is unavailable" }
+          if (-not $env:REFERENCE_CASE_ID -or -not $env:REFERENCE_TARGET_REVISION) { throw "HOLD: reference case or target revision is unavailable" }
+          if (-not $env:LAKDA_REAL_LLM_MODEL -or -not (Test-Path -LiteralPath $env:LAKDA_REAL_LLM_MODEL -PathType Leaf)) { throw "HOLD: real Qwen GGUF is unavailable" }
+          if (-not $env:LAKDA_REAL_LLM_MODEL_ID) { throw "HOLD: expected model ID is unavailable" }
+          if ($env:LAKDA_REAL_LLM_MODEL_SHA256 -notmatch '^[0-9a-fA-F]{64}$') { throw "HOLD: expected GGUF SHA-256 is unavailable" }
 
       - name: Install pinned runtimes
         run: |
           npm ci
           npm ci --prefix .tools/code-to-gate
-          npm ci --prefix .tools/qeg
           npm run build --prefix .tools/code-to-gate
-          npm run build --prefix .tools/qeg
           uv sync --directory .tools/hate --frozen
           uv sync --directory .tools/manual-bb --frozen
+          uv sync --directory .tools/rand/research-runtime --frozen
+          uv sync --directory .tools/workflow-cookbook --frozen
           npx playwright install chromium
 
-      - name: Deterministic CI and fixture acceptance
-        run: |
-          npm run check
-          npm run check:hate
-          npm run pack:check
-          npm run acceptance:fixture
-
-      - name: Real Qwen full 90 child runs
-        run: |
-          New-Item -ItemType Directory -Force .lakda/rc | Out-Null
-          node scripts/run-real-llm-acceptance.mjs --profile=full --acceptance-id=rc-full --out=.lakda/rc/full-report.json --bundle=.lakda/acceptance/rc-full
-          node scripts/verify-real-llm-acceptance.mjs --report=.lakda/rc/full-report.json --bundle=.lakda/acceptance/rc-full --check-revision
-        env:
-          LAKDA_REAL_LLM_ENDPOINT: http://127.0.0.1:8080/v1
-          LAKDA_REAL_LLM_MODEL: ${{ vars.LAKDA_REAL_LLM_MODEL }}
-          LAKDA_REAL_LLM_MODEL_ID: ${{ vars.LAKDA_REAL_LLM_MODEL_ID }}
-          LAKDA_REAL_LLM_MODEL_SHA256: ${{ vars.LAKDA_REAL_LLM_MODEL_SHA256 }}
-
-      - name: Real Qwen worker smoke 20 child runs
-        run: |
-          node scripts/run-real-llm-acceptance.mjs --profile=worker-smoke --acceptance-id=rc-worker-smoke --out=.lakda/rc/worker-smoke-report.json --bundle=.lakda/acceptance/rc-worker-smoke
-          node scripts/verify-real-llm-acceptance.mjs --report=.lakda/rc/worker-smoke-report.json --bundle=.lakda/acceptance/rc-worker-smoke --check-revision
-        env:
-          LAKDA_REAL_LLM_ENDPOINT: http://127.0.0.1:8080/v1
-          LAKDA_REAL_LLM_MODEL: ${{ vars.LAKDA_REAL_LLM_MODEL }}
-          LAKDA_REAL_LLM_MODEL_ID: ${{ vars.LAKDA_REAL_LLM_MODEL_ID }}
-          LAKDA_REAL_LLM_MODEL_SHA256: ${{ vars.LAKDA_REAL_LLM_MODEL_SHA256 }}
-
-      - name: Produce real JUnit and V8 LCOV
-        run: |
-          $v8 = Join-Path (Resolve-Path .lakda/rc).Path "v8"
-          New-Item -ItemType Directory -Force $v8 | Out-Null
-          $env:NODE_V8_COVERAGE = $v8
-          $env:PLAYWRIGHT_JUNIT_OUTPUT_FILE = (Join-Path (Resolve-Path .lakda/rc).Path "junit.xml")
-          npx playwright test --reporter=junit
-          Remove-Item Env:NODE_V8_COVERAGE
-          Remove-Item Env:PLAYWRIGHT_JUNIT_OUTPUT_FILE
-          node scripts/v8-coverage-to-lcov.mjs --input=.lakda/rc/v8 --out=.lakda/rc/lcov.info --root=.
-
-      - name: Code-to-gate strict and Medium triage
-        run: |
-          node .tools/code-to-gate/dist/cli.js analyze . --out .lakda/rc/ctg
-          node .tools/code-to-gate/dist/cli.js readiness . --policy .github/ctg-policy.yaml --from .lakda/rc/ctg --out .lakda/rc/ctg
-          node scripts/check-ctg-triage.mjs --findings=.lakda/rc/ctg/findings.json --out=.lakda/rc/ctg/triage-verification.json
-          node .tools/code-to-gate/dist/cli.js export qeg-code-to-gate --from .lakda/rc/ctg --out .lakda/rc/ctg/qeg-code-to-gate.json
-
-      - name: Validate manual-bb design artifacts
+      - name: Validate strict manual-bb design inputs
         run: |
           $repo = (Resolve-Path .).Path
           $validator = Join-Path (Resolve-Path .tools/manual-bb).Path "src/bb_harness/tools/validate_artifact.py"
@@ -147,86 +151,260 @@ jobs:
           uv run --directory .tools/manual-bb python $validator --artifact (Join-Path $repo "docs/release-gate/risk_register.json") --type risk_register --strict
           uv run --directory .tools/manual-bb python $validator --artifact (Join-Path $repo "docs/release-gate/manual_case_set.json") --type manual_case_set --strict
 
-      - name: HATE upstream, P0a release, and P0b export
+      - name: Deterministic, fixture, adaptive, package, and HATE checks
+        run: |
+          npm run check
+          npm run acceptance:fixture
+          npm run acceptance:adaptive
+          npm run pack:check
+          $env:HATE_UPSTREAM_REPO = (Resolve-Path .tools/hate).Path
+          npm run check:hate:upstream | Set-Content -Encoding utf8 .lakda/rc/prepared/hate-upstream.json
+
+      - name: Run frozen RanD requirements audit
+        run: |
+          Copy-Item docs/release-gate/rand/lakda_rc5_audit_preset.json .tools/rand/research-runtime/configs/presets/lakda_rc5_audit.json
+          Copy-Item docs/release-gate/rand/lakda_rc5_audit_evidence.json .tools/rand/research-runtime/tests/fixtures/lakda_rc5_audit_evidence.json
+          $result = & uv run --directory .tools/rand/research-runtime python -m rand_research.cli run-once --preset lakda_rc5_audit --max-items 5
+          if ($LASTEXITCODE -ne 0) { throw "RanD requirements audit failed" }
+          $run = ($result -join "`n") | ConvertFrom-Json
+          if ($run.status -ne 'ok' -or -not $run.run_meta.save_dir) { throw "RanD requirements audit did not complete" }
+          $runDir = $run.run_meta.save_dir
+          $packet = Join-Path $runDir 'requirements_audit_packet.json'
+          $handoff = Join-Path $runDir 'downstream_handoff.json'
+          if (-not (Test-Path -LiteralPath $packet -PathType Leaf) -or -not (Test-Path -LiteralPath $handoff -PathType Leaf)) { throw "RanD audit artifacts are unavailable" }
+          New-Item -ItemType Directory -Force .lakda/rc/prepared/rand | Out-Null
+          Copy-Item -LiteralPath $packet -Destination .lakda/rc/prepared/rand/requirements_audit_packet.json
+          Copy-Item -LiteralPath $handoff -Destination .lakda/rc/prepared/rand/downstream_handoff.json
+          $revision = git rev-parse HEAD
+          node scripts/prepare-rand-release-summary.mjs --revision=$revision --tool-revision=b4315040fd1cb823421cff53a0c7eda6f9d89c4a --packet=.lakda/rc/prepared/rand/requirements_audit_packet.json --handoff=.lakda/rc/prepared/rand/downstream_handoff.json --out=.lakda/rc/prepared/rand-summary.json
+
+      - name: Run real reference staging P11 acceptance
+        env:
+          LAKDA_EXTENSION_REAL_CONFIRM: I_UNDERSTAND
+          LAKDA_EXTENSION_REAL_CONFIG: ${{ inputs.reference_config_path }}
+          LAKDA_EXTENSION_REAL_CORPUS: ${{ inputs.reference_corpus_path }}
+          LAKDA_EXTENSION_REAL_CASE_ID: ${{ inputs.reference_case_id }}
+          LAKDA_EXTENSION_REAL_ENVIRONMENT: reference-staging
+          LAKDA_EXTENSION_REAL_TARGET_REVISION: ${{ inputs.reference_target_revision }}
+        run: |
+          npm run acceptance:extension:real
+          $reports = Get-ChildItem -LiteralPath .lakda/runs -Recurse -Filter 'extension-acceptance-case-*.json'
+          if (@($reports).Count -ne 1) { throw "exactly one P11 reference staging report is required" }
+          $report = $reports[0].FullName
+          $env:LAKDA_EXTENSION_REAL_REPORT = $report
+          $verification = npm run acceptance:extension:verify-real
+          if ($LASTEXITCODE -ne 0) { throw "P11 reference staging verification failed" }
+          $verification | Set-Content -Encoding utf8 .lakda/rc/prepared/reference-staging-verification.json
+          $revision = git rev-parse HEAD
+          node scripts/prepare-reference-staging-summary.mjs --revision=$revision --report=$report --verification=.lakda/rc/prepared/reference-staging-verification.json --out=.lakda/rc/prepared/reference-staging-summary.json
+
+      - name: Run real Qwen full and worker acceptance
+        env:
+          LAKDA_REAL_LLM_ENDPOINT: http://127.0.0.1:8080/v1
+          LAKDA_REAL_LLM_MODEL: ${{ vars.LAKDA_REAL_LLM_MODEL }}
+          LAKDA_REAL_LLM_MODEL_ID: ${{ vars.LAKDA_REAL_LLM_MODEL_ID }}
+          LAKDA_REAL_LLM_MODEL_SHA256: ${{ vars.LAKDA_REAL_LLM_MODEL_SHA256 }}
+        run: |
+          node scripts/run-real-llm-acceptance.mjs --profile=full --acceptance-id=rc5-full --out=.lakda/rc/prepared/full-report.json --bundle=.lakda/rc/prepared/full-bundle
+          node scripts/verify-real-llm-acceptance.mjs --report=.lakda/rc/prepared/full-report.json --bundle=.lakda/rc/prepared/full-bundle --check-revision
+          node scripts/run-real-llm-acceptance.mjs --profile=worker-smoke --acceptance-id=rc5-worker-smoke --out=.lakda/rc/prepared/worker-report.json --bundle=.lakda/rc/prepared/worker-bundle
+          node scripts/verify-real-llm-acceptance.mjs --report=.lakda/rc/prepared/worker-report.json --bundle=.lakda/rc/prepared/worker-bundle --check-revision
+
+      - name: Produce JUnit, LCOV, Code-to-gate, and HATE evidence
         run: |
           $revision = git rev-parse HEAD
-          $hateRepo = (Resolve-Path .tools/hate).Path
-          $env:HATE_UPSTREAM_REPO = $hateRepo
-          node scripts/check-hate-upstream.mjs --require-upstream | Set-Content -Encoding utf8 .lakda/rc/hate-upstream.json
-          node scripts/prepare-hate-rc-input.mjs --junit=.lakda/rc/junit.xml --lcov=.lakda/rc/lcov.info --findings=.lakda/rc/ctg/findings.json --revision=$revision --run-id=${{ github.run_id }} --run-attempt=${{ github.run_attempt }} --actor=${{ github.actor }} --ref=${{ github.ref }} --out=.lakda/rc/hate
-          $p0aInput = (Resolve-Path .lakda/rc/hate/p0a-input).Path
-          $p0aOut = Join-Path (Resolve-Path .lakda/rc).Path "hate-p0a"
+          New-Item -ItemType Directory -Force .lakda/rc/prepared/v8 | Out-Null
+          $env:NODE_V8_COVERAGE = (Resolve-Path .lakda/rc/prepared/v8).Path
+          $env:PLAYWRIGHT_JUNIT_OUTPUT_FILE = (Join-Path (Resolve-Path .lakda/rc/prepared).Path 'junit.xml')
+          npx playwright test --workers=1 --reporter=junit
+          Remove-Item Env:NODE_V8_COVERAGE
+          Remove-Item Env:PLAYWRIGHT_JUNIT_OUTPUT_FILE
+          node scripts/v8-coverage-to-lcov.mjs --input=.lakda/rc/prepared/v8 --out=.lakda/rc/prepared/lcov.info --root=.
+          node .tools/code-to-gate/dist/cli.js analyze . --emit all --out .lakda/rc/prepared/ctg
+          node .tools/code-to-gate/dist/cli.js readiness . --policy .github/ctg-policy.yaml --from .lakda/rc/prepared/ctg --out .lakda/rc/prepared/ctg
+          node scripts/check-ctg-triage.mjs --findings=.lakda/rc/prepared/ctg/findings.json --out=.lakda/rc/prepared/ctg/triage-verification.json
+          node .tools/code-to-gate/dist/cli.js export qeg-code-to-gate --from .lakda/rc/prepared/ctg --out .lakda/rc/prepared/ctg/qeg-code-to-gate.json
+          node scripts/prepare-hate-rc-input.mjs --junit=.lakda/rc/prepared/junit.xml --lcov=.lakda/rc/prepared/lcov.info --findings=.lakda/rc/prepared/ctg/findings.json --revision=$revision --run-id=${{ github.run_id }} --run-attempt=${{ github.run_attempt }} --actor=${{ github.actor }} --ref=${{ github.ref }} --out=.lakda/rc/prepared/hate
+          $p0aInput = (Resolve-Path .lakda/rc/prepared/hate/p0a-input).Path
+          $p0aOut = Join-Path (Resolve-Path .lakda/rc/prepared).Path 'hate-p0a'
           uv run --directory .tools/hate python -m hate p0a --input $p0aInput --out $p0aOut --source-version $revision --profile release
-          $p0bFixture = (Resolve-Path .lakda/rc/hate/p0b-fixture).Path
-          New-Item -ItemType Directory -Force (Join-Path $p0bFixture "p0a") | Out-Null
-          Copy-Item -Path (Join-Path $p0aOut "*") -Destination (Join-Path $p0bFixture "p0a") -Recurse
-          $p0bOut = Join-Path (Resolve-Path .lakda/rc).Path "hate-p0b"
+          $p0bFixture = (Resolve-Path .lakda/rc/prepared/hate/p0b-fixture).Path
+          New-Item -ItemType Directory -Force (Join-Path $p0bFixture 'p0a') | Out-Null
+          Copy-Item -Path (Join-Path $p0aOut '*') -Destination (Join-Path $p0bFixture 'p0a') -Recurse
+          $p0bOut = Join-Path (Resolve-Path .lakda/rc/prepared).Path 'hate-p0b'
           uv run --directory .tools/hate python -m hate export qeg --fixture $p0bFixture --out $p0bOut --source-version $revision
 
-      - name: Prepare QEG input from verified evidence
-        env:
-          STAGING_ORIGIN: ${{ inputs.staging_origin }}
-          MANUAL_EVIDENCE_PATH: ${{ inputs.manual_evidence_path }}
+      - name: Scan and upload prepared evidence
         run: |
-          $revision = git rev-parse HEAD
-          $workflowUrl = "https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
-          node scripts/prepare-release-gate.mjs --revision=$revision --staging-origin=$env:STAGING_ORIGIN --full-report=.lakda/rc/full-report.json --full-bundle=.lakda/acceptance/rc-full --worker-report=.lakda/rc/worker-smoke-report.json --worker-bundle=.lakda/acceptance/rc-worker-smoke --manual-record=$env:MANUAL_EVIDENCE_PATH --ctg-readiness=.lakda/rc/ctg/release-readiness.json --ctg-triage=.lakda/rc/ctg/triage-verification.json --ctg-qeg=.lakda/rc/ctg/qeg-code-to-gate.json --hate-bundle=.lakda/rc/hate-p0b/qeg-bundle.json --hate-upstream=.lakda/rc/hate-upstream.json --approver=$env:GITHUB_ACTOR --workflow-url=$workflowUrl --out=.lakda/rc/qeg
-
-      - name: QEG schema, evidence, gate, and record
-        run: |
-          $qeg = (Resolve-Path .lakda/rc/qeg).Path
-          node .tools/qeg/dist/cli.js schema-check $qeg
-          node .tools/qeg/dist/cli.js evidence verify $qeg
-          $gateOutput = & node .tools/qeg/dist/cli.js gate $qeg
-          $gateExit = $LASTEXITCODE
-          $gateOutput | Set-Content -Encoding utf8 (Join-Path $qeg "gate-verdict.json")
-          if ($gateExit -ne 0) { throw "QEG final gate did not return go" }
-          $gate = ($gateOutput -join "`n") | ConvertFrom-Json
-          if ($gate.verdict -ne "go") { throw "QEG final gate verdict is not go" }
-          node .tools/qeg/dist/cli.js record $qeg
-          if ($LASTEXITCODE -ne 0) { throw "QEG record generation failed" }
+          node scripts/scan-release-evidence.mjs --path=.lakda/rc/prepared --out=.lakda/rc/prepared/security-scan.json
+          node scripts/scan-release-evidence.mjs --path=.lakda/rc/prepared
           git diff --exit-code
-
-      - name: Package security-scanned release evidence
-        run: |
-          $revision = git rev-parse --short=12 HEAD
-          $package = ".lakda/rc/release-package"
-          $zip = ".lakda/rc/lakda-v0.2.1-evidence-$revision.zip"
-          New-Item -ItemType Directory -Force $package | Out-Null
-          Copy-Item -LiteralPath .lakda/rc/full-report.json -Destination $package
-          Copy-Item -LiteralPath .lakda/rc/worker-smoke-report.json -Destination $package
-          Copy-Item -LiteralPath .lakda/acceptance/rc-full -Destination (Join-Path $package "rc-full") -Recurse
-          Copy-Item -LiteralPath .lakda/acceptance/rc-worker-smoke -Destination (Join-Path $package "rc-worker-smoke") -Recurse
-          Copy-Item -LiteralPath .lakda/rc/ctg/triage-verification.json -Destination $package
-          Copy-Item -LiteralPath .lakda/rc/hate-upstream.json -Destination $package
-          Copy-Item -LiteralPath .lakda/rc/qeg -Destination (Join-Path $package "qeg") -Recurse
-          node scripts/scan-release-evidence.mjs --path=$package --out=.lakda/rc/security-scan.json
-          Copy-Item -LiteralPath .lakda/rc/security-scan.json -Destination $package
-          node scripts/scan-release-evidence.mjs --path=$package
-          Compress-Archive -Path (Join-Path $package "*") -DestinationPath $zip -CompressionLevel Optimal
-
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
-        if: ${{ success() }}
         with:
-          name: lakda-v0.2.1-rc-evidence-${{ github.sha }}
-          path: |
-            .lakda/rc/release-package/
-            .lakda/rc/lakda-v0.2.1-evidence-*.zip
+          name: lakda-rc5-prepared-${{ steps.freeze.outputs.revision }}
+          path: .lakda/rc/prepared/
           if-no-files-found: error
           include-hidden-files: true
           retention-days: 90
 
-      - name: Attach evidence to existing release
-        if: ${{ success() && inputs.release_tag != '' }}
+  finalize:
+    name: Verify manual evidence, run QEG, and optionally publish
+    needs: prepare
+    runs-on: [self-hosted, Windows, X64, lakda-qwen]
+    timeout-minutes: 120
+    environment: staging
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.prepare.outputs.revision }}
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          repository: RNA4219/quality-evidence-graph
+          ref: 6e33d77399611016f64e81d7147580b05387185b
+          path: .tools/qeg
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          repository: RNA4219/workflow-cookbook
+          ref: db3b2141c1fef0f4835170dd82f85aabc6000fc3
+          path: .tools/workflow-cookbook
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          repository: RNA4219/manual-bb-test-harness
+          ref: 1d8619b2067421938d2474485dd36abcf86af634
+          path: .tools/manual-bb
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.13"
+      - uses: astral-sh/setup-uv@e06108dd0aef18192324c70427afc47652e63a82 # v7.6.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: lakda-rc5-prepared-${{ needs.prepare.outputs.revision }}
+          path: .lakda/rc/prepared
+
+      - name: Install finalization runtimes
+        run: |
+          npm ci
+          npm run build
+          npm ci --prefix .tools/qeg
+          npm run build --prefix .tools/qeg
+          uv sync --directory .tools/workflow-cookbook --frozen
+
+      - name: Verify frozen inputs and manual record
+        env:
+          MANUAL_EVIDENCE_PATH: ${{ inputs.manual_evidence_path }}
+        run: |
+          $revision = git rev-parse HEAD
+          if ($revision -ne '${{ needs.prepare.outputs.revision }}') { throw "checked out revision does not match prepared evidence" }
+          if (git status --porcelain) { throw "finalize worktree must be clean" }
+          if (-not (Test-Path -LiteralPath $env:MANUAL_EVIDENCE_PATH -PathType Leaf)) { throw "HOLD: completed strict manual-bb record is unavailable" }
+          $candidate = Get-Content -Raw .lakda/rc/prepared/candidate.json | ConvertFrom-Json
+          if ($candidate.revision -ne $revision -or $candidate.releaseVersion -ne '${{ needs.prepare.outputs.release_version }}') { throw "prepared candidate identity mismatch" }
+
+      - name: Prepare QEG input from verified evidence
+        env:
+          MANUAL_EVIDENCE_PATH: ${{ inputs.manual_evidence_path }}
+          STAGING_ORIGIN: ${{ inputs.reference_staging_origin }}
+        run: |
+          $revision = git rev-parse HEAD
+          $workflowUrl = "https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+          node scripts/prepare-release-gate.mjs --revision=$revision --release-version=${{ needs.prepare.outputs.release_version }} --staging-origin=$env:STAGING_ORIGIN --full-report=.lakda/rc/prepared/full-report.json --full-bundle=.lakda/rc/prepared/full-bundle --worker-report=.lakda/rc/prepared/worker-report.json --worker-bundle=.lakda/rc/prepared/worker-bundle --manual-record=$env:MANUAL_EVIDENCE_PATH --rand-audit=.lakda/rc/prepared/rand-summary.json --reference-staging=.lakda/rc/prepared/reference-staging-summary.json --ctg-readiness=.lakda/rc/prepared/ctg/release-readiness.json --ctg-triage=.lakda/rc/prepared/ctg/triage-verification.json --ctg-qeg=.lakda/rc/prepared/ctg/qeg-code-to-gate.json --hate-bundle=.lakda/rc/prepared/hate-p0b/qeg-bundle.json --hate-upstream=.lakda/rc/prepared/hate-upstream.json --approver=$env:GITHUB_ACTOR --workflow-url=$workflowUrl --out=.lakda/rc/final/qeg
+
+      - name: Run external QEG schema, evidence, gate, and record
+        run: |
+          $qeg = (Resolve-Path .lakda/rc/final/qeg).Path
+          node .tools/qeg/dist/cli.js schema-check $qeg
+          node .tools/qeg/dist/cli.js evidence verify $qeg
+          $gateOutput = & node .tools/qeg/dist/cli.js gate $qeg
+          $gateExit = $LASTEXITCODE
+          $gateOutput | Set-Content -Encoding utf8 (Join-Path $qeg 'gate-verdict.json')
+          if ($gateExit -ne 0) { throw "QEG final gate did not return go" }
+          $gate = ($gateOutput -join "`n") | ConvertFrom-Json
+          if ($gate.verdict -ne 'go') { throw "QEG final gate verdict is not go" }
+          node .tools/qeg/dist/cli.js record $qeg
+          if ($LASTEXITCODE -ne 0) { throw "QEG record generation failed" }
+
+      - name: Generate and validate five-tool run manifest
+        run: |
+          $qegInput = Get-Content -Raw .lakda/rc/final/qeg/gate-input.json | ConvertFrom-Json
+          $config = [ordered]@{
+            manifest_id = "five-tool:lakda-rc5-$('${{ needs.prepare.outputs.revision }}'.Substring(0, 12))"
+            run_id = "lakda-rc5-$('${{ github.run_id }}')"
+            target = [ordered]@{ repo = 'domain-lakda-runner'; scope = 'v0.3.0-rc.5 revision-bound release evidence' }
+            repos = @(
+              [ordered]@{ tool = 'rand'; name = 'RanD'; path = '.tools/rand'; required = $true },
+              [ordered]@{ tool = 'code-to-gate'; name = 'code-to-gate'; path = '.tools/code-to-gate'; required = $true },
+              [ordered]@{ tool = 'hate'; name = 'harness-auto-test-evidence'; path = '.tools/hate'; required = $true },
+              [ordered]@{ tool = 'manual-bb'; name = 'manual-bb-test-harness'; path = '.tools/manual-bb'; required = $true },
+              [ordered]@{ tool = 'qeg'; name = 'quality-evidence-graph'; path = '.tools/qeg'; required = $true }
+            )
+            artifacts = @(
+              [ordered]@{ tool = 'rand'; role = 'requirements_audit_packet'; direction = 'input'; path = '.lakda/rc/prepared/rand/requirements_audit_packet.json'; required = $true },
+              [ordered]@{ tool = 'code-to-gate'; role = 'qeg_handoff'; direction = 'input'; path = '.lakda/rc/prepared/ctg/qeg-code-to-gate.json'; required = $true },
+              [ordered]@{ tool = 'hate'; role = 'qeg_bundle'; direction = 'input'; path = '.lakda/rc/prepared/hate-p0b/qeg-bundle.json'; required = $true },
+              [ordered]@{ tool = 'manual-bb'; role = 'sanitized_execution_summary'; direction = 'input'; path = '.lakda/rc/final/qeg/artifacts/manual-summary.json'; required = $true },
+              [ordered]@{ tool = 'qeg'; role = 'gate_input'; direction = 'input'; path = '.lakda/rc/final/qeg/gate-input.json'; required = $true },
+              [ordered]@{ tool = 'qeg'; role = 'gate_verdict'; direction = 'output'; path = '.lakda/rc/final/qeg/gate-verdict.json'; required = $true },
+              [ordered]@{ tool = 'qeg'; role = 'output_record'; direction = 'output'; path = '.lakda/rc/final/qeg/quality-evidence-record.json'; required = $true }
+            )
+            qeg_policy_hash = $qegInput.policy.policyHash
+            final_verdict = 'go'
+            degraded = @()
+            skipped = @()
+          }
+          $config | ConvertTo-Json -Depth 8 | Set-Content -Encoding utf8 .lakda/rc/final/five-tool-config.json
+          $repoRoot = (Resolve-Path .).Path
+          $manifestScript = Join-Path $repoRoot '.tools/workflow-cookbook/tools/ci/five_tool_manifest.py'
+          $configPath = Join-Path $repoRoot '.lakda/rc/final/five-tool-config.json'
+          $manifestPath = Join-Path $repoRoot '.lakda/rc/final/five-tool-run-manifest.json'
+          $validationPath = Join-Path $repoRoot '.lakda/rc/final/five-tool-validation.json'
+          uv run --directory .tools/workflow-cookbook python $manifestScript --repo-root $repoRoot generate --config $configPath --out $manifestPath --validate
+          uv run --directory .tools/workflow-cookbook python $manifestScript --repo-root $repoRoot validate --manifest $manifestPath --json | Set-Content -Encoding utf8 $validationPath
+
+      - name: Package security-scanned final evidence
+        run: |
+          $revision = git rev-parse --short=12 HEAD
+          $version = '${{ needs.prepare.outputs.release_version }}'
+          $package = '.lakda/rc/final/release-package'
+          $zip = ".lakda/rc/final/lakda-v$version-evidence-$revision.zip"
+          New-Item -ItemType Directory -Force $package | Out-Null
+          Copy-Item -LiteralPath .lakda/rc/final/qeg -Destination (Join-Path $package 'qeg') -Recurse
+          Copy-Item -LiteralPath .lakda/rc/final/five-tool-run-manifest.json -Destination $package
+          Copy-Item -LiteralPath .lakda/rc/final/five-tool-validation.json -Destination $package
+          Copy-Item -LiteralPath .lakda/rc/prepared/security-scan.json -Destination $package
+          node scripts/scan-release-evidence.mjs --path=$package --out=.lakda/rc/final/security-scan.json
+          Copy-Item -LiteralPath .lakda/rc/final/security-scan.json -Destination $package
+          node scripts/scan-release-evidence.mjs --path=$package
+          Compress-Archive -Path (Join-Path $package '*') -DestinationPath $zip -CompressionLevel Optimal
+          git diff --exit-code
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: lakda-rc5-final-${{ needs.prepare.outputs.revision }}
+          path: |
+            .lakda/rc/final/release-package/
+            .lakda/rc/final/lakda-v*-evidence-*.zip
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 90
+
+      - name: Create rc tag and prerelease after QEG go
+        if: ${{ inputs.publish_release }}
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          $zip = Get-ChildItem .lakda/rc/lakda-v0.2.1-evidence-*.zip | Select-Object -First 1
-          gh release upload $env:RELEASE_TAG $zip.FullName --clobber
-
-      - name: Mark PR #3 ready after QEG go
-        if: ${{ success() && inputs.mark_pr_ready }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh pr ready 3
+          $revision = git rev-parse HEAD
+          $expected = 'v${{ needs.prepare.outputs.release_version }}'
+          if ($env:RELEASE_TAG -ne $expected) { throw "release_tag must equal $expected" }
+          $existing = git rev-parse -q --verify "refs/tags/$env:RELEASE_TAG"
+          if ($LASTEXITCODE -eq 0 -and $existing -ne $revision) { throw "existing tag does not point at the QEG-gated revision" }
+          if ($LASTEXITCODE -ne 0) {
+            git tag -a $env:RELEASE_TAG $revision -m "domain-lakda-runner $env:RELEASE_TAG QEG-gated"
+            git push origin "refs/tags/$env:RELEASE_TAG"
+          }
+          $zip = Get-ChildItem .lakda/rc/final/lakda-v*-evidence-*.zip | Select-Object -First 1
+          gh release create $env:RELEASE_TAG $zip.FullName --prerelease --title $env:RELEASE_TAG --notes "QEG-gated evidence for $revision"

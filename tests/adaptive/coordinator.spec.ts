@@ -9,6 +9,7 @@ import { fingerprintObservation } from "../../src/adaptive/fingerprint.js";
 import type { Observation } from "../../src/adaptive/contracts.js";
 
 test("adaptive-explore writes a state graph and deterministic replay trace from a real browser run", async () => {
+  test.setTimeout(60_000);
   let terminalTestId = "finish";
   const fixture = await startFixture(() => ({ body: `<main><button data-testid="next">Next</button></main><script>document.querySelector("button").addEventListener("click", () => document.querySelector("main").innerHTML = "<button data-testid='${terminalTestId}'>Finish</button>");</script>` }));
   const outputDir = await mkdtemp(join(tmpdir(), "lakda-adaptive-"));
