@@ -18,11 +18,11 @@ export type Observation = {
   provenance: { adapterId: string; runtime: string; capabilityRevision: string }; adapterDataRef?: string;
 };
 export type LocatorScope = {
-  strategy: "test-id" | "role";
+  strategy: "test-id" | "role" | "stable-key";
   value: string;
   name?: string;
   boundary: "row" | "listitem" | "card" | "dialog";
-  keySource: "test-id" | "heading";
+  keySource: "test-id" | "heading" | "identifier-hash";
 };
 export type LocatorRecipe = { strategy: "test-id" | "role" | "scoped-role" | "label" | "text" | "image" | "request"; value: string; name?: string; scope?: LocatorScope; framePath?: string[] };
 export type CoverageDebtReason = "ambiguous-locator" | "sensitive-locator" | "missing-accessible-name" | "missing-input-profile" | "out-of-scope-link" | "disabled-control" | "unsupported-control";

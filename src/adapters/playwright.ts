@@ -6,7 +6,7 @@ import type { AdaptiveAdapter, AdapterFailure, EvidenceRequest, ExecuteContext, 
 
 type Target = Page | Frame;
 type Entry = { target: Target; ref: TargetRef; pageMetadata?: { openerTargetId?: string; triggerActionId?: string; initialUrl?: string } };
-type ScopeHint = { boundary: LocatorScope["boundary"]; role: string; testId?: string; name?: string; keySource: LocatorScope["keySource"]; hasIdentifierKey: boolean };
+type ScopeHint = { boundary: LocatorScope["boundary"]; role: string; testId?: string; name?: string; identifierHash?: string; keySource: LocatorScope["keySource"]; };
 type Control = { ordinal: number; actionKind: "click" | "fill" | "check" | "select"; role?: string; name?: string; testId?: string; fieldId?: string; href?: string; hint: string; disabled: boolean; scopeHints: ScopeHint[] };
 type DisplayElement = { role: "heading" | "dialog" | "alert" | "status"; name: string; modal?: true; open?: boolean; level?: number };
 type DialogEvent = {
@@ -84,6 +84,7 @@ function resolveDialogPolicy(candidate: ActionCandidate, context: ExecuteContext
 }
 function scopeLocator(target: Target, scope: LocatorScope): Locator {
   if (scope.strategy === "test-id") return target.getByTestId(scope.value);
+  if (scope.strategy === "stable-key") return target.locator(`[data-lakda-scope-key="${scope.value}"]`);
   return target.getByRole(scope.value as never, { name: scope.name, exact: true });
 }
 function locator(target: Target, recipe: LocatorRecipe): Locator {
@@ -342,8 +343,10 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
           const heading = text(parent.querySelector("h1,h2,h3,h4,h5,h6,[role='heading']"));
           const accessible = (parent.getAttribute("aria-label") ?? parent.getAttribute("title") ?? "").trim();
           const testId = parent.getAttribute("data-testid")?.trim() || undefined;
+          const stableKey = parent.getAttribute("data-lakda-scope-key")?.trim().toLowerCase();
+          const identifierHash = stableKey && /^[0-9a-f]{64}$/.test(stableKey) ? stableKey : undefined;
           const scopeName = heading || accessible || undefined;
-          result.push({ boundary, role: scopeRole, ...(testId ? { testId } : {}), ...(scopeName ? { name: scopeName } : {}), keySource: testId ? "test-id" : "heading", hasIdentifierKey: Boolean(parent.getAttribute("data-lakda-scope-key") || parent.getAttribute("data-row-key")) });
+          result.push({ boundary, role: scopeRole, ...(testId ? { testId } : {}), ...(scopeName ? { name: scopeName } : {}), ...(identifierHash ? { identifierHash } : {}), keySource: testId ? "test-id" : scopeName ? "heading" : "identifier-hash" });
         }
         return result;
       };
@@ -433,6 +436,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
     };
     for (const hint of control.scopeHints) if (hint.testId && publicLocator(hint.testId)) add({ strategy: "test-id", value: hint.testId, boundary: hint.boundary, keySource: "test-id" });
     for (const hint of control.scopeHints) if (hint.name && publicLocator(hint.name)) add({ strategy: "role", value: hint.role, name: hint.name, boundary: hint.boundary, keySource: "heading" });
+    for (const hint of control.scopeHints) if (hint.identifierHash) add({ strategy: "stable-key", value: hint.identifierHash, boundary: hint.boundary, keySource: "identifier-hash" });
     return scopes;
   }
 
