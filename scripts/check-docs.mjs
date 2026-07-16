@@ -46,7 +46,7 @@ const requirements = readFileSync(resolve(root, "REQUIREMENTS.md"), "utf8");
 const specification = readFileSync(resolve(root, "SPECIFICATION.md"), "utf8");
 const evaluation = readFileSync(resolve(root, "EVALUATION.md"), "utf8");
 const packageJson = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
-if (packageJson.version !== "0.3.0-rc.1") failures.push("package.json: expected version 0.3.0-rc.1, got " + packageJson.version);
+if (packageJson.version !== "0.3.0-rc.3") failures.push("package.json: expected version 0.3.0-rc.3, got " + packageJson.version);
 for (const id of ids(requirements, /AC-\d{8}-\d{2}|AC-\d{3}/g)) {
   if (!specification.includes(id)) failures.push("SPECIFICATION.md: missing " + id);
   if (!evaluation.includes(id)) failures.push("EVALUATION.md: missing " + id);

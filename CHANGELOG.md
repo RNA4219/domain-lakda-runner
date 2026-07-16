@@ -4,6 +4,26 @@
 
 - P7の固定corpus実環境受入、実機Airtest/Poco、認可済みSecurity target、manual-bb/QEG Gateを継続する。
 
+## 0.3.0-rc.3 - 2026-07-16
+
+### Fixed
+
+- `--trace` と `--config` のどちらが欠けても target 接続前に fail-closed することを fixture で個別に検証。
+- `lakda/investigation/v1` の `traceRef`、`configDigest`、`divergenceReason`、`terminationReason` を公開Schemaへ反映し、portable ref以外を拒否。
+
+## 0.3.0-rc.2 - 2026-07-16
+
+### Added
+
+- P10 strict replayの`scout`、`investigate`、`promote`フローを追加し、同一trace/configを一回だけ再生する調査契約を固定。
+- candidate、実行結果、topology、generic/product/security oracle、HATE evidenceの不一致を fail-closed で記録し、再現判定とportable promotionを分離。
+- 人間向けREADME、RUNBOOK、拡張仕様書にSkills、HATE、QEGの導線と外部Gate境界を追記。
+
+### Release Status
+
+- P0〜P10のfixture・CI検証を含むopt-in RC。既存modeと`lakda/action-plan/v1`は維持する。
+- P7の固定corpus実環境受入、実機Airtest/Poco、認可済みSecurity target、manual-bb/QEG final Gateは`pending_external`であり、production Goを意味しない。
+
 ## 0.3.0-rc.1 - 2026-07-15
 
 ### Added

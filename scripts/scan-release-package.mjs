@@ -42,7 +42,7 @@ descriptors.sort((left, right) => left.path.localeCompare(right.path));
 const paths = new Set(descriptors.map(value => value.path));
 for (const required of requiredPaths) if (!paths.has(required)) throw new Error("release package is missing a required file: " + required);
 const packageJson = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
-if (packageJson.version !== "0.3.0-rc.1" || packageJson.private !== true || packageJson.main !== "./dist/index.js" || packageJson.types !== "./dist/index.d.ts" || packageJson.exports?.["."]?.import !== "./dist/index.js") {
+if (packageJson.version !== "0.3.0-rc.3" || packageJson.private !== true || packageJson.main !== "./dist/index.js" || packageJson.types !== "./dist/index.d.ts" || packageJson.exports?.["."]?.import !== "./dist/index.js") {
   throw new Error("release package metadata contract mismatch");
 }
 const result = { schemaVersion: "lakda/release-package-security-scan/v1", status: "passed", packageVersion: packageJson.version, files: descriptors };
