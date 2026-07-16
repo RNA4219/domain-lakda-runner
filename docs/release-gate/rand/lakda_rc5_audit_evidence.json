@@ -1,0 +1,91 @@
+{
+  "items": [
+    {
+      "id": "lakda-rc5-001",
+      "kind": "audit_evidence",
+      "source_name": "lakda_release_policy",
+      "url": "fixture://lakda/rc5/revision-bound-gate",
+      "title": "rc.5 Gate対象revisionの固定",
+      "summary": "RC-001: package version、source SHA、設定digest、QEG入力が同じfreeze対象へ結び付く。",
+      "claims": ["release tagはQEG goの対象SHAだけを指す", "freeze後の変更はGate再実行を要求する"],
+      "evidence": ["fixture primary: docs/release-gate/feature_spec.json"],
+      "tags": ["audit", "official", "ja-JP"],
+      "priority": 10,
+      "high_priority": true,
+      "metadata": {
+        "requirement_id": "AC-RC5-001",
+        "original_text": "freeze済みの対象SHAでcheck、fixture、adaptive、package、HATE upstreamが成功し、retryなしで記録される。",
+        "source_type": "official",
+        "source_tier": "primary",
+        "locale": "ja-JP",
+        "freshness_days": 1,
+        "kano_type": "must_be",
+        "confidence": 0.96,
+        "weight": 1.0,
+        "testability": "high",
+        "implementation_alignment": "high",
+        "risks": ["過去revisionのQEG goを現在sourceへ誤引用する"],
+        "issues": [],
+        "suggested_action": "SHA、package version、evidence hashをGate前後で再照合する。"
+      }
+    },
+    {
+      "id": "lakda-rc5-002",
+      "kind": "audit_evidence",
+      "source_name": "lakda_release_policy",
+      "url": "fixture://lakda/rc5/independent-reverification",
+      "title": "自動・実Qwen・manual証跡の独立再検証",
+      "summary": "RC-002: deterministic、adaptive、package、real Qwen、manual-bbの証跡は対象revisionとdigestで第三者が再検証できる。",
+      "claims": ["fixture成功は実target受入を代替しない", "raw artifactと認証情報は公開evidenceへ含めない"],
+      "evidence": ["fixture primary: docs/release-gate/manual_case_set.json"],
+      "tags": ["audit", "official", "ja-JP"],
+      "priority": 9,
+      "high_priority": true,
+      "metadata": {
+        "requirement_id": "AC-RC5-002",
+        "original_text": "対象SHAに結び付くreference staging、実Qwen full/worker、manual-bb証跡を第三者がhashから再検証できる。",
+        "source_type": "official",
+        "source_tier": "primary",
+        "locale": "ja-JP",
+        "freshness_days": 1,
+        "kano_type": "must_be",
+        "confidence": 0.94,
+        "weight": 0.98,
+        "testability": "high",
+        "implementation_alignment": "high",
+        "risks": ["mockまたはsecret混入artifactを実証跡として扱う"],
+        "issues": [],
+        "suggested_action": "verifier、security scan、manual strict recordを必須化する。"
+      }
+    },
+    {
+      "id": "lakda-rc5-003",
+      "kind": "audit_evidence",
+      "source_name": "lakda_release_policy",
+      "url": "fixture://lakda/rc5/five-tool-boundary",
+      "title": "five-tool chainと外部QEG最終権限",
+      "summary": "RC-003: RanD、Code-to-gate、HATE、manual-bb、QEGを順に接続し、QEG以外は最終Goを生成しない。",
+      "claims": ["QEG go以外ではreleaseを作成しない", "実target未承認時はpending_externalを維持する"],
+      "evidence": ["fixture primary: README.md and RUNBOOK.md"],
+      "tags": ["audit", "official", "ja-JP"],
+      "priority": 10,
+      "high_priority": true,
+      "metadata": {
+        "requirement_id": "AC-RC5-003",
+        "original_text": "RanD、Code-to-gate、HATE、manual-bb、QEGを接続し、QEG以外は最終Goを主張せず、QEG go以外ではreleaseを作成しない。",
+        "source_type": "official",
+        "source_tier": "primary",
+        "locale": "ja-JP",
+        "freshness_days": 1,
+        "kano_type": "must_be",
+        "confidence": 0.97,
+        "weight": 1.0,
+        "testability": "high",
+        "implementation_alignment": "high",
+        "risks": ["部分証跡を最終Gateへ誤昇格する"],
+        "issues": [],
+        "suggested_action": "five-tool manifestでcommit、artifact hash、QEG policy hash、verdictを再検証する。"
+      }
+    }
+  ]
+}

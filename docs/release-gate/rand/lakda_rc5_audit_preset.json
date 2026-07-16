@@ -1,0 +1,33 @@
+{
+  "name": "lakda_rc5_audit",
+  "category": "audit",
+  "mode": "kano_audit",
+  "audit_topic": "domain-lakda-runner v0.3.0-rc.5 revision-bound release audit",
+  "audit_document_id": "LAKDA-RC-305",
+  "audit_document_ref": "docs://release-gate/feature_spec.json",
+  "seed_urls": ["fixture://lakda/rc5/revision-bound-gate"],
+  "allowed_domains": [],
+  "query_template": "Audit Lakda rc.5 release requirements for traceability, testability, implementation alignment, and final Gate authority.",
+  "prompt_template": "kano_audit_prompt.md",
+  "max_items": 10,
+  "output_profile": "kano_audit_packet",
+  "insight_enabled": false,
+  "gate_enabled": false,
+  "persona_modes": ["researcher", "gatekeeper", "product"],
+  "locales": ["ja-JP", "en-US"],
+  "freshness_window_days": 180,
+  "audit_assumptions": [
+    "fixture evidence is a release requirement audit input and is not real-target execution evidence",
+    "QEG remains the only final release verdict authority",
+    "the source revision is fixed separately by the release workflow"
+  ],
+  "sources": [
+    {
+      "name": "lakda_rc5_audit_fixture",
+      "kind": "audit_evidence",
+      "fetcher": "audit_fixture_json",
+      "fixture_path": "tests/fixtures/lakda_rc5_audit_evidence.json",
+      "priority": 1
+    }
+  ]
+}

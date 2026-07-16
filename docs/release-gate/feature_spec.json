@@ -1,21 +1,25 @@
 {
-  "feature_id": "LAKDA-RC-021",
-  "title": "domain-lakda-runner v0.2.1 release candidate",
-  "summary": "実staging、実Qwen、独立再検証可能な証跡を五段Gateへ渡す。",
-  "actors": ["release_operator", "staging_user", "qeg_reviewer"],
+  "feature_id": "LAKDA-RC-305",
+  "title": "domain-lakda-runner v0.3.0-rc.5 revision-bound release evidence",
+  "summary": "freezeしたrc.5 source revisionに対し、deterministic、adaptive、package、reference staging、real Qwen、五段Gateを独立再検証可能な証跡として接続する。",
+  "actors": ["release_operator", "reference_staging_operator", "manual_bb_reviewer", "qeg_reviewer"],
   "acceptance_criteria": [
-    "AC-017: full 90-runとworker-smoke 20-runのsanitized bundleを第三者がhashから再検証できる",
-    "AC-018: Code-to-gate、HATE、manual-bb、QEGを接続し、実staging未実施またはmock証跡ではrelease passにならない"
+    "AC-RC5-001: freeze済みの対象SHAでcheck、fixture、adaptive、package、HATE upstreamが成功し、retryなしで記録される",
+    "AC-RC5-002: 対象SHAに結び付くreference staging、実Qwen full/worker、manual-bb証跡を第三者がhashから再検証できる",
+    "AC-RC5-003: RanD、Code-to-gate、HATE、manual-bb、QEGを接続し、QEG以外は最終Goを主張せず、QEG go以外ではreleaseを作成しない"
   ],
   "business_rules": [
-    "Lakdaはrun outcomeと証跡までを担当し、release verdictはQEGだけが決定する",
-    "認証値、raw prompt、絶対path、raw browser artifactをrelease evidenceへ含めない"
+    "Lakdaはrun outcomeとHATE/v1証跡までを担当し、最終verdictは外部QEGだけが決定する",
+    "fixture、mock、reference stagingは適用範囲を明記し、任意の実targetまたは本番の包括承認へ昇格させない",
+    "認証値、raw prompt、storageState、絶対path、raw browser artifactをrelease evidenceへ含めない",
+    "freeze後に対象sourceまたは設定digestが変化した場合、Gateは最初から再実行する"
   ],
-  "changed_areas": ["real-llm acceptance", "release evidence", "RC workflow"],
-  "devices": ["Windows Chromium"],
+  "changed_areas": ["release evidence workflow", "QEG preparation", "P10 strict replay coverage", "adaptive acceptance", "package boundary"],
+  "devices": ["Windows Chromium", "self-hosted Windows Qwen runner"],
   "source_refs": [
-    {"id": "AC-017", "kind": "ac", "excerpt": "証跡の独立再検証"},
-    {"id": "AC-018", "kind": "ac", "excerpt": "五段Gateと実staging"}
+    {"id": "AC-RC5-001", "kind": "ac", "excerpt": "revision-bound deterministic and adaptive evidence"},
+    {"id": "AC-RC5-002", "kind": "ac", "excerpt": "independent reverification of real acceptance evidence"},
+    {"id": "AC-RC5-003", "kind": "ac", "excerpt": "five-tool chain and external QEG authority"}
   ],
-  "assumptions": []
+  "assumptions": [{"id": "ASM-RC5-01", "text": "実target接続は承認済みreference stagingだけに限定し、別targetの受入はpending_externalとする。", "severity": "high", "impact_on_coverage": "rc.5の実target証跡はreference stagingに限定され、別SaaS・実機・security targetは含まれない。", "resolution_status": "accepted"}]
 }

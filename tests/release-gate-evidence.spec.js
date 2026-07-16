@@ -84,10 +84,31 @@ async function writeInput(root, name, value) {
 }
 
 test("real evidence chain prepares QEG input without producing a verdict", async () => {
+  test.setTimeout(60_000);
   const root = await mkdtemp(join(tmpdir(), "lakda-release-gate-"));
   const full = await createAcceptanceFixture(join(root, "full"), "full");
   const smoke = await createAcceptanceFixture(join(root, "smoke"), "worker-smoke");
   const manualRecord = await createManualFixture(join(root, "manual"), full.revision);
+  const randAudit = await writeInput(root, "rand-summary.json", {
+    schemaVersion: "lakda/rand-release-summary/v1",
+    status: "ready",
+    subjectRevision: full.revision,
+    toolRevision: "b".repeat(40),
+    requirementsAuditPacketSha256: "c".repeat(64),
+    downstreamHandoffSha256: "d".repeat(64),
+  });
+  const referenceStaging = await writeInput(root, "reference-staging-summary.json", {
+    schemaVersion: "lakda/reference-staging-summary/v1",
+    status: "ready",
+    subjectRevision: full.revision,
+    targetRevision: "reference-target-revision",
+    acceptanceId: "AC-LX-014",
+    caseId: "case-reference-001",
+    configDigest: "sha256:" + "e".repeat(64),
+    corpus: { corpusId: "reference-corpus", version: "1", sha256: "sha256:" + "1".repeat(64), targetRevision: "reference-target-revision" },
+    reportSha256: "2".repeat(64),
+    verificationSha256: "3".repeat(64),
+  });
   const ctgReadiness = await writeInput(root, "ctg-readiness.json", {
     status: "passed",
     completeness: "complete",
@@ -137,12 +158,15 @@ test("real evidence chain prepares QEG input without producing a verdict", async
   const outDir = join(root, "qeg");
   const result = await assembleReleaseQegInput({
     revision: full.revision,
+    releaseVersion: "0.3.0-rc.5",
     stagingOrigin: "https://staging.example.invalid",
     fullReport: full.reportPath,
     fullBundle: full.bundle,
     workerReport: smoke.reportPath,
     workerBundle: smoke.bundle,
     manualRecord,
+    randAudit,
+    referenceStaging,
     ctgReadiness,
     ctgTriage,
     ctgQeg,
@@ -154,7 +178,7 @@ test("real evidence chain prepares QEG input without producing a verdict", async
     outDir
   });
   expect(result.gateInput.metadata.qegVersion).toBe("0.2");
-  expect(result.gateInput.optionalEvidence.manualEvidence).toHaveLength(4);
+  expect(result.gateInput.optionalEvidence.manualEvidence).toHaveLength(5);
   expect(result.gateInput.graph.nodes.filter(node => node.kind === "test").every(node => node.testExecutionMode === "real")).toBe(true);
   expect(result.gateInput.optionalEvidence.finalVerdictAuthority).toBe("qeg");
   await expect(stat(join(outDir, "gate-verdict.json"))).rejects.toThrow();
