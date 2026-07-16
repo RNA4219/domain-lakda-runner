@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { writeCanonicalJson, writeText } from "../core/artifact-store.js";
-import type { ActionCandidate, Observation, OracleResult } from "./contracts.js";
+import type { ActionCandidate, CoverageDebt, Observation, OracleResult } from "./contracts.js";
 import type { Coverage, CoveragePoint, GraphSnapshot } from "./graph.js";
 
 export type AdaptiveTraceEntry = Record<string, unknown>;
@@ -10,7 +10,7 @@ export type AdaptiveEvidence = {
   outcome: string;
   terminationReason: string;
   observations: Observation[];
-  candidateSnapshots: Array<{ observationId: string; candidates: ActionCandidate[] }>;
+  candidateSnapshots: Array<{ observationId: string; candidates: ActionCandidate[]; coverageDebt: CoverageDebt[]; coverageDebtSummary: Record<string, number> }>;
   oracleResults: OracleResult[];
   trace: AdaptiveTraceEntry[];
   graph: GraphSnapshot;

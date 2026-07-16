@@ -1,12 +1,13 @@
 import type { BrowserContext, Frame, Locator, Page } from "playwright";
 import { findSensitive, redact, sha256 } from "../core/redaction.js";
 import { fingerprintObservation } from "../adaptive/fingerprint.js";
-import type { ActionCandidate, AdapterCapabilities, DialogHandling, EvidenceArtifactRef, ExecutionResult, LocatorRecipe, MutationKind, Observation, TargetRef } from "../adaptive/contracts.js";
+import type { ActionCandidate, AdapterCapabilities, CandidateDiscoveryResult, CoverageDebt, DialogHandling, EvidenceArtifactRef, ExecutionResult, LocatorRecipe, LocatorScope, MutationKind, Observation, TargetRef } from "../adaptive/contracts.js";
 import type { AdaptiveAdapter, AdapterFailure, EvidenceRequest, ExecuteContext, ObserveContext, RecoverContext, RecoveryResult } from "./types.js";
 
 type Target = Page | Frame;
 type Entry = { target: Target; ref: TargetRef; pageMetadata?: { openerTargetId?: string; triggerActionId?: string; initialUrl?: string } };
-type Control = { actionKind: "click" | "fill" | "check" | "select"; role?: string; name?: string; testId?: string; fieldId?: string; href?: string; hint: string };
+type ScopeHint = { boundary: LocatorScope["boundary"]; role: string; testId?: string; name?: string; keySource: LocatorScope["keySource"]; hasIdentifierKey: boolean };
+type Control = { ordinal: number; actionKind: "click" | "fill" | "check" | "select"; role?: string; name?: string; testId?: string; fieldId?: string; href?: string; hint: string; disabled: boolean; scopeHints: ScopeHint[] };
 type DisplayElement = { role: "heading" | "dialog" | "alert" | "status"; name: string; modal?: true; open?: boolean; level?: number };
 type DialogEvent = {
   eventKind: "js-dialog";
@@ -81,14 +82,21 @@ function resolveDialogPolicy(candidate: ActionCandidate, context: ExecuteContext
   }
   return { policy: handling };
 }
+function scopeLocator(target: Target, scope: LocatorScope): Locator {
+  if (scope.strategy === "test-id") return target.getByTestId(scope.value);
+  return target.getByRole(scope.value as never, { name: scope.name, exact: true });
+}
 function locator(target: Target, recipe: LocatorRecipe): Locator {
   if (recipe.strategy === "test-id") return target.getByTestId(recipe.value);
   if (recipe.strategy === "role") return target.getByRole(recipe.value as never, { name: recipe.name, exact: true });
+  if (recipe.strategy === "scoped-role") {
+    if (!recipe.scope) throw new Error("scoped locator is missing scope");
+    return scopeLocator(target, recipe.scope).getByRole(recipe.value as never, { name: recipe.name, exact: true });
+  }
   if (recipe.strategy === "label") return target.getByLabel(recipe.value, { exact: true });
   if (recipe.strategy === "text") return target.getByText(recipe.value, { exact: true });
   throw new Error("unsupported locator recipe");
 }
-
 export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
   readonly adapterId: string;
   private readonly targets = new Map<string, Entry>();
@@ -308,6 +316,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
 
   private async controls(target: Target): Promise<Control[]> {
     return target.evaluate(() => {
+      const text = (element: Element | null): string => ((element as HTMLElement | null)?.innerText ?? element?.textContent ?? "").replace(/\s+/g, " ").trim();
       const role = (element: Element): string | undefined => {
         if (element.getAttribute("role")) return element.getAttribute("role")!;
         if (element instanceof HTMLButtonElement) return "button";
@@ -319,22 +328,37 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
       };
       const name = (element: Element): string => {
         const aria = element.getAttribute("aria-label") ?? element.getAttribute("title"); if (aria) return aria.trim();
-        if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) { const labels = [...element.labels ?? []].map(label => label.textContent?.trim() ?? "").filter(Boolean); if (labels.length) return labels.join(" "); if (element.getAttribute("placeholder")) return element.getAttribute("placeholder")!.trim(); }
-        return ((element as HTMLElement).innerText ?? element.textContent ?? "").replace(/\s+/g, " ").trim();
+        if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) { const labels = [...element.labels ?? []].map(label => text(label)).filter(Boolean); if (labels.length) return labels.join(" "); if (element.getAttribute("placeholder")) return element.getAttribute("placeholder")!.trim(); }
+        return text(element);
       };
       const action = (value: string): Control["actionKind"] | undefined => value === "checkbox" ? "check" : value === "combobox" ? "select" : value === "textbox" ? "fill" : ["button", "link", "menuitem", "tab", "option"].includes(value) ? "click" : undefined;
+      const scopeHints = (element: Element): ScopeHint[] => {
+        const result: ScopeHint[] = [];
+        for (let parent = element.parentElement; parent && parent !== document.body; parent = parent.parentElement) {
+          const explicit = parent.getAttribute("role");
+          const boundary = explicit === "row" ? "row" : explicit === "listitem" ? "listitem" : explicit === "dialog" ? "dialog" : parent instanceof HTMLTableRowElement ? "row" : parent instanceof HTMLLIElement ? "listitem" : parent instanceof HTMLDialogElement ? "dialog" : parent.tagName.toLowerCase() === "article" || parent.getAttribute("data-lakda-scope") === "card" ? "card" : undefined;
+          if (!boundary) continue;
+          const scopeRole = boundary === "card" ? "article" : boundary;
+          const heading = text(parent.querySelector("h1,h2,h3,h4,h5,h6,[role='heading']"));
+          const accessible = (parent.getAttribute("aria-label") ?? parent.getAttribute("title") ?? "").trim();
+          const testId = parent.getAttribute("data-testid")?.trim() || undefined;
+          const scopeName = heading || accessible || undefined;
+          result.push({ boundary, role: scopeRole, ...(testId ? { testId } : {}), ...(scopeName ? { name: scopeName } : {}), keySource: testId ? "test-id" : "heading", hasIdentifierKey: Boolean(parent.getAttribute("data-lakda-scope-key") || parent.getAttribute("data-row-key")) });
+        }
+        return result;
+      };
       const query = "button,a[href],input,textarea,select,[role='button'],[role='link'],[role='textbox'],[role='checkbox'],[role='combobox'],[role='menuitem'],[role='tab']";
-      return [...new Set([...document.querySelectorAll(query)])].flatMap(element => {
+      return [...new Set([...document.querySelectorAll(query)])].flatMap((element, ordinal) => {
         const html = element as HTMLElement; const rect = html.getBoundingClientRect(); const style = getComputedStyle(html); const r = role(element); const a = r ? action(r) : undefined;
-        if (!r || !a || rect.width <= 0 || rect.height <= 0 || style.display === "none" || style.visibility === "hidden" || html.hidden || element.getAttribute("aria-hidden") === "true" || (element as HTMLInputElement).disabled || element.getAttribute("aria-disabled") === "true") return [];
+        if (!r || !a || rect.width <= 0 || rect.height <= 0 || style.display === "none" || style.visibility === "hidden" || html.hidden || element.getAttribute("aria-hidden") === "true") return [];
         const fieldId = element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement
           ? element.id || element.getAttribute("data-testid") || element.getAttribute("name") || (element.form ? `field-${[...element.form.elements].indexOf(element)}` : undefined)
           : undefined;
-        return [{ actionKind: a, role: r, name: name(element), testId: element.getAttribute("data-testid") ?? undefined, fieldId, href: element instanceof HTMLAnchorElement ? element.href : undefined, hint: `${name(element)} ${element.getAttribute("type") ?? ""}` }];
+        const disabled = (element instanceof HTMLInputElement || element instanceof HTMLButtonElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement) && element.disabled || element.getAttribute("aria-disabled") === "true";
+        return [{ ordinal, actionKind: a, role: r, name: name(element), testId: element.getAttribute("data-testid") ?? undefined, fieldId, href: element instanceof HTMLAnchorElement ? element.href : undefined, hint: `${name(element)} ${element.getAttribute("type") ?? ""}`, disabled, scopeHints: scopeHints(element) }];
       });
     });
   }
-
   private async displayElements(target: Target): Promise<DisplayElement[]> {
     return target.evaluate(() => {
       const selector = "h1,h2,h3,h4,h5,h6,dialog,[role='heading'],[role='dialog'],[role='alert'],[role='status']";
@@ -400,25 +424,107 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
     return { ...common, topology, completeness: "complete", ui: { primaryElements, domModals: displays.filter(display => display.role === "dialog"), events }, forms: await this.forms(entry.target) };
   }
 
-  async generateCandidates(observation: Observation): Promise<ActionCandidate[]> {
-    if (observation.provenance.adapterId !== this.adapterId || observation.completeness !== "complete") return [];
-    const controls = await this.controls(this.entry(observation.targetRef).target); const sourceFingerprint = fingerprintObservation(observation).value;
-    const fieldIds = new Set(observation.forms.flatMap(form => Array.isArray(form.fields) ? form.fields.flatMap(field => field && typeof field === "object" && typeof (field as Record<string, unknown>).fieldId === "string" ? [(field as Record<string, string>).fieldId] : []) : []));
-    const counts = new Map<string, number>(); for (const control of controls) { const key = control.testId ? `t:${control.testId}` : `r:${control.role}:${control.name}`; counts.set(key, (counts.get(key) ?? 0) + 1); }
-    return controls.flatMap(control => {
-      if (!allowedRoles.has(control.role ?? "")) return [];
-      if ((control.actionKind === "fill" || control.actionKind === "select") && (!control.fieldId || !fieldIds.has(control.fieldId))) return [];
-      if (control.href) try { if (!this.scopeHosts.has(new URL(control.href).hostname)) return []; } catch { return []; }
-      const framePath = observation.targetRef.framePath ? { framePath: [...observation.targetRef.framePath] } : {};
-      const recipe: LocatorRecipe | undefined = control.testId && counts.get(`t:${control.testId}`) === 1 ? { strategy: "test-id", value: control.testId, ...framePath } : control.role && publicLocator(control.name) && counts.get(`r:${control.role}:${control.name}`) === 1 ? { strategy: "role", value: control.role, name: control.name, ...framePath } : undefined;
-      if (!recipe) return [];
-      const mutationKind = mutation(control.hint, control.actionKind);
-      const inputProfileRef = control.actionKind === "fill" || control.actionKind === "select" ? `input-field:${control.fieldId}` : undefined;
-      const candidateId = `pw-${sha256(`${observation.targetRef.targetId}:${control.actionKind}:${recipe.strategy}:${recipe.value}:${recipe.name ?? ""}:${inputProfileRef ?? ""}`).slice(0, 20)}`;
-      return [{ schemaVersion: version, candidateId, adapterId: this.adapterId, targetRef: observation.targetRef, sourceFingerprint, actionKind: control.actionKind, locatorRecipe: recipe, ...(inputProfileRef ? { inputProfileRef } : {}), generatedBy: { ruleId: "visible-enabled-control/v1", observationId: observation.observationId, reason: "visible-enabled-unique-control" }, risk: { weight: mutationKind === "none" ? 1 : mutationKind === "update" ? 4 : 10, mutationCost: mutationKind === "none" ? 1 : 4 }, mutationKind }];
-    });
+  private scopeRecipes(control: Control): LocatorScope[] {
+    const scopes: LocatorScope[] = [];
+    const seen = new Set<string>();
+    const add = (scope: LocatorScope) => {
+      const key = `${scope.strategy}:${scope.value}:${scope.name ?? ""}`;
+      if (!seen.has(key)) { seen.add(key); scopes.push(scope); }
+    };
+    for (const hint of control.scopeHints) if (hint.testId && publicLocator(hint.testId)) add({ strategy: "test-id", value: hint.testId, boundary: hint.boundary, keySource: "test-id" });
+    for (const hint of control.scopeHints) if (hint.name && publicLocator(hint.name)) add({ strategy: "role", value: hint.role, name: hint.name, boundary: hint.boundary, keySource: "heading" });
+    return scopes;
   }
 
+  private candidate(observation: Observation, control: Control, sourceFingerprint: string, recipe: LocatorRecipe): ActionCandidate {
+    const inputProfileRef = control.actionKind === "fill" || control.actionKind === "select" ? `input-field:${control.fieldId}` : undefined;
+    const scope = recipe.scope ? `${recipe.scope.strategy}:${recipe.scope.value}:${recipe.scope.name ?? ""}` : "";
+    const framePath = observation.targetRef.framePath ? { framePath: [...observation.targetRef.framePath] } : {};
+    const locatorRecipe = { ...recipe, ...framePath };
+    const mutationKind = mutation(control.hint, control.actionKind);
+    return {
+      schemaVersion: version,
+      candidateId: `pw-${sha256(`${observation.targetRef.targetId}:${control.actionKind}:${recipe.strategy}:${recipe.value}:${recipe.name ?? ""}:${scope}:${inputProfileRef ?? ""}`).slice(0, 20)}`,
+      adapterId: this.adapterId,
+      targetRef: observation.targetRef,
+      sourceFingerprint,
+      actionKind: control.actionKind,
+      locatorRecipe,
+      ...(inputProfileRef ? { inputProfileRef } : {}),
+      generatedBy: { ruleId: recipe.strategy === "scoped-role" ? "visible-enabled-scoped-control/v1" : "visible-enabled-unique-control/v1", observationId: observation.observationId, reason: recipe.strategy === "scoped-role" ? "visible-enabled-scoped-control" : "visible-enabled-unique-control" },
+      risk: { weight: mutationKind === "none" ? 1 : mutationKind === "update" ? 4 : 10, mutationCost: mutationKind === "none" ? 1 : 4 },
+      mutationKind,
+    };
+  }
+
+  async discoverCandidates(observation: Observation): Promise<CandidateDiscoveryResult> {
+    if (observation.provenance.adapterId !== this.adapterId || observation.completeness !== "complete") return { candidates: [], coverageDebt: [] };
+    const target = this.entry(observation.targetRef).target;
+    const controls = await this.controls(target);
+    const sourceFingerprint = fingerprintObservation(observation).value;
+    const fieldIds = new Set(observation.forms.flatMap(form => Array.isArray(form.fields) ? form.fields.flatMap(field => field && typeof field === "object" && typeof (field as Record<string, unknown>).fieldId === "string" ? [(field as Record<string, string>).fieldId] : []) : []));
+    const candidates: ActionCandidate[] = [];
+    const coverageDebt: CoverageDebt[] = [];
+    const recordDebt = (control: Control, reason: CoverageDebt["reason"], scope: CoverageDebt["scope"], matchedCount?: number) => {
+      const name = control.name?.trim();
+      const publicName = publicLocator(name) ? publicText(name) : undefined;
+      coverageDebt.push({
+        schemaVersion: "lakda-coverage-debt/v1",
+        debtId: `debt-${sha256(`${sourceFingerprint}:${control.ordinal}:${reason}:${control.role ?? ""}:${name ?? ""}`).slice(0, 20)}`,
+        reason,
+        actionKind: control.actionKind,
+        ...(control.role ? { role: control.role } : {}),
+        ...(publicName ? { name: publicName } : {}),
+        ...(!publicName && name ? { nameDigest: `sha256:${sha256(name)}` } : {}),
+        ...(matchedCount !== undefined ? { matchedCount } : {}),
+        scope,
+        targetFingerprint: sourceFingerprint,
+      });
+    };
+
+    for (const control of controls) {
+      if (control.disabled) { recordDebt(control, "disabled-control", "not-applicable"); continue; }
+      if (!allowedRoles.has(control.role ?? "")) { recordDebt(control, "unsupported-control", "not-applicable"); continue; }
+      if ((control.actionKind === "fill" || control.actionKind === "select") && (!control.fieldId || !fieldIds.has(control.fieldId))) { recordDebt(control, "missing-input-profile", "not-applicable"); continue; }
+      if (control.href) try { if (!this.scopeHosts.has(new URL(control.href).hostname)) { recordDebt(control, "out-of-scope-link", "not-applicable"); continue; } } catch { recordDebt(control, "out-of-scope-link", "not-applicable"); continue; }
+
+      const testId = control.testId?.trim();
+      if (testId && publicLocator(testId) && await target.getByTestId(testId).count() === 1) {
+        candidates.push(this.candidate(observation, control, sourceFingerprint, { strategy: "test-id", value: testId }));
+        continue;
+      }
+      const name = control.name?.trim();
+      if (!name) { recordDebt(control, "missing-accessible-name", "unavailable"); continue; }
+      if (!publicLocator(name)) { recordDebt(control, "sensitive-locator", "unavailable"); continue; }
+      const role = control.role!;
+      const global = target.getByRole(role as never, { name, exact: true });
+      const globalCount = await global.count();
+      if (globalCount === 1) {
+        candidates.push(this.candidate(observation, control, sourceFingerprint, { strategy: "role", value: role, name }));
+        continue;
+      }
+
+      let scopeState: CoverageDebt["scope"] = "unavailable";
+      let resolved: LocatorRecipe | undefined;
+      for (const scope of this.scopeRecipes(control)) {
+        const parent = scopeLocator(target, scope);
+        const parentCount = await parent.count();
+        if (parentCount !== 1) { if (parentCount > 1) scopeState = "ambiguous"; continue; }
+        scopeState = "resolved";
+        if (await parent.getByRole(role as never, { name, exact: true }).count() === 1) {
+          resolved = { strategy: "scoped-role", value: role, name, scope };
+          break;
+        }
+      }
+      if (resolved) candidates.push(this.candidate(observation, control, sourceFingerprint, resolved));
+      else recordDebt(control, "ambiguous-locator", scopeState, globalCount);
+    }
+    return { candidates, coverageDebt };
+  }
+
+  async generateCandidates(observation: Observation): Promise<ActionCandidate[]> {
+    return (await this.discoverCandidates(observation)).candidates;
+  }
   private async waitSettled(target: Target): Promise<ExecutionResult["settleResult"]> {
     const beforeSnapshot = await target.evaluate(() => [location.href, document.querySelectorAll("button,a,input,select,textarea,[role]").length, document.body?.innerText.slice(0, 512) ?? ""].join("|"));
     const started = Date.now();
@@ -443,7 +549,11 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
       if (preFingerprint !== candidate.sourceFingerprint) return { ...base, preFingerprint, endedAt: new Date().toISOString(), status: "denied", failureSignature: "stale_candidate", recoveryStatus: "not_required", settleResult: { policyVersion: this.settle.policyVersion, status: "aborted", elapsedMs: Date.now() - started, reasons: ["source-fingerprint-mismatch"] } };
       const dialogDecision = resolveDialogPolicy(candidate, context);
       if (dialogDecision.deniedReason) return { ...base, preFingerprint, endedAt: new Date().toISOString(), status: "denied", failureSignature: dialogDecision.deniedReason, recoveryStatus: "not_required", settleResult: { policyVersion: this.settle.policyVersion, status: "aborted", elapsedMs: Date.now() - started, reasons: [dialogDecision.deniedReason] } };
-      const entry = this.entry(candidate.targetRef); const targetLocator = locator(entry.target, candidate.locatorRecipe);
+      const entry = this.entry(candidate.targetRef);
+      if (candidate.locatorRecipe.strategy === "scoped-role") {
+        if (!candidate.locatorRecipe.scope || await scopeLocator(entry.target, candidate.locatorRecipe.scope).count() !== 1) throw new Error("scope is no longer unique");
+      }
+      const targetLocator = locator(entry.target, candidate.locatorRecipe);
       const actionTimeout = context.timeoutMs + Math.max(this.settle.maxWaitMs, 1_000);
       if (await targetLocator.count() !== 1) throw new Error("locator is no longer unique");
       const targetsBefore = new Set(this.targets.keys());

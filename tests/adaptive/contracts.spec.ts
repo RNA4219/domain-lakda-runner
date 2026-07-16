@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { ADAPTIVE_SCHEMA_VERSION, assertAdaptiveContract } from "../../src/adaptive/contracts.js";
+import { ADAPTIVE_SCHEMA_VERSION, assertAdaptiveContract, assertCandidateDiscoveryResult } from "../../src/adaptive/contracts.js";
 
 const fingerprint = {
   schemaVersion: ADAPTIVE_SCHEMA_VERSION,
@@ -34,4 +34,14 @@ test("adaptive contracts reject secret and adapter object leaks", () => {
   };
   expect(() => assertAdaptiveContract({ ...observation, ui: { password: "not-allowed" } })).toThrow(/sensitive/i);
   expect(() => assertAdaptiveContract({ ...observation, ui: { page: { internal: true } } })).toThrow(/adapter object/i);
+});
+
+test("candidate discovery accepts public debt and rejects sensitive or contradictory locator data", () => {
+  const result = {
+    candidates: [],
+    coverageDebt: [{ schemaVersion: "lakda-coverage-debt/v1", debtId: "debt-1", reason: "ambiguous-locator", actionKind: "click", role: "button", name: "Delete", matchedCount: 2, scope: "unavailable", targetFingerprint: "state:abc" }],
+  };
+  expect(() => assertCandidateDiscoveryResult(result)).not.toThrow();
+  expect(() => assertCandidateDiscoveryResult({ ...result, coverageDebt: [{ ...result.coverageDebt[0], name: "person@example.com" }] })).toThrow(/sensitive/i);
+  expect(() => assertCandidateDiscoveryResult({ ...result, coverageDebt: [{ ...result.coverageDebt[0], nameDigest: `sha256:${"a".repeat(64)}` }] })).toThrow(/schema|name/i);
 });

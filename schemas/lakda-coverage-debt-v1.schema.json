@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/lakda/coverage-debt/v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["candidates", "coverageDebt"],
+  "properties": {
+    "candidates": { "type": "array", "items": { "type": "object" } },
+    "coverageDebt": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["schemaVersion", "debtId", "reason", "actionKind", "scope", "targetFingerprint"],
+        "properties": {
+          "schemaVersion": { "const": "lakda-coverage-debt/v1" },
+          "debtId": { "type": "string", "minLength": 1 },
+          "reason": { "enum": ["ambiguous-locator", "sensitive-locator", "missing-accessible-name", "missing-input-profile", "out-of-scope-link", "disabled-control", "unsupported-control"] },
+          "actionKind": { "type": "string", "minLength": 1 },
+          "role": { "type": "string", "minLength": 1 },
+          "name": { "type": "string", "minLength": 1 },
+          "nameDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+          "matchedCount": { "type": "integer", "minimum": 0 },
+          "scope": { "enum": ["not-applicable", "resolved", "ambiguous", "unavailable"] },
+          "targetFingerprint": { "type": "string", "minLength": 1 }
+        },
+        "allOf": [
+          { "not": { "required": ["name", "nameDigest"] } }
+        ]
+      }
+    }
+  }
+}
