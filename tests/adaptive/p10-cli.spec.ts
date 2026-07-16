@@ -175,7 +175,7 @@ test("P10 preflight missing trace or config never reaches target", async () => {
 test("P10 CLI scout-investigate-promote completes on the same fixture and preserves source trace bytes", async () => {
   const fixture = await startFixture(url => url.pathname === "/failure"
     ? { status: 500, body: "<main>failure</main>" }
-    : { body: "<main><a data-testid='fail' href='/failure'>Fail</a></main>" });
+    : { body: "<main><a data-testid='fail' data-lakda-mutation-kind='none' href='/failure'>Fail</a></main>" });
   const dir = await mkdtemp(join(process.cwd(), "test-results", "p10-cli-"));
   try {
     const config = loadConfig(undefined, { baseUrl: fixture.baseUrl, outputDir: dir, seed: 42, maxActions: 1, durationMs: 8_000, mode: "adaptive-explore", adaptive: { schemaVersion: "lakda/adaptive-config/v1", adapter: { id: "playwright" }, generator: { strategy: "least-visited-transition" }, stopWhen: { any: [{ type: "actionCoverage", atLeast: 1 }] }, settlePolicy: { policyVersion: "settle/v1", maxWaitMs: 500, stableWindowMs: 10 }, fingerprintPolicy: { algorithmVersion: "sha256/v1", canonicalizationVersion: "canonical/v1" }, recovery: { maxBacktracks: 0, maxAttemptsPerState: 1 }, safety: { allowTargetKinds: ["page"], denyActionIds: [], allowMutationKinds: ["none"] } } });

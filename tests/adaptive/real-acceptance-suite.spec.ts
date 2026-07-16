@@ -62,6 +62,7 @@ async function createSuite(root: string, count: number): Promise<string> {
       runtime: { nodeVersion: process.version, platform: process.platform, arch: process.arch },
       seed: index,
       configDigest: fixedDigest,
+      targetManifest: { manifestId: "fixture-target", sha256: fixedDigest },
       corpus: { corpusId: "corpus-" + index, version: "1", sha256: fixedDigest, targetRevision: "product-revision-" + index, caseConfigDigest: fixedDigest },
       expected: { outcome: "passed" },
       actual: { outcome: "passed", terminationReason: "completed", exitCode: 0 },
