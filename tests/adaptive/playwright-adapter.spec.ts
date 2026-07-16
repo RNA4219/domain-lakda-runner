@@ -114,6 +114,42 @@ test("Playwright adapter re-observes dynamic DOM and rejects stale candidates", 
   }
 });
 
+test("Playwright adapter scopes repeated controls and records every non-candidate as coverage debt", async () => {
+  const fixture = await startFixture(() => ({ body: `<main>
+    <div role="row" aria-labelledby="first-heading"><h2 id="first-heading">First item</h2><button onclick="this.parentElement.dataset.edited = 'yes'">Edit</button></div>
+    <div role="row" aria-labelledby="second-heading"><h2 id="second-heading">Second item</h2><button onclick="this.parentElement.dataset.edited = 'yes'">Edit</button></div>
+    <section><button>Delete</button><button>Delete</button></section>
+    <button><svg aria-hidden="true"></svg></button>
+  </main>` }));
+  const browser = await chromium.launch(); const context = await browser.newContext(); const page = await context.newPage();
+  const adapter = new PlaywrightAdaptiveAdapter({ page, context, scopeHosts: ["127.0.0.1"], settlePolicy: { maxWaitMs: 2_000, stableWindowMs: 20 } });
+  try {
+    await page.goto(fixture.baseUrl);
+    const observation = await adapter.observe(adapter.primaryTarget(), { runId: "scope-debt-test", scopeHosts: ["127.0.0.1"] });
+    const discovery = await adapter.discoverCandidates(observation);
+    const edits = discovery.candidates.filter(candidate => candidate.locatorRecipe.strategy === "scoped-role" && candidate.locatorRecipe.name === "Edit");
+    expect(edits).toHaveLength(2);
+    expect(edits.map(candidate => candidate.locatorRecipe.scope)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ strategy: "role", value: "row", name: "First item", boundary: "row", keySource: "heading" }),
+      expect.objectContaining({ strategy: "role", value: "row", name: "Second item", boundary: "row", keySource: "heading" }),
+    ]));
+    expect(discovery.coverageDebt).toEqual(expect.arrayContaining([
+      expect.objectContaining({ reason: "ambiguous-locator", role: "button", name: "Delete", matchedCount: 2, scope: "unavailable" }),
+      expect.objectContaining({ reason: "missing-accessible-name", role: "button", scope: "unavailable" }),
+    ]));
+    expect(discovery.candidates).toHaveLength(2);
+    expect(discovery.coverageDebt).toHaveLength(3);
+    expect(discovery.candidates.length + discovery.coverageDebt.length).toBe(5);
+    expect(await adapter.generateCandidates(observation)).toEqual(discovery.candidates);
+    expect((await adapter.execute(edits[0]!, { runId: "scope-debt-test", timeoutMs: 2_000 })).status).toBe("executed");
+    expect(await page.getByRole("row", { name: "First item", exact: true }).getAttribute("data-edited")).toBe("yes");
+
+    await page.evaluate(() => document.querySelector("[role='row']")?.cloneNode(true) && document.querySelector("main")?.append(document.querySelector("[role='row']")!.cloneNode(true)));
+    const changed = await adapter.observe(adapter.primaryTarget(), { runId: "scope-debt-test", scopeHosts: ["127.0.0.1"] });
+    const staleScope = { ...edits[0]!, sourceFingerprint: fingerprintObservation(changed).value };
+    expect((await adapter.execute(staleScope, { runId: "scope-debt-test", timeoutMs: 2_000 })).status).toBe("action_failed");
+  } finally { await context.close(); await browser.close(); await fixture.close(); }
+});
 test("Playwright adapter integrates generic browser failures into Observation", async () => {
   const fixture = await startFixture(url => {
     if (url.pathname === "/") return { body: `<button data-testid="emit-errors" onclick="console.error('fixture-console'); setTimeout(() => { throw new Error('fixture-pageerror'); }, 0); fetch('/failure')">Emit</button><a data-testid="off-page" target="_blank" href="/off-page">Off page</a>` };

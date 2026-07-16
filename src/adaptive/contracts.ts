@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { findSensitive } from "../core/redaction.js";
 
 export const ADAPTIVE_SCHEMA_VERSION = "lakda/adaptive-contracts/v1" as const;
 export type AdaptiveSchemaVersion = typeof ADAPTIVE_SCHEMA_VERSION;
@@ -16,7 +17,28 @@ export type Observation = {
   topology: Record<string, unknown>; networkSummary?: Array<Record<string, unknown>>; obligations: Record<string, "met" | "unmet" | "unknown">;
   provenance: { adapterId: string; runtime: string; capabilityRevision: string }; adapterDataRef?: string;
 };
-export type LocatorRecipe = { strategy: "test-id" | "role" | "label" | "text" | "image" | "request"; value: string; name?: string; framePath?: string[] };
+export type LocatorScope = {
+  strategy: "test-id" | "role";
+  value: string;
+  name?: string;
+  boundary: "row" | "listitem" | "card" | "dialog";
+  keySource: "test-id" | "heading";
+};
+export type LocatorRecipe = { strategy: "test-id" | "role" | "scoped-role" | "label" | "text" | "image" | "request"; value: string; name?: string; scope?: LocatorScope; framePath?: string[] };
+export type CoverageDebtReason = "ambiguous-locator" | "sensitive-locator" | "missing-accessible-name" | "missing-input-profile" | "out-of-scope-link" | "disabled-control" | "unsupported-control";
+export type CoverageDebt = {
+  schemaVersion: "lakda-coverage-debt/v1";
+  debtId: string;
+  reason: CoverageDebtReason;
+  actionKind: string;
+  role?: string;
+  name?: string;
+  nameDigest?: string;
+  matchedCount?: number;
+  scope: "not-applicable" | "resolved" | "ambiguous" | "unavailable";
+  targetFingerprint: string;
+};
+export type CandidateDiscoveryResult = { candidates: ActionCandidate[]; coverageDebt: CoverageDebt[] };
 export type MutationKind = "none" | "create" | "update" | "delete" | "purchase" | "publish" | "external-message" | "credential-change" | "parameter-mutation" | "skip" | "reorder" | "double-execution" | "race";
 export type DialogHandling = "dismiss" | "hold" | "accept";
 export type ActionContract = {
@@ -65,7 +87,9 @@ type Validator = ((value: unknown) => boolean) & { errors?: Array<{ instancePath
 type AjvConstructor = new (options: object) => { compile(value: object): Validator };
 const Ajv = createRequire(import.meta.url)("ajv/dist/2020").default as AjvConstructor;
 const schema = JSON.parse(readFileSync(resolve(root, "schemas", "adaptive-contracts-v1.schema.json"), "utf8")) as object;
+const coverageDebtSchema = JSON.parse(readFileSync(resolve(root, "schemas", "lakda-coverage-debt-v1.schema.json"), "utf8")) as object;
 const validateSchema = new Ajv({ allErrors: true, strict: false }).compile(schema);
+const validateCandidateDiscovery = new Ajv({ allErrors: true, strict: false }).compile(coverageDebtSchema);
 const sensitiveKey = /(?:authorization|cookie|secret|token|password|credential|raw(?:value|body|response)|(?:^|_)pii(?:$|_))/i;
 const adapterObjectKey = /^(?:page|frame|browser|context|elementHandle|playwright|airtest|poco|zap)$/i;
 
@@ -84,4 +108,15 @@ export function assertAdaptiveContract(value: unknown): asserts value is Adaptiv
   if (!validateSchema(value)) throw new Error(`adaptive contract schemaに適合しません: ${validateSchema.errors?.map(error => `${error.instancePath} ${error.message}`).join("; ")}`);
   if ((value as { schemaVersion?: unknown }).schemaVersion !== ADAPTIVE_SCHEMA_VERSION) throw new Error("unknown adaptive schemaVersion");
   assertNoSensitivePublicData(value);
+}
+
+export function assertCandidateDiscoveryResult(value: unknown): asserts value is CandidateDiscoveryResult {
+  if (!validateCandidateDiscovery(value)) throw new Error(`candidate discovery schemaに適合しません: ${validateCandidateDiscovery.errors?.map(error => `${error.instancePath} ${error.message}`).join("; ")}`);
+  const result = value as CandidateDiscoveryResult;
+  result.candidates.forEach(assertAdaptiveContract);
+  for (const debt of result.coverageDebt) {
+    if (debt.name && findSensitive(debt.name).length) throw new Error("coverage debtにsensitive nameを含められません");
+    if (debt.name && debt.nameDigest) throw new Error("coverage debtはnameとnameDigestを同時に含められません");
+  }
+  assertNoSensitivePublicData(result);
 }

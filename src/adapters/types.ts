@@ -1,4 +1,4 @@
-import type { ActionCandidate, AdapterCapabilities, AdapterError, EvidenceArtifactRef, ExecutionResult, MutationKind, Observation, TargetRef } from "../adaptive/contracts.js";
+import type { ActionCandidate, AdapterCapabilities, AdapterError, CandidateDiscoveryResult, EvidenceArtifactRef, ExecutionResult, MutationKind, Observation, TargetRef } from "../adaptive/contracts.js";
 
 export type ObserveContext = { runId: string; personaRef?: string; scopeHosts: string[] };
 export type ExecuteContext = { runId: string; personaRef?: string; inputCaseRef?: string; timeoutMs: number; allowedMutationKinds?: MutationKind[]; race?: { groupId: string; participantIndex: number; participantCount: number } };
@@ -10,6 +10,7 @@ export type RecoveryResult = { recovered: boolean; strategy: string; targetRef?:
 export interface AdaptiveAdapter {
   capabilities(): AdapterCapabilities;
   observe(target: TargetRef, context: ObserveContext): Promise<Observation>;
+  discoverCandidates?(observation: Observation): Promise<CandidateDiscoveryResult>;
   generateCandidates(observation: Observation): Promise<ActionCandidate[]>;
   execute(candidate: ActionCandidate, context: ExecuteContext): Promise<ExecutionResult>;
   recover(failure: AdapterFailure, context: RecoverContext): Promise<RecoveryResult>;

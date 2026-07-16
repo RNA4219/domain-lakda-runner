@@ -9,7 +9,8 @@ import { runSizeBytes } from "../core/artifact-store.js";
 import { sha256 } from "../core/redaction.js";
 import type { LakdaConfig, RunOutcome, TerminationReason } from "../core/types.js";
 import { fingerprintObservation } from "./fingerprint.js";
-import type { ActionCandidate, ExecutionResult, Observation, OracleResult, TargetRef } from "./contracts.js";
+import { assertCandidateDiscoveryResult } from "./contracts.js";
+import type { ActionCandidate, CoverageDebt, ExecutionResult, Observation, OracleResult, TargetRef } from "./contracts.js";
 import { StateGraph } from "./graph.js";
 import { evaluateAdaptiveSafety, KillSwitch } from "./safety.js";
 import { SecurityExecutionController } from "./security-execution.js";
@@ -145,7 +146,7 @@ export async function runAdaptiveExplore(config: LakdaConfig, collector: Artifac
   const started = (runtime.clock ?? Date.now)();
   const budget = runtime.actionBudget ?? new ActionBudget(config.safety.maxActionsPerMinute, runtime.clock);
   const graph = new StateGraph(); const trace: Array<Record<string, unknown>> = []; const killSwitch = new KillSwitch();
-  const observations: Observation[] = []; const observationsByFingerprint = new Map<string, Observation>(); const candidateSnapshots: Array<{ observationId: string; candidates: ActionCandidate[] }> = []; const oracleResults: OracleResult[] = [];
+  const observations: Observation[] = []; const observationsByFingerprint = new Map<string, Observation>(); const candidateSnapshots: Array<{ observationId: string; candidates: ActionCandidate[]; coverageDebt: CoverageDebt[]; coverageDebtSummary: Record<string, number> }> = []; const oracleResults: OracleResult[] = [];
   const generatedInputs: GeneratedInput[] = []; const shrinkSteps: ShrinkStep[] = []; let failureStep: ShrinkStep | undefined; let recoveryAttempts = 0; const timeoutQuarantine = new Map<string, { timeoutCount: number; revisitBudget: number; blockedUntilAction: number }>();
   let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined; let context: BrowserContext | undefined; let page: Page | undefined; let adapter!: AdaptiveAdapter; let securityController: SecurityExecutionController | undefined; let activeTargets!: () => TargetRef[];
   let actions = 0; let outcome: RunOutcome = "error"; let terminationReason: TerminationReason = "executor_error";
@@ -201,8 +202,13 @@ export async function runAdaptiveExplore(config: LakdaConfig, collector: Artifac
         observationsByFingerprint.set(fingerprint.value, observation);
         graph.recordState(fingerprint, observation.obligations, actions);
         trace.push({ type: "observation", observationId: observation.observationId, targetRef: observation.targetRef, fingerprint: fingerprint.value });
-        const generated = await adapter.generateCandidates(observation);
-        candidateSnapshots.push({ observationId: observation.observationId, candidates: generated });
+        const discovery = adapter.discoverCandidates
+          ? await adapter.discoverCandidates(observation)
+          : { candidates: await adapter.generateCandidates(observation), coverageDebt: [] };
+        assertCandidateDiscoveryResult(discovery);
+        const generated = discovery.candidates;
+        const coverageDebtSummary = discovery.coverageDebt.reduce<Record<string, number>>((summary, debt) => ({ ...summary, [debt.reason]: (summary[debt.reason] ?? 0) + 1 }), {});
+        candidateSnapshots.push({ observationId: observation.observationId, candidates: generated, coverageDebt: discovery.coverageDebt, coverageDebtSummary });
         graph.recordOffered(generated, actions);
         if (replay) replayCandidates.push(...generated);
         for (const candidate of generated) {

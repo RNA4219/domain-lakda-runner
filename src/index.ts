@@ -1,9 +1,9 @@
 export const LAKDA_VERSION = "0.3.0-rc.5";
 export type { LlmDecision, RunBatchResult, RunMode, RunOptions, RunOutcome, RunResult, TerminationReason, WorkerRunEntry } from "./core/types.js";
-export { ADAPTIVE_SCHEMA_VERSION, assertAdaptiveContract, assertNoSensitivePublicData } from "./adaptive/contracts.js";
+export { ADAPTIVE_SCHEMA_VERSION, assertAdaptiveContract, assertCandidateDiscoveryResult, assertNoSensitivePublicData } from "./adaptive/contracts.js";
 export type {
   ActionCandidate, ActionContract, AdapterCapabilities, AdapterError, AdaptiveConfig, AdaptiveContract, AdaptiveGeneratorStrategy,
-  AdaptiveSchemaVersion, AdaptiveStopCondition, EvidenceArtifactRef, ExecutionResult, LocatorRecipe, MutationKind, Observation,
+  AdaptiveSchemaVersion, AdaptiveStopCondition, CandidateDiscoveryResult, CoverageDebt, CoverageDebtReason, EvidenceArtifactRef, ExecutionResult, LocatorRecipe, LocatorScope, MutationKind, Observation,
   OracleResult, SettleResult, StateFingerprint, TargetKind, TargetRef,
 } from "./adaptive/contracts.js";
 export { mapAdapterError } from "./adapters/types.js";

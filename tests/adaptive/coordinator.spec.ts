@@ -46,7 +46,8 @@ test("adaptive-explore writes a state graph and deterministic replay trace from 
     expect(trace.seed).toBe(99);
     expect(trace.trace.some((entry: { type: string }) => entry.type === "execution")).toBe(true);
     expect(trace.trace.some((entry: { type: string; phase?: string }) => entry.type === "observation" && entry.phase === "post-action")).toBe(true);
-    const oracleEntries = oracles.trim().split(/\r?\n/).map(line => JSON.parse(line) as { oracleClass: string; sourceRefs: string[] });
+    const candidateSnapshots = candidates.trim().split(/\r?\n/).map(line => JSON.parse(line) as { coverageDebt: unknown[]; coverageDebtSummary: Record<string, number> });
+    expect(candidateSnapshots.every(snapshot => Array.isArray(snapshot.coverageDebt) && typeof snapshot.coverageDebtSummary === "object")).toBe(true);    const oracleEntries = oracles.trim().split(/\r?\n/).map(line => JSON.parse(line) as { oracleClass: string; sourceRefs: string[] });
     expect(oracleEntries.some(entry => entry.oracleClass === "generic" && entry.sourceRefs.length >= 3)).toBe(true);
     expect(coverage.schemaVersion).toBe("lakda/coverage-report/v1");
     expect(coverage.model).toBe("discovered-model");
