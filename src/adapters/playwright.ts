@@ -444,7 +444,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
       const dialogDecision = resolveDialogPolicy(candidate, context);
       if (dialogDecision.deniedReason) return { ...base, preFingerprint, endedAt: new Date().toISOString(), status: "denied", failureSignature: dialogDecision.deniedReason, recoveryStatus: "not_required", settleResult: { policyVersion: this.settle.policyVersion, status: "aborted", elapsedMs: Date.now() - started, reasons: [dialogDecision.deniedReason] } };
       const entry = this.entry(candidate.targetRef); const targetLocator = locator(entry.target, candidate.locatorRecipe);
-      const actionTimeout = dialogDecision.policy === "hold" ? context.timeoutMs + Math.max(this.settle.maxWaitMs, 1_000) : context.timeoutMs;
+      const actionTimeout = context.timeoutMs + Math.max(this.settle.maxWaitMs, 1_000);
       if (await targetLocator.count() !== 1) throw new Error("locator is no longer unique");
       const targetsBefore = new Set(this.targets.keys());
       if (candidate.actionKind === "click") {

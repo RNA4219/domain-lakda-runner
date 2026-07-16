@@ -19,6 +19,8 @@ test("deny action is rejected before browser execution", () => {
   expect(() => loadConfig(undefined, { baseUrl: "http://127.0.0.1:3000", candidates: [{ id: "delete-account", kind: "click", selector: "#delete", accessibleName: "Delete account" }] })).not.toThrow();
   const config = loadConfig(undefined, { baseUrl: "http://127.0.0.1:3000", candidates: [{ id: "delete-account", kind: "click", selector: "#delete", accessibleName: "Delete account" }] });
   expect(() => createActionPlan(config)).toThrow(/deny policy/);
+  const idOnly = loadConfig(undefined, { baseUrl: "http://127.0.0.1:3000", candidates: [{ id: "destroy-all", kind: "click", locator: { testId: "safe-button" } }] });
+  expect(() => createActionPlan(idOnly)).toThrow(/deny policy/);
 });
 
 test("run saves required artifacts and a schema-valid HATE manifest", async () => {

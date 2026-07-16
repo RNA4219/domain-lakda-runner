@@ -22,7 +22,7 @@ function assertLocator(locator: Locator | undefined, actionId: string): void {
 
 export function assertSafeAction(action: Action, config: LakdaConfig): void {
   if (!action.id || action.id !== action.id.trim()) throw new Error("candidate ID は空白なしで必須です");
-  const label = `${action.kind} ${action.accessibleName ?? ""} ${action.locator?.name ?? ""}`;
+  const label = `${action.id} ${action.kind} ${action.accessibleName ?? ""} ${action.locator?.name ?? ""} ${action.locator?.testId ?? ""}`;
   if (config.safety.denyActionKinds.some(kind => label.toLowerCase().includes(kind.toLowerCase())) || destructive.test(label)) {
     throw new Error(`deny policyにより拒否: ${action.id}`);
   }
