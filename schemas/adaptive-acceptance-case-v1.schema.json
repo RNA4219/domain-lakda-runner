@@ -17,6 +17,7 @@
     "runtime",
     "seed",
     "configDigest",
+    "targetManifest",
     "corpus",
     "expected",
     "actual",
@@ -113,6 +114,15 @@
     "configDigest": {
       "type": "string",
       "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "targetManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["manifestId", "sha256"],
+      "properties": {
+        "manifestId": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      }
     },
     "corpus": {
       "type": "object",

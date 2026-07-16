@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "lakda/target-manifest/v1",
+  "manifestId": "saas-crm-staging",
+  "targetClass": "crm-list",
+  "status": "pending_external",
+  "owner": "pending_external",
+  "environment": {"name": "staging", "baseUrlOrigin": null},
+  "access": {"approved": false, "authSource": "pending_external", "approvalEvidenceRef": "pending_external"},
+  "scope": {"allowHosts": [], "pathPrefixes": []},
+  "safety": {"allowMutationKinds": ["none"], "resetProcedureRef": "pending_external", "killSwitchRef": "pending_external"},
+  "privacy": {"piiPolicyRef": "pending_external", "sensitiveValuesPersisted": false},
+  "actionContracts": [],
+  "settleProfile": {"policyVersion": "consensus/v1", "readiness": null, "networkQuietExclusions": []},
+  "acceptance": {"p0ActionIds": [], "p1ActionIds": []}
+}
