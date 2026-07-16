@@ -121,6 +121,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
   private readonly network: Array<{ targetId: string; url: string; status: number; method: string }> = [];
   private readonly pendingNetwork = new Map<string, number>();
   private readonly networkChangedAt = new Map<string, number>();
+  private readonly ignoredNetworkRequests = new WeakSet<object>();
   private readonly events: BrowserEvent[] = [];
   private readonly pendingPageTriggers = new Map<string, string>();
   private candidateInFlight?: ActionCandidate;
@@ -197,11 +198,20 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
     return this.topologyEvents.slice(-50).map(event => ({ ...event }));
   }
 
-  private networkStarted(targetId: string): void {
+  private networkExcluded(requestUrl: string): boolean {
+    try {
+      const url = new URL(requestUrl);
+      if (!this.scopeHosts.has(url.hostname)) return false;
+      return (this.settle.networkQuietExclusions ?? []).some(prefix => url.pathname.startsWith(prefix));
+    } catch { return false; }
+  }
+  private networkStarted(targetId: string, request: { url(): string }): void {
+    if (this.networkExcluded(request.url())) { this.ignoredNetworkRequests.add(request); return; }
     this.pendingNetwork.set(targetId, (this.pendingNetwork.get(targetId) ?? 0) + 1);
     this.networkChangedAt.set(targetId, Date.now());
   }
-  private networkFinished(targetId: string): void {
+  private networkFinished(targetId: string, request: object): void {
+    if (this.ignoredNetworkRequests.has(request)) return;
     this.pendingNetwork.set(targetId, Math.max(0, (this.pendingNetwork.get(targetId) ?? 1) - 1));
     this.networkChangedAt.set(targetId, Date.now());
   }
@@ -248,9 +258,9 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
       page.on("pageerror", error => this.recordBrowserEvent(ref.targetId, "pageerror", { messageRef: sha256(redact(`${error.name}:${error.message}`)) }));
     }
     page.on("crash", () => this.recordBrowserEvent(ref.targetId, "crash"));
-    page.on("request", () => this.networkStarted(ref.targetId));
-    page.on("requestfinished", () => this.networkFinished(ref.targetId));
-    page.on("requestfailed", request => { this.networkFinished(ref.targetId); const url = safeUrl(request.url()); this.recordBrowserEvent(ref.targetId, "request-failed", { ...(url ? { url } : {}), method: request.method(), ...(request.failure()?.errorText ? { messageRef: sha256(redact(request.failure()!.errorText)) } : {}) }); });
+    page.on("request", request => this.networkStarted(ref.targetId, request));
+    page.on("requestfinished", request => this.networkFinished(ref.targetId, request));
+    page.on("requestfailed", request => { this.networkFinished(ref.targetId, request); const url = safeUrl(request.url()); this.recordBrowserEvent(ref.targetId, "request-failed", { ...(url ? { url } : {}), method: request.method(), ...(request.failure()?.errorText ? { messageRef: sha256(redact(request.failure()!.errorText)) } : {}) }); });
     page.on("download", download => { const url = safeUrl(download.url()); this.recordBrowserEvent(ref.targetId, "download", { ...(url ? { url } : {}), messageRef: sha256(redact(download.suggestedFilename())) }); });
     page.on("popup", popup => this.registerPage(popup, ref.targetId, this.candidateInFlight?.candidateId));
     page.on("framenavigated", frame => { if (frame === page.mainFrame()) { const entry = this.targets.get(ref.targetId); const firstUrl = safeUrl(frame.url()); if (entry?.pageMetadata && firstUrl) entry.pageMetadata.initialUrl ??= firstUrl; } });

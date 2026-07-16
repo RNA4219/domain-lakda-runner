@@ -36,7 +36,11 @@ test("a ready target manifest fails closed until its real approval, scope, and a
     safety: { allowMutationKinds: ["none"], resetProcedureRef: "reset-ref", killSwitchRef: "kill-ref" },
     privacy: { piiPolicyRef: "pii-ref", sensitiveValuesPersisted: false },
     actionContracts: [{ actionId: "view-record", mutationKind: "none" }],
+    settleProfile: { policyVersion: "consensus/v1", readiness: null, networkQuietExclusions: [] },
     acceptance: { p0ActionIds: ["view-record"], p1ActionIds: [] },
   };
   expect(validate(ready)).toBe(true);
+  const manifestApprovedExclusion = { ...ready, settleProfile: { ...ready.settleProfile, networkQuietExclusions: ["/api/poll"] } };
+  expect(validate(manifestApprovedExclusion)).toBe(true);
+  expect(validate({ ...manifestApprovedExclusion, settleProfile: { ...manifestApprovedExclusion.settleProfile, networkQuietExclusions: ["https://unscoped.example/poll"] } })).toBe(false);
 });

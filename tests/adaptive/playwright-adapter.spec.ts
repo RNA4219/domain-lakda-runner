@@ -230,6 +230,16 @@ test("Playwright adapter consensus settle requires DOM, network, topology, and r
     const timedOut = await polling.execute(pollCandidate, { runId: "consensus-poll", timeoutMs: 100 });
     expect(timedOut.settleResult).toMatchObject({ policyVersion: "consensus/v1", status: "timed_out", reasons: ["consensus-timeout"], signals: { network: { state: "pending" } } });
     await page.evaluate(() => clearInterval((window as Window & { polling?: number }).polling));
+
+    const manifestApprovedPolling = new PlaywrightAdaptiveAdapter({
+      page, context, scopeHosts: ["127.0.0.1"],
+      settlePolicy: { policyVersion: "consensus/v1", maxWaitMs: 300, stableWindowMs: 25, networkQuietExclusions: ["/poll"] },
+    });
+    const approvedObservation = await manifestApprovedPolling.observe(manifestApprovedPolling.primaryTarget(), { runId: "consensus-poll-approved", scopeHosts: ["127.0.0.1"] });
+    const approvedCandidate = (await manifestApprovedPolling.generateCandidates(approvedObservation)).find(value => value.locatorRecipe.value === "poll")!;
+    const settled = await manifestApprovedPolling.execute(approvedCandidate, { runId: "consensus-poll-approved", timeoutMs: 300 });
+    expect(settled.settleResult).toMatchObject({ policyVersion: "consensus/v1", status: "settled", signals: { network: { state: "quiet" } } });
+    await page.evaluate(() => clearInterval((window as Window & { polling?: number }).polling));
   } finally { await context.close(); await browser.close(); await fixture.close(); }
 });
 test("Playwright adapter integrates generic browser failures into Observation", async () => {

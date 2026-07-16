@@ -13,6 +13,7 @@ const outcomeValues = new Set(["passed", "failed", "partial", "error"]);
 const acceptanceIdPattern = /^AC-AE-(00[1-9]|01[0-6])$/;
 const caseIdPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const digest = bytes => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+const canonical = value => Array.isArray(value) ? "[" + value.map(canonical).join(",") + "]" : value && typeof value === "object" ? "{" + Object.keys(value).sort().map(key => JSON.stringify(key) + ":" + canonical(value[key])).join(",") + "}" : JSON.stringify(value);
 
 async function assertJsonSchema(value, schemaName, label, inputContract) {
   const [schema, hateSchema] = await Promise.all([
@@ -90,6 +91,9 @@ function assertTargetManifestMatchesConfig(target, config) {
   const host = new URL(origin).hostname;
   if (target.environment.baseUrlOrigin !== origin) throw new InputError("target manifest origin does not match config");
   if (!target.scope.allowHosts.includes(host) || !config.safety.allowHosts.includes(host)) throw new InputError("target manifest host scope does not match config");
+  if (target.settleProfile.policyVersion !== config.adaptive.settlePolicy.policyVersion) throw new InputError("target manifest settle policy does not match config");
+  if (canonical(target.settleProfile.readiness ?? null) !== canonical(config.adaptive.settlePolicy.readiness ?? null)) throw new InputError("target manifest readiness does not match config");
+  config.adaptive.settlePolicy.networkQuietExclusions = [...target.settleProfile.networkQuietExclusions];
   for (const kind of config.adaptive.safety.allowMutationKinds) if (!target.safety.allowMutationKinds.includes(kind)) throw new InputError("target manifest mutation allowlist does not cover config");
   if (JSON.stringify(config.adaptive.actionContracts ?? []) !== JSON.stringify(target.actionContracts)) throw new InputError("target manifest action contracts do not match config");
 }

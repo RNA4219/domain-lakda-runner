@@ -11,4 +11,4 @@
 - product の action contract と P0/P1 action ID
 - `consensus/v1` readiness と、明示的に許可された network quiet 除外
 
-polling/WebSocket の除外を追加する場合も `settleProfile.networkQuietExclusions` だけに記録します。実 target が提供されるまでは空配列を維持し、fixture 成功で代替しません。
+polling による network quiet 除外は `settleProfile.networkQuietExclusions` だけに path prefix として記録します。real runner は manifest と config の settle policy/readiness が一致した場合だけ、その値を注入します。raw config からの設定や、scope host 外・絶対URLの除外は認めません。実 target が提供されるまでは空配列を維持し、fixture 成功で代替しません。
