@@ -9,7 +9,7 @@ last_updated: 2026-07-14
 
 ## 1. 文書の位置づけ
 
-本書は `domain-lakda-runner` v1 の規範的な要件正本である。解釈が競合する場合は、本書、`SPECIFICATION.md`、`deep-research-report (11).md` の順で優先する。調査報告書は背景と選定理由を提供する参考資料であり、Must/Should、公開契約、schema、Gate 権限を定義しない。
+本書は `domain-lakda-runner` v1 の規範的な要件正本である。解釈が競合する場合は、本書、`SPECIFICATION.md`、[docs/reference/deep-research-report.md](docs/reference/deep-research-report.md) の順で優先する。調査報告書は背景と選定理由を提供する参考資料であり、Must/Should、公開契約、schema、Gate 権限を定義しない。
 
 要件は次の語で強度を示す。
 
