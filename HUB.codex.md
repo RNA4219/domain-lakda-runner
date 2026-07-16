@@ -19,7 +19,7 @@ last_reviewed_at: 2026-07-14
 8. [GUARDRAILS.md](GUARDRAILS.md) — 安全境界と変更境界
 9. [RUNBOOK.md](RUNBOOK.md) — prepare → execute → confirm
 10. [EVALUATION.md](EVALUATION.md) — 現行v1受入条件、指標、トレーサビリティ
-11. [deep-research-report (11).md](deep-research-report%20%2811%29.md) — 参考資料（非規範）
+11. [docs/reference/deep-research-report.md](docs/reference/deep-research-report.md) — 参考資料（非規範）
 
 ## 実装順
 

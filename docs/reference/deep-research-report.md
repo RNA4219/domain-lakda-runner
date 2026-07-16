@@ -8,7 +8,7 @@ last_updated: 2026-07-13
 
 # domain-lakda-runner 技術調査報告書（参考資料）
 
-> **非規範文書:** 本書は背景、選定理由、将来候補を保存する参考資料です。Must/Should、公開契約、schema、受入条件は [REQUIREMENTS.md](REQUIREMENTS.md) と [SPECIFICATION.md](SPECIFICATION.md) を正本とします。
+> **非規範文書:** 本書は背景、選定理由、将来候補を保存する参考資料です。Must/Should、公開契約、schema、受入条件は [REQUIREMENTS.md](../../REQUIREMENTS.md) と [SPECIFICATION.md](../../SPECIFICATION.md) を正本とします。
 
 ## エグゼクティブサマリ
 
@@ -19,7 +19,7 @@ last_updated: 2026-07-13
 
 設計上の重要判断は、**「Playwright Test をそのまま主役にする」のではなく、「Playwright Library をコア実行エンジンにして、Playwright Test の周辺資産を選択利用する」** ことです。Playwright の公式ドキュメントは通常の E2E では `@playwright/test` を推奨していますが、`domain-lakda-runner` の主体はテストケース実行ではなく、探索・収集・再現・証跡化です。そのため、コアは独自 orchestrator として実装しつつ、trace viewer・HTML report・visual comparison など Playwright の成熟した周辺機能は積極的に流用する構成が実務的です。
 
-本報告書は、目的とスコープ、ユースケース、アーキテクチャ、CLI/API、シナリオ生成、シード再現性、persona/auth state、失敗判定、artifact、HATE出力、QEG連携境界、ローカルLLM、安全性、KPI、実装段階の調査結果を保存します。規範的な固定値は [REQUIREMENTS.md](REQUIREMENTS.md) と [SPECIFICATION.md](SPECIFICATION.md) に集約し、Windows 11 build 26200、Node.js 24.6.0、Playwright 1.61.1、HATE 0.3.0、QEG 0.2.0、llama-server 9733、qwen4b GGUF SHA-256を基準とします。
+本報告書は、目的とスコープ、ユースケース、アーキテクチャ、CLI/API、シナリオ生成、シード再現性、persona/auth state、失敗判定、artifact、HATE出力、QEG連携境界、ローカルLLM、安全性、KPI、実装段階の調査結果を保存します。規範的な固定値は [REQUIREMENTS.md](../../REQUIREMENTS.md) と [SPECIFICATION.md](../../SPECIFICATION.md) に集約し、Windows 11 build 26200、Node.js 24.6.0、Playwright 1.61.1、HATE 0.3.0、QEG 0.2.0、llama-server 9733、qwen4b GGUF SHA-256を基準とします。
 
 ## 前提と設計方針
 
@@ -222,7 +222,7 @@ exploratory testing は、事前に固定した確認手順だけでなく、テ
 
 ### モード別要件
 
-モードの強度と受入範囲は正本 [REQUIREMENTS.md](REQUIREMENTS.md) に従います。
+モードの強度と受入範囲は正本 [REQUIREMENTS.md](../../REQUIREMENTS.md) に従います。
 
 | モード | 目的 | v1 強度 |
 |---|---|---|
@@ -522,7 +522,7 @@ trace.zip、HAR、raw DOM全体をLLMへ送らず、先に機械要約とredacti
 
 ### 要件一覧表
 
-規範的な全要件、固定version、安定ID、受入条件は [REQUIREMENTS.md](REQUIREMENTS.md) を正本とします。本書では範囲だけを要約します。
+規範的な全要件、固定version、安定ID、受入条件は [REQUIREMENTS.md](../../REQUIREMENTS.md) を正本とします。本書では範囲だけを要約します。
 
 | 区分 | v1 Must | post-v1 |
 |---|---|---|
@@ -537,7 +537,7 @@ trace.zip、HAR、raw DOM全体をLLMへ送らず、先に機械要約とredacti
 
 #### 文書契約
 
-[REQUIREMENTS.md](REQUIREMENTS.md) と [SPECIFICATION.md](SPECIFICATION.md) を先に確定し、HATE/QEG schema、LLM runtime/model、責務境界、受入条件を固定します。
+[REQUIREMENTS.md](../../REQUIREMENTS.md) と [SPECIFICATION.md](../../SPECIFICATION.md) を先に確定し、HATE/QEG schema、LLM runtime/model、責務境界、受入条件を固定します。
 
 #### deterministic core
 
@@ -597,8 +597,8 @@ Firefox/WebKit、route crawl、form fuzz、visual sanity、追加artifact、stag
 
 ## 一次資料
 
-- 規範要件: [REQUIREMENTS.md](REQUIREMENTS.md)
-- 規範仕様: [SPECIFICATION.md](SPECIFICATION.md)
+- 規範要件: [REQUIREMENTS.md](../../REQUIREMENTS.md)
+- 規範仕様: [SPECIFICATION.md](../../SPECIFICATION.md)
 - Playwright browsers: https://playwright.dev/docs/browsers
 - Playwright trace viewer: https://playwright.dev/docs/trace-viewer
 - Playwright authentication: https://playwright.dev/docs/auth
