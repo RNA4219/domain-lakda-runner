@@ -35,7 +35,16 @@ function category(status: string): "unsupported" | "denied" | "timeout" | "targe
 function recoveryScopeAllowed(config: LakdaConfig, observation: Observation): boolean {
   const candidateUrl = observation.url ?? observation.targetRef.origin;
   if (!candidateUrl) return true;
-  try { return config.safety.allowHosts.includes(new URL(candidateUrl).hostname); } catch { return false; }
+  try {
+    const url = new URL(candidateUrl);
+    if (!config.safety.allowHosts.includes(url.hostname)) return false;
+    const prefixes = config.safety.pathPrefixes;
+    if (prefixes === undefined) return true;
+    return prefixes.some(prefix => {
+      const normalized = prefix.length > 1 && prefix.endsWith("/") ? prefix.slice(0, -1) : prefix;
+      return normalized === "/" || url.pathname === normalized || url.pathname.startsWith(`${normalized}/`);
+    });
+  } catch { return false; }
 }
 
 function recoveryInvariantAllowed(candidate: ActionCandidate, before: Observation, after: Observation | undefined, execution: ExecutionResult): boolean {
@@ -79,7 +88,7 @@ async function replayFailureForShrink(config: LakdaConfig, steps: ShrinkStep[], 
     browser = await chromium.launch({ headless: !config.headed });
     context = await browser.newContext();
     const page = await context.newPage();
-    const adapter = new PlaywrightAdaptiveAdapter({ page, context, scopeHosts: config.safety.allowHosts, actionContracts: config.adaptive!.actionContracts, settlePolicy: config.adaptive!.settlePolicy });
+    const adapter = new PlaywrightAdaptiveAdapter({ page, context, scopeHosts: config.safety.allowHosts, scopePathPrefixes: config.safety.pathPrefixes, actionContracts: config.adaptive!.actionContracts, settlePolicy: config.adaptive!.settlePolicy });
     await page.goto(config.baseUrl!, { waitUntil: "domcontentloaded", timeout: Math.min(30_000, config.durationMs) });
     for (const step of steps) {
       let resolved: ActionCandidate | undefined;
@@ -159,7 +168,7 @@ export async function runAdaptiveExplore(config: LakdaConfig, collector: Artifac
       collector.markCaptureAvailable();
       page = await context.newPage(); attachGenericOracles(page, context, collector, config);
       const playwrightAdapter = new PlaywrightAdaptiveAdapter({
-        page, context, scopeHosts: config.safety.allowHosts,
+        page, context, scopeHosts: config.safety.allowHosts, scopePathPrefixes: config.safety.pathPrefixes,
         actionContracts: config.adaptive.actionContracts,
         settlePolicy: config.adaptive.settlePolicy,
         inputValueProvider: (_candidate, execution) => execution.inputCaseRef ? generatedInputs.find(input => input.caseId === execution.inputCaseRef)?.value : undefined,

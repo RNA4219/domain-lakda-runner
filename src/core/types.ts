@@ -123,6 +123,8 @@ export type LakdaConfig = {
   fixtureReset?: { url: string };
   safety: {
     allowHosts: string[];
+    /** target manifestのreal acceptance経路だけが設定する内部scope */
+    pathPrefixes?: string[];
     denyActionKinds: string[];
     maxActionsPerMinute: number;
     requireFixtureResetForMutations: boolean;

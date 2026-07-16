@@ -3,6 +3,13 @@ import type { Action, LakdaConfig, Locator } from "./types.js";
 const destructive = /(delete|deactivate|billing|transfer|remove|destroy|解約|削除|送金|支払)/i;
 const navigationKinds = new Set(["navigate", "goto"]);
 const pressKeys = new Set(["Enter", "Escape", "Space", "Tab"]);
+function withinPathPrefixes(pathname: string, prefixes: string[] | undefined): boolean {
+  if (prefixes === undefined) return true;
+  return prefixes.some(prefix => {
+    const normalized = prefix.length > 1 && prefix.endsWith("/") ? prefix.slice(0, -1) : prefix;
+    return normalized === "/" || pathname === normalized || pathname.startsWith(`${normalized}/`);
+  });
+}
 
 export function assertLoopbackEndpoint(value: string): URL {
   const url = new URL(value);
@@ -32,6 +39,7 @@ export function assertSafeAction(action: Action, config: LakdaConfig): void {
     if (!action.path || action.locator) throw new Error(`navigation action はpathのみを指定します: ${action.id}`);
     const target = new URL(action.path, config.baseUrl);
     if (!config.safety.allowHosts.includes(target.hostname)) throw new Error(`allowlist外URL: ${target.hostname}`);
+    if (!withinPathPrefixes(target.pathname, config.safety.pathPrefixes)) throw new Error(`allowlist外path: ${target.pathname}`);
   } else {
     if (action.path) throw new Error(`browser操作にpathは指定できません: ${action.id}`);
     assertLocator(action.locator, action.id);

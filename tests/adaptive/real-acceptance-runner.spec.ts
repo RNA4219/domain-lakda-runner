@@ -137,6 +137,81 @@ test("real adaptive acceptance rejects a target-manifest settle profile mismatch
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
+test("real adaptive acceptance rejects an expanded config host scope before browser execution", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "lakda-real-host-scope-"));
+  const configPath = join(directory, "config.json");
+  const corpusPath = join(directory, "corpus.json");
+  const manifestPath = join(directory, "target.json");
+  try {
+    const config = {
+      schemaVersion: "lakda/v1", baseUrl: "https://staging.example.test/app", mode: "adaptive-explore", durationMs: 1_000, maxActions: 1,
+      safety: { allowHosts: ["staging.example.test", "extra.example.test"], denyActionKinds: [], maxActionsPerMinute: 1 },
+      adaptive: {
+        schemaVersion: "lakda/adaptive-config/v1", adapter: { id: "playwright" }, generator: { strategy: "least-visited-transition" },
+        stopWhen: { any: [{ type: "actionCoverage", atLeast: 1 }] }, settlePolicy: { policyVersion: "consensus/v1", maxWaitMs: 100, stableWindowMs: 10 },
+        fingerprintPolicy: { algorithmVersion: "sha256/v1", canonicalizationVersion: "canonical/v1" }, recovery: { maxBacktracks: 0, maxAttemptsPerState: 1 },
+        safety: { allowTargetKinds: ["page"], denyActionIds: [], allowMutationKinds: ["none"] }, actionContracts: [{ actionId: "view-record", mutationKind: "none" }],
+      },
+    };
+    const configBytes = JSON.stringify(config);
+    await writeFile(configPath, configBytes, "utf8");
+    await writeFile(corpusPath, JSON.stringify({
+      schemaVersion: "lakda/adaptive-acceptance-corpus/v1", corpusId: "fixed-corpus", version: "1", targetRevision: "corpus-revision",
+      cases: [{ caseId: "case-1", acceptanceId: "AC-AE-001", configDigest: "sha256:" + createHash("sha256").update(configBytes).digest("hex"), expected: { outcome: "passed" } }],
+    }), "utf8");
+    await writeFile(manifestPath, JSON.stringify({
+      schemaVersion: "lakda/target-manifest/v1", manifestId: "ready-target", targetClass: "crm-list", status: "ready", owner: "owner@example.test",
+      environment: { name: "staging", baseUrlOrigin: "https://staging.example.test" }, access: { approved: true, authSource: "github-environment", approvalEvidenceRef: "approval-ref" },
+      scope: { allowHosts: ["staging.example.test"], pathPrefixes: ["/app"] }, safety: { allowMutationKinds: ["none"], resetProcedureRef: "reset-ref", killSwitchRef: "kill-ref" },
+      privacy: { piiPolicyRef: "pii-ref", sensitiveValuesPersisted: false }, actionContracts: [{ actionId: "view-record", mutationKind: "none" }],
+      settleProfile: { policyVersion: "consensus/v1", readiness: null, networkQuietExclusions: [] }, acceptance: { p0ActionIds: ["view-record"], p1ActionIds: [] },
+    }), "utf8");
+    const result = await run({
+      LAKDA_ADAPTIVE_REAL_CONFIG: configPath, LAKDA_ADAPTIVE_REAL_CONFIRM: "I_UNDERSTAND", LAKDA_ADAPTIVE_CORPUS_PATH: corpusPath,
+      LAKDA_ADAPTIVE_CASE_ID: "case-1", LAKDA_ADAPTIVE_ENVIRONMENT: "staging", LAKDA_ADAPTIVE_TARGET_REVISION: "corpus-revision", LAKDA_ADAPTIVE_TARGET_MANIFEST: manifestPath,
+    });
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain("target manifest host scope does not match config");
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+test("real adaptive acceptance rejects a target-manifest path scope mismatch before browser execution", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "lakda-real-path-scope-"));
+  const configPath = join(directory, "config.json");
+  const corpusPath = join(directory, "corpus.json");
+  const manifestPath = join(directory, "target.json");
+  try {
+    const config = {
+      schemaVersion: "lakda/v1", baseUrl: "https://staging.example.test/application", mode: "adaptive-explore", durationMs: 1_000, maxActions: 1,
+      safety: { allowHosts: ["staging.example.test"], denyActionKinds: [], maxActionsPerMinute: 1 },
+      adaptive: {
+        schemaVersion: "lakda/adaptive-config/v1", adapter: { id: "playwright" }, generator: { strategy: "least-visited-transition" },
+        stopWhen: { any: [{ type: "actionCoverage", atLeast: 1 }] }, settlePolicy: { policyVersion: "consensus/v1", maxWaitMs: 100, stableWindowMs: 10 },
+        fingerprintPolicy: { algorithmVersion: "sha256/v1", canonicalizationVersion: "canonical/v1" }, recovery: { maxBacktracks: 0, maxAttemptsPerState: 1 },
+        safety: { allowTargetKinds: ["page"], denyActionIds: [], allowMutationKinds: ["none"] }, actionContracts: [{ actionId: "view-record", mutationKind: "none" }],
+      },
+    };
+    const configBytes = JSON.stringify(config);
+    await writeFile(configPath, configBytes, "utf8");
+    await writeFile(corpusPath, JSON.stringify({
+      schemaVersion: "lakda/adaptive-acceptance-corpus/v1", corpusId: "fixed-corpus", version: "1", targetRevision: "corpus-revision",
+      cases: [{ caseId: "case-1", acceptanceId: "AC-AE-001", configDigest: "sha256:" + createHash("sha256").update(configBytes).digest("hex"), expected: { outcome: "passed" } }],
+    }), "utf8");
+    await writeFile(manifestPath, JSON.stringify({
+      schemaVersion: "lakda/target-manifest/v1", manifestId: "ready-target", targetClass: "crm-list", status: "ready", owner: "owner@example.test",
+      environment: { name: "staging", baseUrlOrigin: "https://staging.example.test" }, access: { approved: true, authSource: "github-environment", approvalEvidenceRef: "approval-ref" },
+      scope: { allowHosts: ["staging.example.test"], pathPrefixes: ["/app"] }, safety: { allowMutationKinds: ["none"], resetProcedureRef: "reset-ref", killSwitchRef: "kill-ref" },
+      privacy: { piiPolicyRef: "pii-ref", sensitiveValuesPersisted: false }, actionContracts: [{ actionId: "view-record", mutationKind: "none" }],
+      settleProfile: { policyVersion: "consensus/v1", readiness: null, networkQuietExclusions: [] }, acceptance: { p0ActionIds: ["view-record"], p1ActionIds: [] },
+    }), "utf8");
+    const result = await run({
+      LAKDA_ADAPTIVE_REAL_CONFIG: configPath, LAKDA_ADAPTIVE_REAL_CONFIRM: "I_UNDERSTAND", LAKDA_ADAPTIVE_CORPUS_PATH: corpusPath,
+      LAKDA_ADAPTIVE_CASE_ID: "case-1", LAKDA_ADAPTIVE_ENVIRONMENT: "staging", LAKDA_ADAPTIVE_TARGET_REVISION: "corpus-revision", LAKDA_ADAPTIVE_TARGET_MANIFEST: manifestPath,
+    });
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain("target manifest path scope does not match config");
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
 test("real adaptive acceptance rejects config digest mismatch before loading config", async () => {
   const directory = await mkdtemp(join(tmpdir(), "lakda-real-config-digest-"));
   const configPath = join(directory, "config.json");

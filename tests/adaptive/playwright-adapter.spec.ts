@@ -114,6 +114,29 @@ test("Playwright adapter re-observes dynamic DOM and rejects stale candidates", 
   }
 });
 
+test("Playwright adapter enforces an optional path scope for observations and link candidates", async () => {
+  const fixture = await startFixture(url => {
+    if (url.pathname === "/app/inside") return { body: "<main><h1>Inside</h1></main>" };
+    if (url.pathname === "/application") return { body: "<main><button data-testid='outside'>Outside</button></main>" };
+    return { body: "<main><a data-testid='inside' href='/app/inside'>View</a><a data-testid='outside-link' href='/application'>View</a></main>" };
+  });
+  const browser = await chromium.launch(); const context = await browser.newContext(); const page = await context.newPage();
+  const adapter = new PlaywrightAdaptiveAdapter({ page, context, scopeHosts: ["127.0.0.1"], scopePathPrefixes: ["/app"], settlePolicy: { maxWaitMs: 500, stableWindowMs: 20 } });
+  try {
+    await page.goto(`${fixture.baseUrl}/app`);
+    const initial = await adapter.observe(adapter.primaryTarget(), { runId: "path-scope-test", scopeHosts: ["127.0.0.1"] });
+    const discovery = await adapter.discoverCandidates(initial);
+    const inside = discovery.candidates.find(candidate => candidate.locatorRecipe.value === "inside");
+    expect(inside).toBeTruthy();
+    expect(discovery.coverageDebt).toEqual(expect.arrayContaining([expect.objectContaining({ reason: "out-of-scope-link", name: "View" })]));
+    expect((await adapter.execute(inside!, { runId: "path-scope-test", timeoutMs: 500 })).status).toBe("executed");
+    expect((await adapter.observe(adapter.primaryTarget(), { runId: "path-scope-test", scopeHosts: ["127.0.0.1"] })).completeness).toBe("complete");
+    await page.goto(`${fixture.baseUrl}/application`);
+    const outside = await adapter.observe(adapter.primaryTarget(), { runId: "path-scope-test", scopeHosts: ["127.0.0.1"] });
+    expect(outside.completeness).toBe("partial");
+    expect(await adapter.generateCandidates(outside)).toEqual([]);
+  } finally { await context.close(); await browser.close(); await fixture.close(); }
+});
 test("Playwright adapter scopes repeated controls and records every non-candidate as coverage debt", async () => {
   const fixture = await startFixture(() => ({ body: `<main>
     <div role="row" aria-labelledby="first-heading"><h2 id="first-heading">First item</h2><button onclick="this.parentElement.dataset.edited = 'yes'">Edit</button></div>
