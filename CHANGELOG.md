@@ -4,6 +4,13 @@
 
 - P7の固定corpus実環境受入、実機Airtest/Poco、認可済みSecurity target、manual-bb/QEG Gateを継続する。
 
+## 0.3.0-rc.4 - 2026-07-16
+
+### Fixed
+
+- ルート直下に残っていた調査報告書と要件定義の元資料を `docs/reference/` に集約し、全相対リンクを更新。
+- README、CHANGELOG、package metadata、runtime producer version、release/package検査の版番号を `0.3.0-rc.4` に統一。reference stagingの過去revisionと現行package versionを明確に分離。
+
 ## 0.3.0-rc.3 - 2026-07-16
 
 ### Fixed
