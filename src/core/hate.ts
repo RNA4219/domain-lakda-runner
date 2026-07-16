@@ -34,7 +34,7 @@ export async function buildAndValidateManifest(
   runAttempt: number,
   commitSha: string,
   classification: "public" | "internal" | "confidential" | "restricted" = "internal",
-  provenance: ArtifactProvenance = { producerVersion: "0.3.0-rc.3", createdAt: "1970-01-01T00:00:00.000Z" },
+  provenance: ArtifactProvenance = { producerVersion: "0.3.0-rc.4", createdAt: "1970-01-01T00:00:00.000Z" },
   securityByPath: Record<string, ArtifactSecurityRecord> = {},
   excludePaths: string[] = [],
   verifiedArtifacts: VerifiedArtifact[] = [],
@@ -76,7 +76,7 @@ export async function exportHate(runDir: string, out: string, securityByPath: Re
   const excluded = [resolve(out)];
   const policy = await inspectArtifactPolicy(runDir, { artifacts: { maxRunBytes: metadata.artifactPolicy?.maxRunBytes ?? 1_073_741_824, classification: metadata.artifactPolicy?.classification ?? "internal" } } as import("./types.js").LakdaConfig, metadata.outcome ?? "passed", metadata.artifactPolicy?.expectations ?? { trace: false, screenshot: false, video: false, har: false, domSnapshots: 0 }, excluded);
   if (policy.residualSensitivePaths.length || policy.missingPaths.length || policy.profileMissingPaths.length || policy.unsupportedPaths.length || (metadata.outcome === "passed" && policy.sizeExceeded)) throw new Error("artifact policy検査に失敗しました");
-  const manifest = await buildAndValidateManifest(runDir, metadata.runId, metadata.attempt, metadata.commitSha, metadata.artifactPolicy?.classification ?? "internal", { producerVersion: metadata.producerVersion ?? "0.3.0-rc.3", createdAt: metadata.endedAt ?? metadata.startedAt ?? "1970-01-01T00:00:00.000Z" }, policy.securityByPath, excluded, policy.verifiedArtifacts);
+  const manifest = await buildAndValidateManifest(runDir, metadata.runId, metadata.attempt, metadata.commitSha, metadata.artifactPolicy?.classification ?? "internal", { producerVersion: metadata.producerVersion ?? "0.3.0-rc.4", createdAt: metadata.endedAt ?? metadata.startedAt ?? "1970-01-01T00:00:00.000Z" }, policy.securityByPath, excluded, policy.verifiedArtifacts);
   await writeJsonAtomic(out, manifest);
   return manifest;
 }

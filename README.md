@@ -9,7 +9,7 @@ Lakdaは、Web・ゲーム・認可済みセキュリティ探索を共通の状
 > Lakdaのrun outcomeは最終品質Gateではありません。LakdaはHATE/v1証跡までを生成し、Go／No-Goは外部のmanual-bbとQEGが判断します。
 
 > [!NOTE]
-> 最新の検証対象はcode revision `600a037efec8617d2090b1c8be408a1d1b9b1c5a`です。公開・非破壊の[reference staging](https://rna4219.github.io/domain-lakda-runner/)で実Qwen、manual-bb、HATE、QEGまで接続し、QEG verdictは`go`、[CI 7 checks](https://github.com/RNA4219/domain-lakda-runner/actions/runs/29466474913)はすべて成功しました。これは任意の本番・実機・security targetへの包括承認ではありません。詳細は[品質証跡記録](docs/acceptance/AC-20260716-19.reference-staging-qeg-go.md)を参照してください。
+> 現在のプレリリース版は `0.3.0-rc.4` です。code revision `600a037efec8617d2090b1c8be408a1d1b9b1c5a` は、公開・非破壊の[reference staging](https://rna4219.github.io/domain-lakda-runner/)で実Qwen、manual-bb、HATE、QEGまでを接続した過去の範囲限定証跡です（QEG verdictは`go`、[CI 7 checks](https://github.com/RNA4219/domain-lakda-runner/actions/runs/29466474913)は成功）。現在のpackage source revisionや任意の本番・実機・security targetへの包括承認を示すものではありません。詳細は[品質証跡記録](docs/acceptance/AC-20260716-19.reference-staging-qeg-go.md)を参照してください。
 
 ## 機能
 
