@@ -83,6 +83,8 @@ Codexで保守や受入作業を行う場合は、次のpersonal Skillsを利用
 | `lakda-maintainer` | Lakdaの設定、CLI、adapter、P8〜P11、real acceptance、HATE/QEG境界を変更・レビューするとき |
 | `five-tool-validation-gate` | RanD → Code-to-gate → HATE → manual-bb → QEGを一続きのrelease evidenceとして実行するとき。全体フローの正本は[workflow-cookbook](https://github.com/RNA4219/workflow-cookbook) |
 | [`manual-bb-test-harness`](https://github.com/RNA4219/manual-bb-test-harness/tree/main/skills/manual-bb-test-harness) | 仕様とriskから手動ブラックボックスケース、strict Gate、Go/No-Go briefを作るとき |
+| `agent-tools-hub` | Agent_tools全体の入口を選び、workflow-cookbook・manual-bb・QEGへの読み順を整理するとき |
+| `workflow-agent-evidence` | workflow-cookbookのEvidence recordとLakda/HATEの証跡連携を保守するとき |
 | `local-llm-launcher` | operatorが実Qwenをloopbackで起動・停止し、model IDとGGUF SHA-256を固定するとき |
 
 人間が先に読む正本はこのREADME、[RUNBOOK.md](RUNBOOK.md)、各仕様書です。Skillは正本を置き換えず、fixtureを実環境証跡へ昇格させる権限も持ちません。
@@ -116,10 +118,19 @@ lakda run --base-url <approved-base-url> --mode adaptive-explore --persona <pers
 lakda combo gen --factor-model <factor-model.json> --seed 1 --strength 2 --case-budget 50 --out <suite.json>
 lakda combo verify --factor-model <factor-model.json> --suite <suite.json> --out <coverage.json>
 lakda scout --config <lakda.config.json> --suite <trace-or-suite.json> --scout-mode rule-only --out <leads.json>
-lakda investigate --lead <lead.json> --reviewer <reviewer-ref> --out <investigation.json>
+lakda investigate --lead <lead.json> --trace <adaptive-trace.json> --config <lakda.config.json> --reviewer <reviewer-ref> --out <investigation.json>
 lakda promote --investigation <investigation.json> --kind trace --out <promotion.json>
 ```
 
+P10の調査は、Leadと元traceを同じ設定で一度だけ再生する人間向けの手順です。
+
+1. `lakda scout` でtraceからLead reportを作る。
+2. `lakda investigate` にLead、元の`adaptive/trace.json`、同じ`lakda.config.json`、reviewer参照、出力先を明示する。
+3. preflightでschema/version、Lead digest、seed、base URLとallowHosts、target kind、URL scopeを検証してから、対象へ接続する。
+4. 再生中はcandidateの再解決、実行status、pre/post fingerprint、settle status、popup/iframe/new-tabを含むtarget topology、generic/product/security oracleの署名を比較する。比較は一回だけで、差分・欠落・不明はfail-closedになる。
+5. `status=reproduced` かつreplayDigest、oracleRefs、evidenceRefsが揃った場合だけ`lakda promote`が成功する。`not_reproduced`、`replay_diverged`、`inconclusive`、artifact欠落は昇格できない。
+
+Lakdaが生成するのはredacted artifactとHATE/v1 manifestまでです。最終のGo/No-Go、QEG record、QEG verdictは外部工程です。[HATE](https://github.com/RNA4219/harness-auto-test-evidence)で証跡を正規化し、[QEG](https://github.com/RNA4219/quality-evidence-graph)で最終Gateを判定してください。
 factor modelは安全なfixture値と専用constraint DSLだけを受け入れます。scoutはrule-firstであり、LLMが使える場合でも提示済みLead IDの選択または停止だけが許されます。`promote`はstrict replayで再現済み、かつartifact／oracle参照が揃う場合だけ成功します。
 
 ## 安全性と証跡

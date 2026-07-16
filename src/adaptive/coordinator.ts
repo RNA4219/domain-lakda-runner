@@ -6,7 +6,6 @@ import type { AdaptiveAdapter } from "../adapters/types.js";
 import { ActionBudget } from "../core/action-budget.js";
 import { ArtifactCollector } from "../core/artifacts.js";
 import { runSizeBytes } from "../core/artifact-store.js";
-import { canonicalJson } from "../core/plan.js";
 import { sha256 } from "../core/redaction.js";
 import type { LakdaConfig, RunOutcome, TerminationReason } from "../core/types.js";
 import { fingerprintObservation } from "./fingerprint.js";
@@ -17,102 +16,13 @@ import { SecurityExecutionController } from "./security-execution.js";
 import { evaluateActionGuard, evaluateActionPostconditions, genericOracle } from "./oracles.js";
 import { securityOracle } from "./security-oracle.js";
 import { writeAdaptiveEvidence } from "./evidence.js";
-import { generateInputs, matchesRecordedInputCase, recordInputCase, shrinkFailure, type GeneratedInput, type InputField, type RecordedInputCase } from "./input.js";
+import { generateInputs, matchesRecordedInputCase, recordInputCase, shrinkFailure, type GeneratedInput, type InputField } from "./input.js";
+import { buildReplaySteps, candidateDivergence, executionDivergence, oracleDivergence, type AdaptiveReplayTrace } from "./replay.js";
+export { isAdaptiveReplayTrace } from "./replay.js";
+export type { AdaptiveReplayTrace } from "./replay.js";
 
 export type AdaptiveRuntime = { actionBudget?: ActionBudget; clock?: () => number };
 export type AdaptiveRunResult = { outcome: RunOutcome; terminationReason: TerminationReason };
-export type AdaptiveReplayEntry = {
-  type: string;
-  candidate?: ActionCandidate;
-  inputCase?: RecordedInputCase;
-  executionResult?: ExecutionResult;
-  result?: OracleResult;
-  status?: ExecutionResult["status"];
-  preFingerprint?: string;
-  postFingerprint?: string;
-  settle?: string;
-};
-export type AdaptiveReplayTrace = { schemaVersion: "lakda/adaptive-trace/v1" | "lakda/adaptive-replay/v1"; seed: number; trace: AdaptiveReplayEntry[] };
-export function isAdaptiveReplayTrace(value: unknown): value is AdaptiveReplayTrace {
-  const schemaVersion = value && typeof value === "object" ? (value as { schemaVersion?: unknown }).schemaVersion : undefined;
-  return (schemaVersion === "lakda/adaptive-trace/v1" || schemaVersion === "lakda/adaptive-replay/v1") && Array.isArray((value as { trace?: unknown }).trace);
-}
-
-type ReplayExecutionExpectation = {
-  status: ExecutionResult["status"];
-  preFingerprint: string;
-  postFingerprint?: string;
-  settleStatus: string;
-  targetChanges?: Array<Record<string, unknown>>;
-};
-type ReplayStep = {
-  candidate: ActionCandidate;
-  inputCase?: RecordedInputCase;
-  execution?: ReplayExecutionExpectation;
-  oracles: OracleResult[];
-};
-
-function expectedExecution(entry: AdaptiveReplayEntry): ReplayExecutionExpectation | undefined {
-  const result = entry.executionResult;
-  if (result) {
-    return {
-      status: result.status,
-      preFingerprint: result.preFingerprint,
-      ...(result.postFingerprint ? { postFingerprint: result.postFingerprint } : {}),
-      settleStatus: result.settleResult.status,
-      targetChanges: result.targetChanges,
-    };
-  }
-  if (entry.type !== "execution" || !entry.status || !entry.preFingerprint || !entry.settle) return undefined;
-  return {
-    status: entry.status,
-    preFingerprint: entry.preFingerprint,
-    ...(entry.postFingerprint ? { postFingerprint: entry.postFingerprint } : {}),
-    settleStatus: entry.settle,
-  };
-}
-
-function buildReplaySteps(replay: AdaptiveReplayTrace | undefined): ReplayStep[] {
-  const steps: ReplayStep[] = [];
-  let current: ReplayStep | undefined;
-  for (const entry of replay?.trace ?? []) {
-    if (entry.type === "candidate" && entry.candidate) {
-      current = { candidate: entry.candidate, ...(entry.inputCase ? { inputCase: entry.inputCase } : {}), oracles: [] };
-      steps.push(current);
-    } else if (entry.type === "execution" && current) {
-      current.execution = expectedExecution(entry);
-    } else if (entry.type === "oracle" && entry.result && current) {
-      current.oracles.push(entry.result);
-    }
-  }
-  return steps;
-}
-
-function executionDivergence(expected: ReplayExecutionExpectation | undefined, actual: ExecutionResult): string | undefined {
-  if (!expected) return "missing-execution-expectation";
-  if (expected.status !== actual.status) return "execution-status-mismatch";
-  if (expected.preFingerprint !== actual.preFingerprint) return "pre-fingerprint-mismatch";
-  if (expected.postFingerprint !== actual.postFingerprint) return "post-fingerprint-mismatch";
-  if (expected.settleStatus !== actual.settleResult.status) return "settle-status-mismatch";
-  if (expected.targetChanges && canonicalJson(expected.targetChanges) !== canonicalJson(actual.targetChanges)) return "target-topology-mismatch";
-  return undefined;
-}
-
-function oracleDivergence(expected: OracleResult[] | undefined, actual: OracleResult[]): string | undefined {
-  if (!expected?.length) return "missing-oracle-expectation";
-  const signature = (value: OracleResult) => canonicalJson({
-    oracleClass: value.oracleClass,
-    verdict: value.verdict,
-    severity: value.severity,
-    message: value.message,
-    requirementRefs: value.requirementRefs,
-  });
-  const expectedSignatures = expected.map(signature).sort();
-  const actualSignatures = actual.map(signature).sort();
-  if (expectedSignatures.length === 1 && actualSignatures.includes(expectedSignatures[0])) return undefined;
-  return canonicalJson(expectedSignatures) === canonicalJson(actualSignatures) ? undefined : "oracle-result-mismatch";
-}
-
 function random(seed: number): () => number {
   let value = seed >>> 0;
   return () => { value += 0x6d2b79f5; let next = value; next = Math.imul(next ^ (next >>> 15), next | 1); next ^= next + Math.imul(next ^ (next >>> 7), next | 61); return ((next ^ (next >>> 14)) >>> 0) / 4_294_967_296; };
@@ -279,7 +189,8 @@ export async function runAdaptiveExplore(config: LakdaConfig, collector: Artifac
         const decision = graph.stop(config.adaptive.stopWhen, actions, elapsed);
         if (decision.stop) { trace.push({ type: "stop", reason: decision.reason, actionCount: actions, coverage: decision.coverage }); outcome = collector.failures.length ? "failed" : "passed"; terminationReason = "completed"; break; }
       }
-      const safeCandidates = [];
+      const safeCandidates: ActionCandidate[] = [];
+      const replayCandidates: ActionCandidate[] = [];
       for (const target of activeTargets()) {
         const observation = await adapter.observe(target, { runId: collector.metadata.runId, personaRef: config.persona, scopeHosts: config.safety.allowHosts });
         observations.push(observation);
@@ -293,6 +204,7 @@ export async function runAdaptiveExplore(config: LakdaConfig, collector: Artifac
         const generated = await adapter.generateCandidates(observation);
         candidateSnapshots.push({ observationId: observation.observationId, candidates: generated });
         graph.recordOffered(generated, actions);
+        if (replay) replayCandidates.push(...generated);
         for (const candidate of generated) {
           const guard = evaluateActionGuard(candidate, observation);
           if (!guard.allowed) {
@@ -316,11 +228,42 @@ export async function runAdaptiveExplore(config: LakdaConfig, collector: Artifac
         }
       }
       const replayStep = replay ? replaySteps[actions] : undefined;
-      const candidate = replay ? replayStep?.candidate : graph.choose(safeCandidates, config.adaptive.generator.strategy, rng);
+      let candidate: ActionCandidate | undefined;
+      let replayCandidateReason: string | undefined;
+      if (replay) {
+        if (!replayStep) {
+          trace.push({ type: "replay-divergence", reason: "candidate-unresolved", candidateId: "missing-replay-step" });
+          outcome = "failed"; terminationReason = "machine_failure"; break;
+        }
+        const expectedCandidate = replayStep.candidate;
+        const resolved = replayCandidates.find(value => value.candidateId === expectedCandidate.candidateId && value.targetRef.targetId === expectedCandidate.targetRef.targetId);
+        if (!resolved) {
+          const sameId = replayCandidates.some(value => value.candidateId === expectedCandidate.candidateId);
+          trace.push({ type: "replay-divergence", candidateId: expectedCandidate.candidateId, reason: sameId ? "scope-or-safety-violation" : "candidate-unresolved", expectedCandidate });
+          outcome = "failed"; terminationReason = "machine_failure"; break;
+        }
+        const candidateReason = candidateDivergence(expectedCandidate, resolved);
+        const contractOverride = Boolean(expectedCandidate.contract && !resolved.contract);
+        if (candidateReason && !contractOverride) {
+          trace.push({ type: "replay-divergence", candidateId: expectedCandidate.candidateId, reason: candidateReason, expectedCandidate, actualCandidate: resolved });
+          outcome = "failed"; terminationReason = "machine_failure"; break;
+        }
+        replayCandidateReason = candidateReason;
+        if (!safeCandidates.some(value => value.candidateId === resolved.candidateId && value.targetRef.targetId === resolved.targetRef.targetId)) {
+          trace.push({ type: "replay-divergence", candidateId: resolved.candidateId, reason: "scope-or-safety-violation", expectedCandidate, actualCandidate: resolved });
+          outcome = "failed"; terminationReason = "machine_failure"; break;
+        }
+        candidate = resolved;
+      } else {
+        candidate = graph.choose(safeCandidates, config.adaptive.generator.strategy, rng);
+      }
       if (candidate && replay) {
         const safety = evaluateAdaptiveSafety(candidate, config, { actionCount: actions, artifactBytes: await runSizeBytes(collector.paths.runDir), killSwitch });
         const securityReason = safety.allowed ? (securityController ? await securityController.denyReason(candidate) : undefined) : safety.reason;
-        if (!safety.allowed || securityReason) { trace.push({ type: "candidate-denied", candidateId: candidate.candidateId, reason: securityReason! }); outcome = "partial"; terminationReason = "completed"; break; }
+        if (!safety.allowed || securityReason) {
+          trace.push({ type: "replay-divergence", candidateId: candidate.candidateId, reason: "scope-or-safety-violation" });
+          outcome = "failed"; terminationReason = "machine_failure"; break;
+        }
       }
       if (!candidate) { trace.push({ type: "stop", reason: "no-safe-candidate", actionCount: actions }); outcome = collector.failures.length ? "failed" : "passed"; terminationReason = "completed"; break; }
       const preObservation = observationsByFingerprint.get(candidate.sourceFingerprint);
@@ -328,7 +271,8 @@ export async function runAdaptiveExplore(config: LakdaConfig, collector: Artifac
         trace.push({ type: "replay-divergence", candidateId: candidate.candidateId, reason: "pre-observation-missing", expectedFingerprint: candidate.sourceFingerprint });
         outcome = "failed"; terminationReason = "machine_failure"; break;
       }
-      const guard = evaluateActionGuard(candidate, preObservation);
+      const guardCandidate = replay ? replayStep?.candidate ?? candidate : candidate;
+      const guard = evaluateActionGuard(guardCandidate, preObservation);
       if (!guard.allowed) {
         if (guard.result) oracleResults.push(guard.result);
         trace.push({ type: "candidate-denied", candidateId: candidate.candidateId, reason: guard.result?.message ?? "guard-not-satisfied", ...(guard.result ? { oracleResult: guard.result } : {}) });
@@ -409,9 +353,10 @@ export async function runAdaptiveExplore(config: LakdaConfig, collector: Artifac
           evidenceRefs: result.evidenceRefs.map(ref => ref.artifactId),
         });
       }
-      const productOracles = evaluateActionPostconditions(candidate, preObservation, postObservation, result);
+      const oracleCandidate = replay ? replayStep?.candidate ?? candidate : candidate;
+      const productOracles = evaluateActionPostconditions(oracleCandidate, preObservation, postObservation, result);
       const generic = genericOracle(result, preObservation, postObservation);
-      const security = securityOracle(candidate, result);
+      const security = securityOracle(oracleCandidate, result);
       const stepOracles = [generic, ...productOracles, ...(security ? [security] : [])];
       graph.recordOracleResults(candidate.sourceFingerprint, candidate.candidateId, result.postFingerprint, stepOracles, result.status);
       oracleResults.push(...stepOracles);
@@ -422,6 +367,10 @@ export async function runAdaptiveExplore(config: LakdaConfig, collector: Artifac
           trace.push({ type: "replay-divergence", candidateId: candidate.candidateId, reason, expectedExecution: replayStep?.execution, actualExecution: result, expectedOracles: replayStep?.oracles, actualOracles: stepOracles });
           outcome = "failed"; terminationReason = "machine_failure"; break;
         }
+      }
+      if (replay && replayCandidateReason) {
+        trace.push({ type: "replay-divergence", candidateId: candidate.candidateId, reason: replayCandidateReason, expectedCandidate: replayStep?.candidate, actualCandidate: candidate });
+        outcome = "failed"; terminationReason = "machine_failure"; break;
       }
       if (productOracles.some(oracle => oracle.verdict === "fail") || (generic.verdict === "fail" && ["executed", "denied"].includes(result.status))) {
         outcome = "failed"; terminationReason = "machine_failure"; break;

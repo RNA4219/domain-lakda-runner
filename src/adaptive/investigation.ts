@@ -11,8 +11,9 @@ export type InvestigationStatus = "pending" | "reproduced" | "not_reproduced" | 
 export type Investigation = {
   schemaVersion: typeof INVESTIGATION_SCHEMA_VERSION; investigationId: string; leadId: string; reviewerRef: string; parentLeadDigest: string;
   status: InvestigationStatus; replayCount: 1; createdAt: string; replayDigest?: string; oracleRefs?: string[]; evidenceRefs?: string[]; notesRef?: string;
+  traceRef?: string; configDigest?: string; divergenceReason?: string; terminationReason?: string;
 };
-export type ReplayOutcome = { reproduced: boolean; divergence?: string; oracleRefs?: string[]; evidenceRefs?: string[]; details?: Record<string, unknown> };
+export type ReplayOutcome = { reproduced: boolean; inconclusive?: boolean; divergence?: string; oracleRefs?: string[]; evidenceRefs?: string[]; details?: Record<string, unknown>; traceRef?: string; configDigest?: string; terminationReason?: string };
 export type Promotion = {
   schemaVersion: typeof PROMOTION_SCHEMA_VERSION; promotionId: string; investigationId: string; parentInvestigationDigest: string;
   kind: "trace" | "suite"; status: "promoted"; promotedAt: string; artifactRefs: string[];
@@ -20,6 +21,22 @@ export type Promotion = {
 export type ShrinkStep = ReplayStep & { mutationKind?: string; targetHost?: string; actionRef?: string };
 export type ShrinkOptions = { maxAttempts?: number; allowMutationKinds?: string[]; allowedHosts?: string[]; killSwitch?: () => boolean };
 export type Kpi = { schemaVersion: typeof KPI_SCHEMA_VERSION; revision: string; numerator: number; denominator: number; ratio: number };
+
+function portableRef(value: string): boolean {
+  return Boolean(value) && !value.includes("\\") && !value.includes("\0") && !/^[A-Za-z]:/.test(value) && !value.startsWith("/") && !value.includes("storageState") && !/(?:secret|token|password|cookie|credential|pii)/i.test(value);
+}
+
+export function investigationDigest(value: Investigation): string { assertInvestigation(value); return digest(value); }
+
+export function assertPromotionReady(investigation: Investigation, kind: "trace" | "suite", artifactRefs: string[], artifactExists: (ref: string) => boolean): void {
+  assertInvestigation(investigation);
+  if (kind !== "trace" && kind !== "suite") throw new Error("promotion kind is invalid");
+  if (investigation.status !== "reproduced") throw new Error("only reproduced investigation can be promoted");
+  if (!investigation.replayDigest) throw new Error("promotion requires replayDigest");
+  if (!investigation.oracleRefs?.length) throw new Error("promotion requires oracleRefs");
+  if (!investigation.evidenceRefs?.length) throw new Error("promotion requires evidenceRefs");
+  if (!artifactRefs.length || artifactRefs.some(ref => !portableRef(ref) || !artifactExists(ref))) throw new Error("promotion artifact is missing");
+}
 
 function object(value: unknown, name: string): Record<string, unknown> { if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(name + " must be an object"); return value as Record<string, unknown>; }
 function digest(value: unknown): string { return "sha256:" + sha256(canonicalJson(value)); }
@@ -34,20 +51,40 @@ export async function runStrictReplay(investigation: Investigation, replay: () =
   assertInvestigation(investigation); if (investigation.replayCount !== 1) throw new Error("replay count must remain exactly one");
   const outcome = await replay();
   const replayDigest = digest({ investigationId: investigation.investigationId, outcome: outcome.details ?? {}, reproduced: outcome.reproduced, divergence: outcome.divergence ?? null });
-  const status: InvestigationStatus = outcome.divergence ? "replay_diverged" : outcome.reproduced ? "reproduced" : "not_reproduced";
-  return { ...investigation, status, replayDigest, ...(outcome.oracleRefs?.length ? { oracleRefs: [...new Set(outcome.oracleRefs)].sort() } : {}), ...(outcome.evidenceRefs?.length ? { evidenceRefs: [...new Set(outcome.evidenceRefs)].sort() } : {}) };
+  const status: InvestigationStatus = outcome.inconclusive ? "inconclusive" : outcome.divergence ? "replay_diverged" : outcome.reproduced ? "reproduced" : "not_reproduced";
+  return {
+    ...investigation, status, replayDigest,
+    ...(outcome.oracleRefs?.length ? { oracleRefs: [...new Set(outcome.oracleRefs)].sort() } : {}),
+    ...(outcome.evidenceRefs?.length ? { evidenceRefs: [...new Set(outcome.evidenceRefs)].sort() } : {}),
+    ...(outcome.traceRef ? { traceRef: outcome.traceRef } : {}),
+    ...(outcome.configDigest ? { configDigest: outcome.configDigest } : {}),
+    ...(outcome.divergence ? { divergenceReason: outcome.divergence } : {}),
+    ...(outcome.terminationReason ? { terminationReason: outcome.terminationReason } : {}),
+  };
 }
 
 export function assertInvestigation(value: unknown): asserts value is Investigation {
   const current = object(value, "investigation");
-  const allowed = ["schemaVersion", "investigationId", "leadId", "reviewerRef", "parentLeadDigest", "status", "replayCount", "createdAt", "replayDigest", "oracleRefs", "evidenceRefs", "notesRef"];
+  const allowed = ["schemaVersion", "investigationId", "leadId", "reviewerRef", "parentLeadDigest", "status", "replayCount", "createdAt", "replayDigest", "oracleRefs", "evidenceRefs", "notesRef", "traceRef", "configDigest", "divergenceReason", "terminationReason"];
   const extra = Object.keys(current).filter(key => !allowed.includes(key)); if (extra.length) throw new Error("investigation has unknown keys: " + extra.join(","));
-  if (current.schemaVersion !== INVESTIGATION_SCHEMA_VERSION || typeof current.investigationId !== "string" || typeof current.leadId !== "string" || typeof current.reviewerRef !== "string" || !current.reviewerRef || typeof current.parentLeadDigest !== "string" || !/^sha256:[0-9a-f]{64}$/.test(current.parentLeadDigest) || !["pending", "reproduced", "not_reproduced", "inconclusive", "replay_diverged"].includes(current.status as string) || current.replayCount !== 1 || typeof current.createdAt !== "string") throw new Error("investigation schema mismatch");
+  if (current.schemaVersion !== INVESTIGATION_SCHEMA_VERSION || typeof current.investigationId !== "string" || typeof current.leadId !== "string" || typeof current.reviewerRef !== "string" || !current.reviewerRef || typeof current.parentLeadDigest !== "string" || !/^sha256:[0-9a-f]{64}$/.test(current.parentLeadDigest) || !["pending", "reproduced", "not_reproduced", "inconclusive", "replay_diverged"].includes(current.status as string) || current.replayCount !== 1 || typeof current.createdAt !== "string" || Number.isNaN(Date.parse(current.createdAt))) throw new Error("investigation schema mismatch");
+  const expectedId = "investigation-" + sha256(canonicalJson({ leadId: current.leadId, parentLeadDigest: current.parentLeadDigest, reviewerRef: current.reviewerRef, createdAt: current.createdAt })).slice(0, 20);
+  if (current.investigationId !== expectedId) throw new Error("investigationId does not match parent digest");
+  if (current.replayDigest !== undefined && (typeof current.replayDigest !== "string" || !/^sha256:[0-9a-f]{64}$/.test(current.replayDigest))) throw new Error("replayDigest must be sha256");
+  for (const key of ["oracleRefs", "evidenceRefs"] as const) {
+    if (current[key] !== undefined && (!Array.isArray(current[key]) || current[key].some(ref => typeof ref !== "string" || !ref.trim()))) throw new Error(key + " must be string refs");
+  }
+  if (current.status === "reproduced" && (!current.replayDigest || !Array.isArray(current.oracleRefs) || current.oracleRefs.length === 0 || !Array.isArray(current.evidenceRefs) || current.evidenceRefs.length === 0)) throw new Error("reproduced investigation requires replayDigest, oracleRefs, and evidenceRefs");
+  if (current.traceRef !== undefined && (typeof current.traceRef !== "string" || !portableRef(current.traceRef))) throw new Error("traceRef must be portable");
+  if (current.configDigest !== undefined && (typeof current.configDigest !== "string" || !/^sha256:[0-9a-f]{64}$/.test(current.configDigest))) throw new Error("configDigest must be sha256");
+  if (current.divergenceReason !== undefined && typeof current.divergenceReason !== "string") throw new Error("divergenceReason must be string");
+  if (current.terminationReason !== undefined && typeof current.terminationReason !== "string") throw new Error("terminationReason must be string");
 }
 export function promoteInvestigation(investigation: Investigation, kind: "trace" | "suite", artifactRefs: string[], promotedAt = new Date().toISOString()): Promotion {
   assertInvestigation(investigation);
   if (investigation.status !== "reproduced") throw new Error("only reproduced investigation can be promoted");
-  if (!artifactRefs.length || artifactRefs.some(ref => !ref.trim())) throw new Error("promotion requires artifactRefs");
+  if (!investigation.replayDigest || !investigation.oracleRefs?.length || !investigation.evidenceRefs?.length) throw new Error("promotion requires replayDigest, oracleRefs, and evidenceRefs");
+  if (!artifactRefs.length || artifactRefs.some(ref => !portableRef(ref))) throw new Error("promotion requires portable artifactRefs");
   const parentInvestigationDigest = digest(investigation);
   const body = { investigationId: investigation.investigationId, parentInvestigationDigest, kind, artifactRefs: [...new Set(artifactRefs)].sort() };
   return { schemaVersion: PROMOTION_SCHEMA_VERSION, promotionId: "promotion-" + sha256(canonicalJson(body)).slice(0, 20), investigationId: investigation.investigationId, parentInvestigationDigest, kind, status: "promoted", promotedAt, artifactRefs: [...new Set(artifactRefs)].sort() };

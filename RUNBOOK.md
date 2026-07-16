@@ -90,6 +90,22 @@ Playwright adapterはin-processで動作する。Airtest/PocoとSecurity adapter
 
 P6 RCのローカル納品Gateは`npm run check`、`npm run acceptance:fixture`、`npm run acceptance:adaptive`、`npm run check:hate`、`npm run pack:check`である。これはpackageの再現性とfixture受入を示すが、Airtest/Poco実機、認可済みSecurity target、manual-bb/QEG final Gateを代替しない。
 
+### P10 strict replay・調査・昇格
+
+P10はfixtureの成功を本番Goへ変換する機能ではなく、同じ入力を一回だけ再生して人間の調査対象を絞る手順です。元traceとconfigを保存したまま、次の順で実行します。
+
+```powershell
+lakda scout --config <lakda.config.json> --suite <adaptive-trace.json> --scout-mode rule-only --out <leads.json>
+lakda investigate --lead <leads.json> --trace <adaptive-trace.json> --config <lakda.config.json> --reviewer <reviewer-ref> --out <investigation.json>
+lakda promote --investigation <investigation.json> --kind trace --out <promotion.json>
+```
+
+`investigate` は `--lead`、`--trace`、`--config`、`--reviewer`、`--out` を必須とします。configのschema、seed、Lead digest、base URL/allowHosts、target kind、URL scopeを先に検証し、失敗時は対象へ接続しません。strict replayはcandidateの再解決、status、pre/post fingerprint、settle、popup/iframe/new-tab topology、generic/product/security oracle署名を比較します。
+
+調査結果の `status` は `reproduced`、`not_reproduced`、`replay_diverged`、`inconclusive` のいずれかです。`reproduced` でも replayDigest、oracleRefs、evidenceRefs が欠けていれば昇格できません。元trace、Lead、run artifactは変更せず、promotionはportableな参照とparent digestを持つ派生recordだけを作ります。
+
+Lakdaの出力はredacted artifactとHATE/v1 manifestまでです。HATE export後のQEG入力、QEG record、Gate verdictは外部の[HATE](https://github.com/RNA4219/harness-auto-test-evidence)／[QEG](https://github.com/RNA4219/quality-evidence-graph)工程で扱い、Lakda自身はGo/No-Goを生成しません。
+
 ### HATE出力と後続連携
 
 ```text

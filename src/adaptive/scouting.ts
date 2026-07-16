@@ -86,6 +86,31 @@ export function groupLeadsRuleOnly(signals: ExplorationSignal[], leadCap = 3): E
   }).sort((left, right) => right.priority - left.priority || left.leadId.localeCompare(right.leadId)).slice(0, leadCap);
 }
 
+export function assertLeadForReplay(lead: ExplorationLead, trace: unknown, runId?: string): void {
+  assertLead(lead);
+  const source = Array.isArray(trace) ? trace : object(trace, "trace").trace;
+  if (!Array.isArray(source)) throw new Error("trace must contain an array");
+  if (!runId) {
+    const refs = new Set(source.flatMap((entry, index) => {
+      if (!entry || typeof entry !== "object") return ["trace:" + index];
+      const record = entry as Record<string, unknown>;
+      return [typeof record.executionId === "string" ? record.executionId : "", typeof record.observationId === "string" ? record.observationId : "", "trace:" + index].filter(Boolean);
+    }));
+    if (lead.sourceRefs && !lead.sourceRefs.some(ref => refs.has(ref))) throw new Error("lead sourceRefs are not present in trace");
+    return;
+  }
+  const signals = signalsFromTrace(trace, runId);
+  const selected = signals.filter(signal => lead.signalIds.includes(signal.signalId));
+  if (selected.length !== lead.signalIds.length || new Set(selected.map(signal => signal.signalId)).size !== lead.signalIds.length) throw new Error("lead signalRefs are not present in trace");
+  const groupKeys = new Set(selected.map(signal => signal.kind + "|" + (signal.targetRef ?? "") + "|" + (signal.fingerprint ?? "")));
+  if (groupKeys.size !== 1) throw new Error("lead signalRefs do not form one replayable group");
+  const sourceRefs = [...new Set(selected.flatMap(signal => signal.sourceRefs))].sort();
+  if (lead.sourceRefs && canonicalJson(lead.sourceRefs.slice().sort()) !== canonicalJson(sourceRefs)) throw new Error("lead sourceRefs mismatch");
+  const [key] = [...groupKeys];
+  const body = { leadType: selected[0].kind, signalIds: selected.map(signal => signal.signalId).sort(), sourceRefs, key };
+  if (lead.leadType !== body.leadType || lead.leadDigest !== digest(body)) throw new Error("lead digest mismatch");
+}
+
 export function buildScoutContext(leads: ExplorationLead[], capabilityRefs: string[] = [], leadCap = 3): ScoutContext {
   if (!Number.isInteger(leadCap) || leadCap < 1 || leadCap > 3) throw new Error("lead cap must be between 1 and 3");
   const selected = leads.slice().sort((left, right) => right.priority - left.priority || left.leadId.localeCompare(right.leadId)).slice(0, leadCap); selected.forEach(assertLead);
