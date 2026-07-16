@@ -1,6 +1,6 @@
 version: ctg/v1
 policy_id: lakda-strict-v030-rc1
-description: Strict P6 release-candidate policy for domain-lakda-runner v0.3.0-rc.1.
+description: Strict v0.3.0-rc.1 policy; all current Medium findings require owner-bound fingerprint triage.
 
 blocking:
   severity:
@@ -28,7 +28,7 @@ blocking:
   count_threshold:
     critical_max: 0
     high_max: 0
-    medium_max: 10
+    medium_max: 13
 
 confidence:
   min_confidence: 0.6

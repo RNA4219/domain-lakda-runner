@@ -48,15 +48,6 @@
       "rationale": "Fixture-only acceptance orchestration with no runtime import path; retained for reproducible legacy acceptance."
     },
     {
-      "fingerprint": "47d9a540da4e1a30",
-      "ruleId": "LARGE_MODULE",
-      "path": "src/adaptive/coordinator.ts",
-      "disposition": "planned-refactor",
-      "owner": "RNA4219",
-      "dueDate": "2026-08-31",
-      "rationale": "The coordinator is a cohesive state-machine boundary covered by adaptive integration, recovery, and strict replay tests; split generators and recovery after the adaptive contract is stabilized."
-    },
-    {
       "fingerprint": "5f245e8baacca130",
       "ruleId": "LARGE_MODULE",
       "path": "src/core/llm.ts",
@@ -73,6 +64,60 @@
       "owner": "RNA4219",
       "dueDate": "2026-08-31",
       "rationale": "Mode dispatch remains regression-covered; executor split is deferred until after the P6 RC compatibility boundary is frozen."
+    },
+    {
+      "fingerprint": "f410b7199685ac41",
+      "ruleId": "ENV_DIRECT_ACCESS",
+      "path": "scripts/check-package-contents.mjs",
+      "disposition": "accepted-design",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "npm_execpath is required, checked for presence, and passed to execFileSync without a shell before validating npm pack JSON."
+    },
+    {
+      "fingerprint": "ee02ef070804a820",
+      "ruleId": "LARGE_MODULE",
+      "path": "scripts/run-lakda-extension-real-acceptance.mjs",
+      "disposition": "planned-refactor",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "The external acceptance runner is fail-closed and validates confirmation, immutable corpus, revision, config digest, and HATE refs before handoff; split helpers after P11 evidence stabilizes."
+    },
+    {
+      "fingerprint": "6e09c041804b7127",
+      "ruleId": "LARGE_MODULE",
+      "path": "src/adapters/playwright.ts",
+      "disposition": "planned-refactor",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "The adapter is a cohesive Playwright boundary covered by dialog, topology, recovery, and observation integration tests; split observation and execution internals after the P11 contract stabilizes."
+    },
+    {
+      "fingerprint": "631092b64c03cffa",
+      "ruleId": "LARGE_MODULE",
+      "path": "src/adaptive/combinations.ts",
+      "disposition": "planned-refactor",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "The deterministic combination generator and constraint evaluator are pure and covered by constraint, mixed-strength, and unsatisfiable-model tests; split solver and coverage helpers after P8 stabilization."
+    },
+    {
+      "fingerprint": "13c9f081f5b84bf3",
+      "ruleId": "LARGE_MODULE",
+      "path": "src/adaptive/coordinator.ts",
+      "disposition": "planned-refactor",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "The coordinator is a cohesive state-machine boundary covered by adaptive integration, recovery, timeout quarantine, and strict replay tests; split generators and recovery after the adaptive contract stabilizes."
+    },
+    {
+      "fingerprint": "d70b121bafc0a910",
+      "ruleId": "LARGE_MODULE",
+      "path": "src/cli.ts",
+      "disposition": "planned-refactor",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "The CLI is command routing over typed core modules and is covered by help, parsing, and adaptive command tests; split command handlers after P8-P10 CLI contracts stabilize."
     }
   ]
 }
