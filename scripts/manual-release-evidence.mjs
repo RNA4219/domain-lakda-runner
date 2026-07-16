@@ -49,7 +49,7 @@ export async function verifyManualReleaseEvidence({ recordPath, expectedRevision
   assert(target.protocol === "https:", "staging URLはhttpsが必須です");
   assert(!target.username && !target.password && target.origin === record.environment.baseUrlOrigin, "staging originにuserinfo/path/queryを含めてはいけません");
   assert(record.environment.allowHosts?.includes(target.hostname), "staging hostがallowlistにありません");
-  assert(["github-environment", "local-auth-state"].includes(record.environment.authSource), "authSourceが未対応です");
+  assert(["github-environment", "local-auth-state", "none"].includes(record.environment.authSource), "authSourceが未対応です");
   assert(record.security?.credentialsPersisted === false, "認証情報を証跡へ保存してはいけません");
   assert(record.security?.sensitiveValuesPersisted === false, "sensitive valueを証跡へ保存してはいけません");
   assert(typeof record.operator === "string" && record.operator.length > 0, "operatorが必要です");  const startedAt = Date.parse(record.startedAt);

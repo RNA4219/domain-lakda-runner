@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="lakda-staging-contract" content="reference-target/v1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+  <title>Lakda Reference Staging</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; background: #f3f6fb; color: #172033; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; }
+    main { width: min(42rem, calc(100% - 2rem)); background: white; border: 1px solid #c8d2e3; border-radius: 1rem; padding: 2rem; box-shadow: 0 1rem 2.5rem rgb(23 32 51 / 10%); }
+    h1 { margin-top: 0; }
+    .badge { display: inline-block; padding: .25rem .6rem; border-radius: 99rem; background: #e5f6ed; color: #17633a; font-weight: 700; }
+    .panel { margin-top: 1.5rem; padding: 1rem; border: 1px solid #d7dfeb; border-radius: .75rem; }
+    .actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1rem; }
+    button, select { font: inherit; padding: .65rem .85rem; }
+    button { border: 0; border-radius: .5rem; background: #215cc2; color: white; cursor: pointer; }
+    button:disabled { background: #8f9bad; cursor: not-allowed; }
+    output { display: block; margin-top: 1rem; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <main>
+    <span class="badge" data-testid="environment">STAGING</span>
+    <h1>Lakda Reference Staging</h1>
+    <p>外部HTTPS配信、決定的状態遷移、安全な非破壊操作を検証するための専用reference targetです。</p>
+    <section class="panel" aria-labelledby="state-title">
+      <h2 id="state-title">状態遷移</h2>
+      <p data-testid="state">state: ready</p>
+      <label for="safe-choice">安全な選択肢</label>
+      <select id="safe-choice" data-testid="safe-choice">
+        <option value="">選択してください</option>
+        <option value="safe-one">Safe One</option>
+        <option value="safe-two">Safe Two</option>
+        <option value="secret-token" disabled>Blocked Sensitive Value</option>
+      </select>
+      <div class="actions">
+        <button type="button" data-testid="advance">次へ</button>
+        <button type="button" data-testid="reset">リセット</button>
+        <button type="button" data-testid="destructive" disabled>破壊操作（無効）</button>
+      </div>
+      <output data-testid="result" aria-live="polite">操作待ち</output>
+    </section>
+  </main>
+  <script>
+    (() => {
+      const state = document.querySelector('[data-testid="state"]');
+      const result = document.querySelector('[data-testid="result"]');
+      const advance = document.querySelector('[data-testid="advance"]');
+      const choice = document.querySelector('[data-testid="safe-choice"]');
+      let step = 0;
+      const render = (message) => {
+        state.textContent = `state: ${['ready', 'observed', 'completed'][step]}`;
+        result.textContent = message;
+        advance.disabled = step === 2;
+      };
+      advance.addEventListener('click', () => {
+        step = Math.min(2, step + 1);
+        render(step === 2 ? '安全に完了しました' : '状態を観測しました');
+      });
+      document.querySelector('[data-testid="reset"]').addEventListener('click', () => {
+        step = 0;
+        choice.value = '';
+        render('リセットしました');
+      });
+      choice.addEventListener('change', () => {
+        result.textContent = choice.value ? `選択: ${choice.value}` : '操作待ち';
+      });
+      render('操作待ち');
+    })();
+  </script>
+</body>
+</html>
