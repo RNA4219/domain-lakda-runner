@@ -38,7 +38,7 @@ type TargetTopologyEvent = {
 };
 type BrowserEvent = { eventId: string; kind: "console-error" | "pageerror" | "crash" | "request-failed" | "http-error" | "download"; targetId: string; messageRef?: string; url?: string; status?: number; method?: string };
 type InputValueProvider = (candidate: ActionCandidate, context: ExecuteContext) => string | undefined | Promise<string | undefined>;
-export type PlaywrightAdaptiveAdapterOptions = { page: Page; context?: BrowserContext; scopeHosts: string[]; adapterId?: string; inputValueProvider?: InputValueProvider; actionContracts?: ProductActionContract[]; settlePolicy?: Partial<SettlePolicy> };
+export type PlaywrightAdaptiveAdapterOptions = { page: Page; context?: BrowserContext; scopeHosts: string[]; scopePathPrefixes?: string[]; adapterId?: string; inputValueProvider?: InputValueProvider; actionContracts?: ProductActionContract[]; settlePolicy?: Partial<SettlePolicy> };
 
 const version = "lakda/adaptive-contracts/v1" as const;
 const policy: SettlePolicy = { maxWaitMs: 5_000, stableWindowMs: 200, policyVersion: "lightweight-dom/v1" };
@@ -46,6 +46,13 @@ const allowedRoles = new Set(["button", "link", "textbox", "checkbox", "combobox
 const publicText = (value?: string): string | undefined => value ? redact(value.replace(/\s+/g, " ").trim().slice(0, 160)) : undefined;
 const publicLocator = (value?: string): value is string => Boolean(value && findSensitive(value).length === 0);
 function origin(value: string): string | undefined { try { const url = new URL(value); return ["http:", "https:"].includes(url.protocol) ? url.origin : undefined; } catch { return undefined; } }
+function withinPathPrefixes(pathname: string, prefixes: readonly string[] | undefined): boolean {
+  if (prefixes === undefined) return true;
+  return prefixes.some(prefix => {
+    const normalized = prefix.length > 1 && prefix.endsWith("/") ? prefix.slice(0, -1) : prefix;
+    return normalized === "/" || pathname === normalized || pathname.startsWith(`${normalized}/`);
+  });
+}
 function safeUrl(value: string): string | undefined {
   try {
     const url = new URL(value);
@@ -113,6 +120,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
   private readonly targets = new Map<string, Entry>();
   private readonly ids = new WeakMap<object, string>();
   private readonly scopeHosts: Set<string>;
+  private readonly scopePathPrefixes: readonly string[] | undefined;
   private readonly actionContracts = new Map<string, MutationKind>();
   private readonly input?: InputValueProvider;
   private readonly contextEvents: boolean;
@@ -136,6 +144,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
   constructor(options: PlaywrightAdaptiveAdapterOptions) {
     this.adapterId = options.adapterId ?? "playwright";
     this.scopeHosts = new Set(options.scopeHosts);
+    this.scopePathPrefixes = options.scopePathPrefixes;
     for (const contract of options.actionContracts ?? []) {
       if (!contract.actionId.trim() || this.actionContracts.has(contract.actionId)) throw new Error("actionContractsには一意なactionIdが必要です");
       this.actionContracts.set(contract.actionId, contract.mutationKind);
@@ -198,6 +207,12 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
     return this.topologyEvents.slice(-50).map(event => ({ ...event }));
   }
 
+  private urlInScope(value: string): boolean {
+    try {
+      const url = new URL(value);
+      return ["http:", "https:"].includes(url.protocol) && this.scopeHosts.has(url.hostname) && withinPathPrefixes(url.pathname, this.scopePathPrefixes);
+    } catch { return false; }
+  }
   private networkExcluded(requestUrl: string): boolean {
     try {
       const url = new URL(requestUrl);
@@ -338,7 +353,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
     return [...this.targets.values()].map(entry => {
       const ref = this.ref(entry); let settledUrl: string | undefined; try { settledUrl = safeUrl(entry.target.url()); } catch { settledUrl = undefined; }
       let allowScope: "allowed" | "denied" | "unknown" = "unknown";
-      if (settledUrl) try { allowScope = this.scopeHosts.has(new URL(settledUrl).hostname) ? "allowed" : "denied"; } catch { allowScope = "unknown"; }
+      if (settledUrl) allowScope = this.urlInScope(settledUrl) ? "allowed" : "denied";
       return { targetId: ref.targetId, kind: ref.kind, ...(ref.contextId ? { contextId: ref.contextId } : {}), ...(ref.parentTargetId ? { parentTargetId: ref.parentTargetId } : {}), ...(ref.framePath ? { framePath: [...ref.framePath] } : {}), ...(ref.origin ? { origin: ref.origin } : {}), ...(entry.pageMetadata?.openerTargetId ? { openerTargetId: entry.pageMetadata.openerTargetId } : {}), ...(entry.pageMetadata?.triggerActionId ? { triggerActionId: entry.pageMetadata.triggerActionId } : {}), ...(entry.pageMetadata?.initialUrl ? { initialUrl: entry.pageMetadata.initialUrl } : {}), ...(settledUrl ? { settledUrl } : {}), allowScope, active: ref.targetId === this.activeTargetId, lifecycle: ref.lifecycle };
     });
   }
@@ -350,10 +365,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
   }
 
   private inScope(entry: Entry): boolean {
-    try {
-      const url = new URL(entry.target.url());
-      return ["http:", "https:"].includes(url.protocol) && this.scopeHosts.has(url.hostname);
-    } catch { return false; }
+    try { return this.urlInScope(entry.target.url()); } catch { return false; }
   }
 
   private async controls(target: Target): Promise<Control[]> {
@@ -556,7 +568,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
       if (control.disabled) { recordDebt(control, "disabled-control", "not-applicable"); continue; }
       if (!allowedRoles.has(control.role ?? "")) { recordDebt(control, "unsupported-control", "not-applicable"); continue; }
       if ((control.actionKind === "fill" || control.actionKind === "select") && (!control.fieldId || !fieldIds.has(control.fieldId))) { recordDebt(control, "missing-input-profile", "not-applicable"); continue; }
-      if (control.href) try { if (!this.scopeHosts.has(new URL(control.href).hostname)) { recordDebt(control, "out-of-scope-link", "not-applicable"); continue; } } catch { recordDebt(control, "out-of-scope-link", "not-applicable"); continue; }
+      if (control.href && !this.urlInScope(control.href)) { recordDebt(control, "out-of-scope-link", "not-applicable"); continue; }
 
       const testId = control.testId?.trim();
       if (testId && publicLocator(testId) && await target.getByTestId(testId).count() === 1) {

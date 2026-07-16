@@ -23,6 +23,14 @@ test("deny action is rejected before browser execution", () => {
   expect(() => createActionPlan(idOnly)).toThrow(/deny policy/);
 });
 
+test("manifest-injected path scope rejects boundary-crossing navigation", () => {
+  const outside = loadConfig(undefined, { baseUrl: "http://127.0.0.1:3000/app", candidates: [{ id: "outside", kind: "navigate", path: "/application" }] });
+  outside.safety.pathPrefixes = ["/app"];
+  expect(() => createActionPlan(outside)).toThrow(/allowlist外path/);
+  const inside = loadConfig(undefined, { baseUrl: "http://127.0.0.1:3000/app", candidates: [{ id: "inside", kind: "navigate", path: "/app/records" }] });
+  inside.safety.pathPrefixes = ["/app"];
+  expect(() => createActionPlan(inside)).not.toThrow();
+});
 test("run saves required artifacts and a schema-valid HATE manifest", async () => {
   const fixture = await startFixture(); const outputDir = await mkdtemp(join(tmpdir(), "lakda-pass-"));
   try {

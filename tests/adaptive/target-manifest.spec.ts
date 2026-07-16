@@ -40,6 +40,7 @@ test("a ready target manifest fails closed until its real approval, scope, and a
     acceptance: { p0ActionIds: ["view-record"], p1ActionIds: [] },
   };
   expect(validate(ready)).toBe(true);
+  expect(validate({ ...ready, scope: { ...ready.scope, pathPrefixes: [] } })).toBe(false);
   const manifestApprovedExclusion = { ...ready, settleProfile: { ...ready.settleProfile, networkQuietExclusions: ["/api/poll"] } };
   expect(validate(manifestApprovedExclusion)).toBe(true);
   expect(validate({ ...manifestApprovedExclusion, settleProfile: { ...manifestApprovedExclusion.settleProfile, networkQuietExclusions: ["https://unscoped.example/poll"] } })).toBe(false);

@@ -14,6 +14,10 @@ const acceptanceIdPattern = /^AC-AE-(00[1-9]|01[0-6])$/;
 const caseIdPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const digest = bytes => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 const canonical = value => Array.isArray(value) ? "[" + value.map(canonical).join(",") + "]" : value && typeof value === "object" ? "{" + Object.keys(value).sort().map(key => JSON.stringify(key) + ":" + canonical(value[key])).join(",") + "}" : JSON.stringify(value);
+const withinPathPrefix = (pathname, prefix) => {
+  const normalized = prefix.length > 1 && prefix.endsWith("/") ? prefix.slice(0, -1) : prefix;
+  return normalized === "/" || pathname === normalized || pathname.startsWith(`${normalized}/`);
+};
 
 async function assertJsonSchema(value, schemaName, label, inputContract) {
   const [schema, hateSchema] = await Promise.all([
@@ -87,10 +91,14 @@ async function loadTargetManifest() {
   return { manifest, sha256: digest(bytes) };
 }
 function assertTargetManifestMatchesConfig(target, config) {
-  const origin = new URL(config.baseUrl).origin;
-  const host = new URL(origin).hostname;
+  const baseUrl = new URL(config.baseUrl);
+  const origin = baseUrl.origin;
+
   if (target.environment.baseUrlOrigin !== origin) throw new InputError("target manifest origin does not match config");
-  if (!target.scope.allowHosts.includes(host) || !config.safety.allowHosts.includes(host)) throw new InputError("target manifest host scope does not match config");
+  if (!target.scope.allowHosts.includes(baseUrl.hostname) || canonical([...target.scope.allowHosts].sort()) !== canonical([...config.safety.allowHosts].sort())) throw new InputError("target manifest host scope does not match config");
+  config.safety.allowHosts = [...target.scope.allowHosts];
+  if (!target.scope.pathPrefixes.some(prefix => withinPathPrefix(baseUrl.pathname, prefix))) throw new InputError("target manifest path scope does not match config");
+  config.safety.pathPrefixes = [...target.scope.pathPrefixes];
   if (target.settleProfile.policyVersion !== config.adaptive.settlePolicy.policyVersion) throw new InputError("target manifest settle policy does not match config");
   if (canonical(target.settleProfile.readiness ?? null) !== canonical(config.adaptive.settlePolicy.readiness ?? null)) throw new InputError("target manifest readiness does not match config");
   config.adaptive.settlePolicy.networkQuietExclusions = [...target.settleProfile.networkQuietExclusions];
