@@ -11,7 +11,7 @@ import type { Observation } from "../../src/adaptive/contracts.js";
 test("adaptive-explore writes a state graph and deterministic replay trace from a real browser run", async () => {
   test.setTimeout(60_000);
   let terminalTestId = "finish";
-  const fixture = await startFixture(() => ({ body: `<main><button data-testid="next">Next</button></main><script>document.querySelector("button").addEventListener("click", () => document.querySelector("main").innerHTML = "<button data-testid='${terminalTestId}'>Finish</button>");</script>` }));
+  const fixture = await startFixture(() => ({ body: `<main><button data-testid="next" data-lakda-mutation-kind="none">Next</button></main><script>document.querySelector("button").addEventListener("click", () => document.querySelector("main").innerHTML = "<button data-testid='${terminalTestId}' data-lakda-mutation-kind='none'>Finish</button>");</script>` }));
   const outputDir = await mkdtemp(join(tmpdir(), "lakda-adaptive-"));
   try {
     const config = loadConfig(undefined, {
@@ -111,7 +111,7 @@ test("adaptive-explore writes a state graph and deterministic replay trace from 
 test("adaptive recovery verifies the restored fingerprint and records a backtrack edge", async () => {
   const fixture = await startFixture(url => url.pathname === "/hang"
     ? { body: `<main>Hanging</main><script>setInterval(() => { document.querySelector("main").textContent = String(Date.now()); }, 1);</script>` }
-    : { body: `<a data-testid="hang" href="/hang">Hang</a>` });
+    : { body: `<a data-testid="hang" data-lakda-mutation-kind="none" href="/hang">Hang</a>` });
   const outputDir = await mkdtemp(join(tmpdir(), "lakda-adaptive-recovery-"));
   try {
     const config = loadConfig(undefined, {
@@ -148,7 +148,7 @@ test("adaptive recovery verifies the restored fingerprint and records a backtrac
 test("adaptive recovery stops on a restored-state fingerprint divergence", async () => {
   const fixture = await startFixture(url => url.pathname === "/hang"
     ? { body: `<main>Hanging</main><script>localStorage.setItem("recovery-label", "Changed"); setInterval(() => { document.querySelector("main").textContent = String(Date.now()); }, 1);</script>` }
-    : { body: `<a data-testid="hang" href="/hang">Hang</a><script>addEventListener("pageshow", () => { document.querySelector("[data-testid=hang]").textContent = localStorage.getItem("recovery-label") || "Hang"; });</script>` });
+    : { body: `<a data-testid="hang" data-lakda-mutation-kind="none" href="/hang">Hang</a><script>addEventListener("pageshow", () => { document.querySelector("[data-testid=hang]").textContent = localStorage.getItem("recovery-label") || "Hang"; });</script>` });
   const outputDir = await mkdtemp(join(tmpdir(), "lakda-adaptive-recovery-divergence-"));
   try {
     const config = loadConfig(undefined, {
@@ -174,7 +174,7 @@ test("adaptive recovery stops on a restored-state fingerprint divergence", async
 });
 
 test("adaptive failure shrinking replays only safe non-mutating candidates and records the derived trace", async () => {
-  const fixture = await startFixture(() => ({ body: `<main><button data-testid="noise">Noise</button><button data-testid="fail">Fail</button></main><script>
+  const fixture = await startFixture(() => ({ body: `<main><button data-testid="noise" data-lakda-mutation-kind="none">Noise</button><button data-testid="fail" data-lakda-mutation-kind="none">Fail</button></main><script>
     document.querySelector("[data-testid=noise]").addEventListener("click", () => undefined);
     document.querySelector("[data-testid=fail]").addEventListener("click", () => setInterval(() => { document.querySelector("main").textContent = String(Date.now()); }, 1));
   </script>` }));
