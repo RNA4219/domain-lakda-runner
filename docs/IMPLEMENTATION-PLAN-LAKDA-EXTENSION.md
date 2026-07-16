@@ -48,7 +48,7 @@ Out:
 
 | 決定 | 採用方針 |
 |---|---|
-| DEC-LX-001 | 内製の決定的generator `lakda-ipog/v1`。外部library・外部toolへ依存しない。stable sortとseed付きtie-breakを使用する。 |
+| DEC-LX-001 | `lakda-ipog/v1`は全列挙＋貪欲被覆の凍結legacyとして既存artifact再検証だけに残す。新規modelは内製の逐次`lakda-ipog/v2`を明示し、水平/垂直成長、partial constraint、seed付きtie-breakで生成する。外部library・外部toolへ依存しない。 |
 | DEC-LX-002 | `lakda/combination-constraints/v1` の専用DSL。`allOf`、`anyOf`、`not`、`eq`、`neq`、`in`、`notIn`、`implies`だけを許可する。 |
 | DEC-LX-003 | rule-only Leadは`sourceRunId + failureSignature + oracleClass + severity + sourceFingerprint + graphRevision`でrun内dedupeする。Lead cap既定値は3。 |
 | DEC-LX-004 | 初版は既存`LocalLlmClient`のloopback transport、model attestation、timeout、token budgetだけを利用する。暗黙provider切替は禁止する。 |

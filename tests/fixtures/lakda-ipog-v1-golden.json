@@ -1,0 +1,11 @@
+{
+  "suiteId": "suite-09781c526bae3ec25118",
+  "modelDigest": "sha256:1b5e70158e3e085fc6ceb9a67e5a69d6771e7ad5ed53e0d8cf8c8ae7bcaa76f6",
+  "cases": [
+    { "caseId": "case-0001-28414ca2065f", "assignments": { "action": "checkout", "browser": "chromium", "query": "empty", "role": "member" } },
+    { "caseId": "case-0002-1ec392ba979a", "assignments": { "action": "search", "browser": "chromium", "query": "normal", "role": "guest" } },
+    { "caseId": "case-0003-b23ff339b646", "assignments": { "action": "checkout", "browser": "webkit", "query": "normal", "role": "member" } },
+    { "caseId": "case-0004-7a5c65227df0", "assignments": { "action": "search", "browser": "webkit", "query": "empty", "role": "guest" } },
+    { "caseId": "case-0005-37ec67a5bdf5", "assignments": { "action": "search", "browser": "chromium", "query": "empty", "role": "member" } }
+  ]
+}

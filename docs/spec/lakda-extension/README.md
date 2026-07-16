@@ -22,9 +22,9 @@ P8〜P11の追加経路を、既存のObservation、ActionCandidate、ExecutionR
 
 factor modelは schemaVersion、modelId、generatorPolicy、factors、constraintsを必須とする。factorは input/state/action/environment のいずれかで、値は安全なfixture値だけを保持する。constraintは allOf、anyOf、not、eq、neq、in、notIn、implies の専用DSLとし、未知factor/refは生成前に拒否する。
 
-generatorは model digest、generator version、seed、strength、factorGroup、case budgetを入力に、stable sortしたgreedy IPOG相当のsuiteを生成する。同一入力はbyte-identicalである。指定groupの3-way tuple以外はpairwiseのままにする。
+generatorは model digest、generator version、seed、strength、factorGroup、case budgetを入力にする。`lakda-ipog/v1`は既存artifact再検証専用の全列挙＋貪欲被覆legacyであり、新規modelへ暗黙移行しない。`lakda-ipog/v2`は水平/垂直成長、partial constraintのtrue/false/unknown評価、memoized completionを使い、全直積を生成しない。同一seedはbyte-identicalであり、同点候補はseed付きSHA-256 tie-breakで選ぶ。指定groupの3-way tuple以外はpairwiseのままにする。
 
-verifyは入力modelからvalid assignmentとtupleを独立再計算し、model digest、constraint、unknown ref、duplicate case、coverage不足を返す。invalid時はexit 1で、部分suiteを成功扱いにしない。
+verifyはsuiteのgenerator versionでdispatchする。v1はlegacy assignment空間、v2はfactor subset・value tupleとcompletionだけから実現可能tupleを独立再計算し、model digest、constraint、unknown ref、duplicate case、coverage不足を返す。case budget不足は未被覆tupleを含む失敗にし、部分suiteを成功扱いにしない。
 
 Playwright forms観測はvisible/enabledのselect optionを値IDとして安定ソートし、disabled、hidden、空値、secret/PII patternを除外する。
 
