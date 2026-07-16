@@ -1,0 +1,28 @@
+{
+  "valid": true,
+  "profile": "full",
+  "subjectRevision": "600a037efec8617d2090b1c8be408a1d1b9b1c5a",
+  "runCount": 90,
+  "coverage": {
+    "ac007": {
+      "eligible": true,
+      "expected": 60,
+      "actual": 60,
+      "passed": true
+    },
+    "ac010": {
+      "eligible": true,
+      "expected": 30,
+      "actual": 30,
+      "passed": true
+    },
+    "ac014Supplement": {
+      "eligible": false,
+      "expected": 20,
+      "actual": 30,
+      "passed": false
+    }
+  },
+  "bundleManifestSha256": "759671c0dd7721f022f47ab00ca40fefc4d5b7e6df29e31734976b9dc5ae205c",
+  "overall": true
+}

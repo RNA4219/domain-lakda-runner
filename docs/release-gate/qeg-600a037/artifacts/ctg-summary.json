@@ -1,0 +1,137 @@
+{
+  "schemaVersion": "lakda/ctg-summary/v1",
+  "subjectRevision": "600a037efec8617d2090b1c8be408a1d1b9b1c5a",
+  "sourceSha256": "0bd39b398a9ea52230cb73bf5b428b084785bd78b3ca9ef4ac71d9464a111c29",
+  "qegHandoffSha256": "89e9b2074f18c76b61884398033138134d02b69a7dc08627a04248645b616431",
+  "triageVerificationSha256": "a2839834d0d5ab4558506ecfa73b0b7370d0ed47ec065337e085a305f053a511",
+  "status": "passed",
+  "completeness": "complete",
+  "counts": {
+    "findings": 13,
+    "critical": 0,
+    "high": 0,
+    "risks": 0,
+    "testSeeds": 0,
+    "unsupportedClaims": 0
+  },
+  "triagedMedium": 13,
+  "triageEntries": [
+    {
+      "fingerprint": "13c9f081f5b84bf3",
+      "ruleId": "LARGE_MODULE",
+      "path": "src/adaptive/coordinator.ts",
+      "disposition": "planned-refactor",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "The coordinator is a cohesive state-machine boundary covered by adaptive integration, recovery, timeout quarantine, and strict replay tests; split generators and recovery after the adaptive contract stabilizes."
+    },
+    {
+      "fingerprint": "396df2f9cdcf4ed0",
+      "ruleId": "LARGE_MODULE",
+      "path": "scripts/run-acceptance.mjs",
+      "disposition": "planned-refactor",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "Fixture-only acceptance orchestration with no runtime import path; retained for reproducible legacy acceptance."
+    },
+    {
+      "fingerprint": "559ebdc9553a3460",
+      "ruleId": "LARGE_MODULE",
+      "path": "scripts/check-docs.mjs",
+      "disposition": "planned-refactor",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "Build-time documentation validation only; split adaptive and legacy contract checks after the P6 RC."
+    },
+    {
+      "fingerprint": "5f245e8baacca130",
+      "ruleId": "LARGE_MODULE",
+      "path": "src/core/llm.ts",
+      "disposition": "planned-refactor",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "Existing v0.2.1 module covered by deterministic LLM evidence tests; transport split remains outside the P6 RC scope."
+    },
+    {
+      "fingerprint": "61307a72e70e1b51",
+      "ruleId": "LARGE_MODULE",
+      "path": "scripts/real-llm-evidence.mjs",
+      "disposition": "planned-refactor",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "Acceptance-only evidence tooling; split profile/report and bundle verification after the P6 RC."
+    },
+    {
+      "fingerprint": "631092b64c03cffa",
+      "ruleId": "LARGE_MODULE",
+      "path": "src/adaptive/combinations.ts",
+      "disposition": "planned-refactor",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "The deterministic combination generator and constraint evaluator are pure and covered by constraint, mixed-strength, and unsatisfiable-model tests; split solver and coverage helpers after P8 stabilization."
+    },
+    {
+      "fingerprint": "6e09c041804b7127",
+      "ruleId": "LARGE_MODULE",
+      "path": "src/adapters/playwright.ts",
+      "disposition": "planned-refactor",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "The adapter is a cohesive Playwright boundary covered by dialog, topology, recovery, and observation integration tests; split observation and execution internals after the P11 contract stabilizes."
+    },
+    {
+      "fingerprint": "c2acc9d628c90f83",
+      "ruleId": "ENV_DIRECT_ACCESS",
+      "path": "scripts/run-adaptive-real-acceptance.mjs",
+      "disposition": "accepted-design",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "The real acceptance runner validates explicit confirmation, required paths, case identity, corpus contract, and environment metadata before loading Lakda or contacting a target."
+    },
+    {
+      "fingerprint": "d70b121bafc0a910",
+      "ruleId": "LARGE_MODULE",
+      "path": "src/cli.ts",
+      "disposition": "planned-refactor",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "The CLI is command routing over typed core modules and is covered by help, parsing, and adaptive command tests; split command handlers after P8-P10 CLI contracts stabilize."
+    },
+    {
+      "fingerprint": "e2a8436463f3c111",
+      "ruleId": "ENV_DIRECT_ACCESS",
+      "path": "src/external-smoke.ts",
+      "disposition": "accepted-design",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "The environment value is parsed with URL and passed through Lakda host allowlist validation before browser use."
+    },
+    {
+      "fingerprint": "ee02ef070804a820",
+      "ruleId": "LARGE_MODULE",
+      "path": "scripts/run-lakda-extension-real-acceptance.mjs",
+      "disposition": "planned-refactor",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "The external acceptance runner is fail-closed and validates confirmation, immutable corpus, revision, config digest, and HATE refs before handoff; split helpers after P11 evidence stabilizes."
+    },
+    {
+      "fingerprint": "f410b7199685ac41",
+      "ruleId": "ENV_DIRECT_ACCESS",
+      "path": "scripts/check-package-contents.mjs",
+      "disposition": "accepted-design",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "npm_execpath is required, checked for presence, and passed to execFileSync without a shell before validating npm pack JSON."
+    },
+    {
+      "fingerprint": "f440031f883c031b",
+      "ruleId": "LARGE_MODULE",
+      "path": "src/core/runner.ts",
+      "disposition": "planned-refactor",
+      "owner": "RNA4219",
+      "dueDate": "2026-08-31",
+      "rationale": "Mode dispatch remains regression-covered; executor split is deferred until after the P6 RC compatibility boundary is frozen."
+    }
+  ]
+}

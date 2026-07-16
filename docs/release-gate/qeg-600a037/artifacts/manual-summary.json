@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "lakda/manual-bb-summary/v1",
+  "subjectRevision": "600a037efec8617d2090b1c8be408a1d1b9b1c5a",
+  "testExecutionMode": "real",
+  "operator": "codex-qa@RNA4219",
+  "environment": {
+    "name": "staging",
+    "baseUrlOrigin": "https://rna4219.github.io",
+    "allowHosts": [
+      "rna4219.github.io"
+    ]
+  },
+  "executionCount": 4,
+  "recordSha256": "fa1bee2d8f2049632d33d75b822d1433adf1a5c59632e307893155719196059d",
+  "cases": [
+    {
+      "id": "mbb:TC-LAKDA-RC-001",
+      "result": "pass",
+      "expectedResult": "allowlist外へ遷移しない / smoke runがcompleted/passedで終了する / 認証値がconsoleまたは証跡に表示されない"
+    },
+    {
+      "id": "mbb:TC-LAKDA-RC-002",
+      "result": "pass",
+      "expectedResult": "LLMは提示candidate ID以外を実行できない / 実行actionとbrowser状態差分が一致する / LLM単独でGate verdictを生成しない"
+    },
+    {
+      "id": "mbb:TC-LAKDA-RC-003",
+      "result": "pass",
+      "expectedResult": "allowlist外遷移は0件 / 破壊操作は0件 / staging状態が変更されない"
+    },
+    {
+      "id": "mbb:TC-LAKDA-RC-004",
+      "result": "pass",
+      "expectedResult": "未変更bundleは対象revision・件数・hash検証に成功する / 改ざんbundleは検証失敗する / mock、欠落、件数不足はQEG前提を満たさない"
+    }
+  ]
+}
