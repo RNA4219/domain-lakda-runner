@@ -55,7 +55,9 @@ export type ActionCandidate = {
   locatorRecipe: LocatorRecipe; inputProfileRef?: string; generatedBy: { ruleId: string; observationId: string; reason: string };
   risk: { weight: number; businessPriority?: "P0" | "P1" | "P2" | "P3"; mutationCost?: number }; mutationKind: MutationKind; mutationClassification?: MutationClassification; contract?: ActionContract;
 };
-export type SettleResult = { policyVersion: string; status: "settled" | "timed_out" | "target_lost" | "aborted"; elapsedMs: number; reasons: string[] };
+export type SettleReadiness = { testId?: string; role?: string; name?: string; state?: "visible" | "hidden" };
+export type SettlePolicy = { policyVersion: string; maxWaitMs: number; stableWindowMs: number; readiness?: SettleReadiness };
+export type SettleResult = { policyVersion: string; status: "settled" | "timed_out" | "target_lost" | "aborted"; elapsedMs: number; reasons: string[]; signals?: Record<string, { state: "quiet" | "pending" | "met" | "unmet"; reason: string }> };
 export type ExecutionResult = {
   schemaVersion: AdaptiveSchemaVersion; executionId: string; candidateId: string; preFingerprint: string; postFingerprint?: string; startedAt: string; endedAt: string;
   status: "executed" | "denied" | "unsupported" | "timeout" | "target_lost" | "action_failed" | "infrastructure_error"; failureSignature?: string;
@@ -75,7 +77,7 @@ export type AdaptiveConfig = {
   generator: { strategy: AdaptiveGeneratorStrategy; version?: string };
   actionContracts?: ProductActionContract[];
   stopWhen: { any?: AdaptiveStopCondition[]; all?: AdaptiveStopCondition[] };
-  settlePolicy: { policyVersion: string; maxWaitMs: number; stableWindowMs: number };
+  settlePolicy: SettlePolicy;
   fingerprintPolicy: { algorithmVersion: string; canonicalizationVersion: string };
   recovery: { maxBacktracks: number; maxAttemptsPerState: number };
   safety: { allowTargetKinds: TargetKind[]; denyActionIds: string[]; allowMutationKinds: MutationKind[] };

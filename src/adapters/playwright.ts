@@ -1,7 +1,7 @@
 import type { BrowserContext, Frame, Locator, Page } from "playwright";
 import { findSensitive, redact, sha256 } from "../core/redaction.js";
 import { fingerprintObservation } from "../adaptive/fingerprint.js";
-import type { ActionCandidate, AdapterCapabilities, CandidateDiscoveryResult, CoverageDebt, DialogHandling, EvidenceArtifactRef, ExecutionResult, LocatorRecipe, LocatorScope, MutationClassification, MutationKind, Observation, ProductActionContract, TargetRef } from "../adaptive/contracts.js";
+import type { ActionCandidate, AdapterCapabilities, CandidateDiscoveryResult, CoverageDebt, DialogHandling, EvidenceArtifactRef, ExecutionResult, LocatorRecipe, LocatorScope, MutationClassification, MutationKind, Observation, ProductActionContract, SettlePolicy, TargetRef } from "../adaptive/contracts.js";
 import type { AdaptiveAdapter, AdapterFailure, EvidenceRequest, ExecuteContext, ObserveContext, RecoverContext, RecoveryResult } from "./types.js";
 
 type Target = Page | Frame;
@@ -38,10 +38,10 @@ type TargetTopologyEvent = {
 };
 type BrowserEvent = { eventId: string; kind: "console-error" | "pageerror" | "crash" | "request-failed" | "http-error" | "download"; targetId: string; messageRef?: string; url?: string; status?: number; method?: string };
 type InputValueProvider = (candidate: ActionCandidate, context: ExecuteContext) => string | undefined | Promise<string | undefined>;
-export type PlaywrightAdaptiveAdapterOptions = { page: Page; context?: BrowserContext; scopeHosts: string[]; adapterId?: string; inputValueProvider?: InputValueProvider; actionContracts?: ProductActionContract[]; settlePolicy?: { maxWaitMs: number; stableWindowMs: number; policyVersion?: string } };
+export type PlaywrightAdaptiveAdapterOptions = { page: Page; context?: BrowserContext; scopeHosts: string[]; adapterId?: string; inputValueProvider?: InputValueProvider; actionContracts?: ProductActionContract[]; settlePolicy?: Partial<SettlePolicy> };
 
 const version = "lakda/adaptive-contracts/v1" as const;
-const policy = { maxWaitMs: 5_000, stableWindowMs: 200, policyVersion: "lightweight-dom/v1" };
+const policy: SettlePolicy = { maxWaitMs: 5_000, stableWindowMs: 200, policyVersion: "lightweight-dom/v1" };
 const allowedRoles = new Set(["button", "link", "textbox", "checkbox", "combobox", "option", "menuitem", "tab"]);
 const publicText = (value?: string): string | undefined => value ? redact(value.replace(/\s+/g, " ").trim().slice(0, 160)) : undefined;
 const publicLocator = (value?: string): value is string => Boolean(value && findSensitive(value).length === 0);
@@ -116,9 +116,11 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
   private readonly actionContracts = new Map<string, MutationKind>();
   private readonly input?: InputValueProvider;
   private readonly contextEvents: boolean;
-  private readonly settle: Required<NonNullable<PlaywrightAdaptiveAdapterOptions["settlePolicy"]>>;
+  private readonly settle: SettlePolicy;
   private readonly dialogs: DialogEvent[] = [];
   private readonly network: Array<{ targetId: string; url: string; status: number; method: string }> = [];
+  private readonly pendingNetwork = new Map<string, number>();
+  private readonly networkChangedAt = new Map<string, number>();
   private readonly events: BrowserEvent[] = [];
   private readonly pendingPageTriggers = new Map<string, string>();
   private candidateInFlight?: ActionCandidate;
@@ -195,6 +197,18 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
     return this.topologyEvents.slice(-50).map(event => ({ ...event }));
   }
 
+  private networkStarted(targetId: string): void {
+    this.pendingNetwork.set(targetId, (this.pendingNetwork.get(targetId) ?? 0) + 1);
+    this.networkChangedAt.set(targetId, Date.now());
+  }
+  private networkFinished(targetId: string): void {
+    this.pendingNetwork.set(targetId, Math.max(0, (this.pendingNetwork.get(targetId) ?? 1) - 1));
+    this.networkChangedAt.set(targetId, Date.now());
+  }
+  private targetPageId(target: Target): string | undefined {
+    const frame = target as Frame;
+    return typeof frame.page === "function" ? this.ids.get(frame.page()) : this.ids.get(target as Page);
+  }
   private recordBrowserEvent(targetId: string, kind: BrowserEvent["kind"], details: Omit<BrowserEvent, "eventId" | "kind" | "targetId"> = {}): void {
     this.events.push({ eventId: `browser-event-${++this.browserEvents}`, kind, targetId, ...details });
     if (this.events.length > 100) this.events.splice(0, this.events.length - 100);
@@ -234,7 +248,9 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
       page.on("pageerror", error => this.recordBrowserEvent(ref.targetId, "pageerror", { messageRef: sha256(redact(`${error.name}:${error.message}`)) }));
     }
     page.on("crash", () => this.recordBrowserEvent(ref.targetId, "crash"));
-    page.on("requestfailed", request => { const url = safeUrl(request.url()); this.recordBrowserEvent(ref.targetId, "request-failed", { ...(url ? { url } : {}), method: request.method(), ...(request.failure()?.errorText ? { messageRef: sha256(redact(request.failure()!.errorText)) } : {}) }); });
+    page.on("request", () => this.networkStarted(ref.targetId));
+    page.on("requestfinished", () => this.networkFinished(ref.targetId));
+    page.on("requestfailed", request => { this.networkFinished(ref.targetId); const url = safeUrl(request.url()); this.recordBrowserEvent(ref.targetId, "request-failed", { ...(url ? { url } : {}), method: request.method(), ...(request.failure()?.errorText ? { messageRef: sha256(redact(request.failure()!.errorText)) } : {}) }); });
     page.on("download", download => { const url = safeUrl(download.url()); this.recordBrowserEvent(ref.targetId, "download", { ...(url ? { url } : {}), messageRef: sha256(redact(download.suggestedFilename())) }); });
     page.on("popup", popup => this.registerPage(popup, ref.targetId, this.candidateInFlight?.candidateId));
     page.on("framenavigated", frame => { if (frame === page.mainFrame()) { const entry = this.targets.get(ref.targetId); const firstUrl = safeUrl(frame.url()); if (entry?.pageMetadata && firstUrl) entry.pageMetadata.initialUrl ??= firstUrl; } });
@@ -569,10 +585,40 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
   async generateCandidates(observation: Observation): Promise<ActionCandidate[]> {
     return (await this.discoverCandidates(observation)).candidates;
   }
+  private async readinessSignal(target: Target): Promise<{ state: "met" | "unmet"; reason: string }> {
+    const readiness = this.settle.readiness;
+    if (!readiness) return { state: "met", reason: "not-configured" };
+    const selected = readiness.testId ? target.getByTestId(readiness.testId) : target.getByRole(readiness.role as never, { name: readiness.name, exact: true });
+    const count = await selected.count();
+    if (count !== 1) return { state: "unmet", reason: "locator-not-unique" };
+    const visible = await selected.isVisible();
+    const expected = readiness.state ?? "visible";
+    return visible === (expected === "visible") ? { state: "met", reason: `state-${expected}` } : { state: "unmet", reason: `state-${expected}-not-met` };
+  }
+  private async waitConsensus(target: Target): Promise<ExecutionResult["settleResult"]> {
+    const started = Date.now(); const pageId = this.targetPageId(target); let dom = await target.evaluate(() => document.documentElement?.innerHTML ?? ""); let domChanged = started; let topologySize = this.topologyEvents.length; let topologyChanged = started;
+    let signals: NonNullable<ExecutionResult["settleResult"]["signals"]> = {};
+    while (Date.now() - started < this.settle.maxWaitMs) {
+      await new Promise(resolve => setTimeout(resolve, Math.max(10, Math.min(50, this.settle.stableWindowMs || 10))));
+      const now = Date.now(); const nextDom = await target.evaluate(() => document.documentElement?.innerHTML ?? "");
+      if (nextDom !== dom) { dom = nextDom; domChanged = now; }
+      if (this.topologyEvents.length !== topologySize) { topologySize = this.topologyEvents.length; topologyChanged = now; }
+      const networkActive = pageId ? this.pendingNetwork.get(pageId) ?? 0 : 0; const networkChanged = pageId ? this.networkChangedAt.get(pageId) ?? started : started;
+      const readiness = await this.readinessSignal(target); const quiet = (at: number) => now - at >= this.settle.stableWindowMs;
+      signals = {
+        domMutation: { state: quiet(domChanged) ? "quiet" : "pending", reason: quiet(domChanged) ? "dom-mutation-quiet" : "dom-changing" },
+        network: { state: networkActive === 0 && quiet(networkChanged) ? "quiet" : "pending", reason: networkActive ? `in-flight-${networkActive}` : "network-recently-active" },
+        topology: { state: quiet(topologyChanged) ? "quiet" : "pending", reason: quiet(topologyChanged) ? "target-topology-quiet" : "target-topology-changing" },
+        readiness,
+      };
+      if (signals.domMutation.state === "quiet" && signals.network.state === "quiet" && signals.topology.state === "quiet" && signals.readiness.state === "met") return { policyVersion: this.settle.policyVersion, status: "settled", elapsedMs: now - started, reasons: ["consensus-settled"], signals };
+    }
+    return { policyVersion: this.settle.policyVersion, status: "timed_out", elapsedMs: Date.now() - started, reasons: ["consensus-timeout"], signals };
+  }
   private async waitSettled(target: Target): Promise<ExecutionResult["settleResult"]> {
+    if (this.settle.policyVersion === "consensus/v1") return this.waitConsensus(target);
     const beforeSnapshot = await target.evaluate(() => [location.href, document.querySelectorAll("button,a,input,select,textarea,[role]").length, document.body?.innerText.slice(0, 512) ?? ""].join("|"));
-    const started = Date.now();
-    let before = beforeSnapshot; let stable = started;
+    const started = Date.now(); let before = beforeSnapshot; let stable = started;
     while (Date.now() - started < this.settle.maxWaitMs) {
       await new Promise(resolve => setTimeout(resolve, Math.min(50, this.settle.stableWindowMs)));
       const after = await target.evaluate(() => [location.href, document.querySelectorAll("button,a,input,select,textarea,[role]").length, document.body?.innerText.slice(0, 512) ?? ""].join("|"));
