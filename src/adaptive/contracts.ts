@@ -56,7 +56,7 @@ export type ActionCandidate = {
   risk: { weight: number; businessPriority?: "P0" | "P1" | "P2" | "P3"; mutationCost?: number }; mutationKind: MutationKind; mutationClassification?: MutationClassification; contract?: ActionContract;
 };
 export type SettleReadiness = { testId?: string; role?: string; name?: string; state?: "visible" | "hidden" };
-export type SettlePolicy = { policyVersion: string; maxWaitMs: number; stableWindowMs: number; readiness?: SettleReadiness };
+export type SettlePolicy = { policyVersion: string; maxWaitMs: number; stableWindowMs: number; readiness?: SettleReadiness; networkQuietExclusions?: string[] };
 export type SettleResult = { policyVersion: string; status: "settled" | "timed_out" | "target_lost" | "aborted"; elapsedMs: number; reasons: string[]; signals?: Record<string, { state: "quiet" | "pending" | "met" | "unmet"; reason: string }> };
 export type ExecutionResult = {
   schemaVersion: AdaptiveSchemaVersion; executionId: string; candidateId: string; preFingerprint: string; postFingerprint?: string; startedAt: string; endedAt: string;
