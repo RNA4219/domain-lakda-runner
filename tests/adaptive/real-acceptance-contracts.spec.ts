@@ -60,6 +60,7 @@ test("P7 case report schema reuses HATE artifact refs and forbids a Lakda QEG ve
     runtime: { nodeVersion: "v24.0.0", platform: "win32", arch: "x64" },
     seed: 123,
     configDigest: digest,
+    targetManifest: { manifestId: "approved-target", sha256: digest },
     corpus: { corpusId: "approved-corpus", version: "1.0.0", sha256: digest, targetRevision: "product-revision", caseConfigDigest: digest },
     expected: { outcome: "passed" },
     actual: { outcome: "passed", terminationReason: "completed", exitCode: 0 },
