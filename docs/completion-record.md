@@ -3,6 +3,9 @@
 > [!IMPORTANT]
 > v0.2.1 release evidence契約は2026-07-14に是正した。旧20-run記録は`worker-smoke`相当でAC-014の補助に限定され、AC-007/AC-010には不適格である。[coverage訂正](acceptance/AC-20260714-02.v021-evidence-contract-correction.md)を正本とする。実staging manual-bbとQEG final Gateが未完了ならreleaseは`hold`である。
 
+> [!NOTE]
+> revision `600a037efec8617d2090b1c8be408a1d1b9b1c5a` では、commit-bound reference staging、実Qwen full 90 run、worker smoke 20 run、manual-bb strict 4/4、Code-to-gate/HATE、QEG final Gate/recordまで完了し、QEG verdictは`go`となった。[最新の品質証跡記録](acceptance/AC-20260716-19.reference-staging-qeg-go.md)を参照する。この判定の適用範囲は同記録の「適用境界」に限定する。
+
 - 完了日: 2026-07-13
 - 対象: Chromium、smoke、seeded-random、regression-replay、`llm-explore`、HATE/v1 artifact manifest
 - コード受入commit: `3d18a7a546786f271287b6b55079f76fa9a8e318`

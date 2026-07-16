@@ -13,7 +13,7 @@ async function descriptor(root, path) {
   return { path: path.replaceAll("\\", "/"), size: (await stat(target)).size, sha256: await fileSha256(target) };
 }
 
-async function createManualFixture(root, revision, mode = "real") {
+async function createManualFixture(root, revision, mode = "real", authSource = "github-environment") {
   await mkdir(root, { recursive: true });
   const caseSet = JSON.parse(await readFile("docs/release-gate/manual_case_set.json", "utf8"));
   await writeFile(join(root, "manual_case_set.json"), JSON.stringify(caseSet, null, 2) + "\n");
@@ -63,7 +63,7 @@ async function createManualFixture(root, revision, mode = "real") {
     operator: "release-operator",
     startedAt: "2026-07-14T01:00:00.000Z",
     completedAt: "2026-07-14T05:00:00.000Z",
-    environment: { name: "staging", baseUrlOrigin: "https://staging.example.invalid", allowHosts: ["staging.example.invalid"], authSource: "github-environment" },
+    environment: { name: "staging", baseUrlOrigin: "https://staging.example.invalid", allowHosts: ["staging.example.invalid"], authSource },
     security: { credentialsPersisted: false, sensitiveValuesPersisted: false },
     files: {
       caseSet: await descriptor(root, "manual_case_set.json"),
@@ -166,6 +166,13 @@ test("mock manual evidence cannot satisfy the RC prerequisite", async () => {
   const acceptance = await createAcceptanceFixture(join(root, "acceptance"), "worker-smoke");
   const recordPath = await createManualFixture(join(root, "manual"), acceptance.revision, "mock");
   await expect(verifyManualReleaseEvidence({ recordPath, expectedRevision: acceptance.revision })).rejects.toThrow(/schema|testExecutionMode=real/);
+});
+
+test("public HTTPS staging can declare that authentication is not used", async () => {
+  const root = await mkdtemp(join(tmpdir(), "lakda-manual-public-staging-"));
+  const acceptance = await createAcceptanceFixture(join(root, "acceptance"), "worker-smoke");
+  const recordPath = await createManualFixture(join(root, "manual"), acceptance.revision, "real", "none");
+  await expect(verifyManualReleaseEvidence({ recordPath, expectedRevision: acceptance.revision })).resolves.toMatchObject({ valid: true, eligible: true });
 });
 
 test("duplicate manual case cannot satisfy the RC prerequisite", async () => {

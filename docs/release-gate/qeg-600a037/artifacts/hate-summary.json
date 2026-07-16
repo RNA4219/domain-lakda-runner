@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "lakda/hate-summary/v1",
+  "subjectRevision": "600a037efec8617d2090b1c8be408a1d1b9b1c5a",
+  "qegBundleSha256": "39577c56b63cb8cd8d20fa27e49f22dc6aa42943c1cf5e4c0bf9b860c165b7f8",
+  "upstream": {
+    "schema": "HATE/v1",
+    "commit": "3a4b655c2434109e230f8b862a9d5fe14f1c069e",
+    "sha256": "9070bfeef4ecf17f6ba7eda5d7b158e3f54bf5a4577f13387f33d4835b74a263",
+    "pinnedChecked": true,
+    "upstreamChecked": true,
+    "upstreamRevision": "3a4b655c2434109e230f8b862a9d5fe14f1c069e"
+  },
+  "completeness": {
+    "score": 1,
+    "partial": false,
+    "parserFailures": [],
+    "unsupportedClaims": [],
+    "excludedArtifacts": []
+  },
+  "nodeCount": 392,
+  "edgeCount": 2750
+}

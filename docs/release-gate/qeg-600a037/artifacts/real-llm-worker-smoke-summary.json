@@ -1,0 +1,28 @@
+{
+  "valid": true,
+  "profile": "worker-smoke",
+  "subjectRevision": "600a037efec8617d2090b1c8be408a1d1b9b1c5a",
+  "runCount": 20,
+  "coverage": {
+    "ac007": {
+      "eligible": false,
+      "expected": 60,
+      "actual": 0,
+      "passed": false
+    },
+    "ac010": {
+      "eligible": false,
+      "expected": 30,
+      "actual": 20,
+      "passed": false
+    },
+    "ac014Supplement": {
+      "eligible": true,
+      "expected": 20,
+      "actual": 20,
+      "passed": true
+    }
+  },
+  "bundleManifestSha256": "b03f2571e545e126f2e856e53a5e187df9e4d0308ccabe588ebb74219c65f0d6",
+  "overall": true
+}

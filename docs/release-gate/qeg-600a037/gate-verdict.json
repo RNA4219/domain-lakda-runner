@@ -1,0 +1,119 @@
+{
+  "metadata": {
+    "qegVersion": "0.2",
+    "runId": "qeg:lakda-rc-600a037efec8",
+    "createdAt": "2026-07-16T02:00:20.168Z",
+    "profile": "strict",
+    "headRef": "600a037efec8617d2090b1c8be408a1d1b9b1c5a",
+    "inputArtifacts": [
+      {
+        "id": "hate:artifact-real-llm-full",
+        "adapter": "lakda-v2-verifier",
+        "kind": "real-llm-acceptance",
+        "path": "artifacts/real-llm-full-summary.json",
+        "contentHash": "sha256:08ef31914696b7b96388c415bd989f38c9ecfafc941f5a7b20d02e59bef26ee0",
+        "revision": "600a037efec8617d2090b1c8be408a1d1b9b1c5a"
+      },
+      {
+        "id": "hate:artifact-worker-smoke",
+        "adapter": "lakda-v2-verifier",
+        "kind": "worker-smoke",
+        "path": "artifacts/real-llm-worker-smoke-summary.json",
+        "contentHash": "sha256:1bfa188809354b821b0672be2f750ae6a652a7319bbd9e3ab5c1d7ac6d74100e",
+        "revision": "600a037efec8617d2090b1c8be408a1d1b9b1c5a"
+      },
+      {
+        "id": "mbb:artifact-staging",
+        "adapter": "manual-bb-test-harness",
+        "kind": "execution_evidence",
+        "path": "artifacts/manual-summary.json",
+        "contentHash": "sha256:c313dfd0f2276881a69c38c66ced6c59c01154b235e4d58b7e50f542eecbe1d4",
+        "revision": "600a037efec8617d2090b1c8be408a1d1b9b1c5a"
+      },
+      {
+        "id": "ctg:artifact-readiness",
+        "adapter": "code-to-gate",
+        "kind": "release-readiness",
+        "path": "artifacts/ctg-summary.json",
+        "contentHash": "sha256:78d994794ac65e06e441a8ee2d8db178aeeaad958fce5d8ec3ccfce249e0f903",
+        "revision": "600a037efec8617d2090b1c8be408a1d1b9b1c5a"
+      },
+      {
+        "id": "hate:artifact-qeg-bundle",
+        "adapter": "hate",
+        "kind": "qeg-bundle",
+        "path": "artifacts/hate-summary.json",
+        "contentHash": "sha256:fd2038b19c2470275ee756445da2d507a8c51fb1bb865c2b0579892024e29832",
+        "revision": "600a037efec8617d2090b1c8be408a1d1b9b1c5a"
+      }
+    ],
+    "requiredConnectorStatus": {
+      "manual-bb-test-harness": "success",
+      "code-to-gate": "success"
+    },
+    "producerChecks": [
+      {
+        "id": "ctg:check-strict",
+        "producer": "code-to-gate",
+        "name": "strict-readiness",
+        "conclusion": "success",
+        "readinessStatus": "passed",
+        "headSha": "600a037efec8617d2090b1c8be408a1d1b9b1c5a",
+        "sourceRefs": [
+          {
+            "id": "ctg:sr-readiness",
+            "path": "artifacts/ctg-summary.json",
+            "revision": "600a037efec8617d2090b1c8be408a1d1b9b1c5a"
+          }
+        ]
+      },
+      {
+        "id": "hate:check-upstream",
+        "producer": "hate",
+        "name": "upstream-and-bundle-validation",
+        "conclusion": "success",
+        "headSha": "600a037efec8617d2090b1c8be408a1d1b9b1c5a",
+        "sourceRefs": [
+          {
+            "id": "hate:sr-summary",
+            "path": "artifacts/hate-summary.json",
+            "revision": "600a037efec8617d2090b1c8be408a1d1b9b1c5a"
+          }
+        ]
+      },
+      {
+        "id": "mbb:check-staging",
+        "producer": "manual-bb-test-harness",
+        "name": "real-staging-manual-bb",
+        "conclusion": "success",
+        "headSha": "600a037efec8617d2090b1c8be408a1d1b9b1c5a",
+        "sourceRefs": [
+          {
+            "id": "mbb:sr-summary",
+            "path": "artifacts/manual-summary.json",
+            "revision": "600a037efec8617d2090b1c8be408a1d1b9b1c5a"
+          }
+        ]
+      }
+    ]
+  },
+  "verdict": "go",
+  "reasons": [
+    "All gate conditions satisfied"
+  ],
+  "disqualifications": [],
+  "blockers": [],
+  "residualRisks": [],
+  "requiredHumanReview": [],
+  "testEvidenceAccounting": {
+    "countedTestIds": [
+      "hate:test-real-llm-full",
+      "hate:test-worker-smoke",
+      "mbb:TC-LAKDA-RC-001",
+      "mbb:TC-LAKDA-RC-002",
+      "mbb:TC-LAKDA-RC-003",
+      "mbb:TC-LAKDA-RC-004"
+    ],
+    "excludedMockTests": []
+  }
+}
