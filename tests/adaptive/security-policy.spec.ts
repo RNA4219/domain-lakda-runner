@@ -7,6 +7,7 @@ const base = { now: new Date("2026-07-15T00:00:00Z"), target: new URL("http://12
 test("security authorization is fail-closed for missing, scope, production, and budgets", () => {
   expect(evaluateSecurityAuthorization(undefined, base)).toEqual({ allowed: false, reason: "authorization_missing" });
   expect(evaluateSecurityAuthorization(authorization, { ...base, target: new URL("http://127.0.0.1/outside") })).toEqual({ allowed: false, reason: "scope_denied" });
+  expect(evaluateSecurityAuthorization(authorization, { ...base, target: new URL("http://127.0.0.1/safe-other") })).toEqual({ allowed: false, reason: "scope_denied" });
   expect(evaluateSecurityAuthorization({ ...authorization, environment: "production" }, { ...base, environment: "production" })).toEqual({ allowed: false, reason: "production_passive_only" });
   expect(evaluateSecurityAuthorization(authorization, { ...base, activeRequests: 1 })).toEqual({ allowed: false, reason: "security_budget" });
   expect(evaluateSecurityAuthorization(authorization, base)).toEqual({ allowed: true });

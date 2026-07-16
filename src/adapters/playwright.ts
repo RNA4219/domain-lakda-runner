@@ -217,7 +217,8 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
     try {
       const url = new URL(requestUrl);
       if (!this.scopeHosts.has(url.hostname)) return false;
-      return (this.settle.networkQuietExclusions ?? []).some(prefix => url.pathname.startsWith(prefix));
+      const exclusions = this.settle.networkQuietExclusions;
+      return exclusions !== undefined && withinPathPrefixes(url.pathname, exclusions);
     } catch { return false; }
   }
   private networkStarted(targetId: string, request: { url(): string }): void {
