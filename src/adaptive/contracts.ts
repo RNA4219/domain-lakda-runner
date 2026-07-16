@@ -39,8 +39,10 @@ export type CoverageDebt = {
   targetFingerprint: string;
 };
 export type CandidateDiscoveryResult = { candidates: ActionCandidate[]; coverageDebt: CoverageDebt[] };
-export type MutationKind = "none" | "create" | "update" | "delete" | "purchase" | "publish" | "external-message" | "credential-change" | "parameter-mutation" | "skip" | "reorder" | "double-execution" | "race";
+export type MutationKind = "none" | "create" | "update" | "delete" | "purchase" | "publish" | "external-message" | "credential-change" | "parameter-mutation" | "skip" | "reorder" | "double-execution" | "race" | "unknown";
 export type DialogHandling = "dismiss" | "hold" | "accept";
+export type MutationClassification = { source: "mechanical" | "action-contract" | "heuristic" | "unknown" | "conflict"; ruleId: string; actionId?: string };
+export type ProductActionContract = { actionId: string; mutationKind: MutationKind };
 export type ActionContract = {
   enabledWhen?: Record<string, unknown>;
   ensures?: Record<string, unknown>;
@@ -51,7 +53,7 @@ export type ActionContract = {
 export type ActionCandidate = {
   schemaVersion: AdaptiveSchemaVersion; candidateId: string; adapterId: string; targetRef: TargetRef; sourceFingerprint: string; actionKind: string;
   locatorRecipe: LocatorRecipe; inputProfileRef?: string; generatedBy: { ruleId: string; observationId: string; reason: string };
-  risk: { weight: number; businessPriority?: "P0" | "P1" | "P2" | "P3"; mutationCost?: number }; mutationKind: MutationKind; contract?: ActionContract;
+  risk: { weight: number; businessPriority?: "P0" | "P1" | "P2" | "P3"; mutationCost?: number }; mutationKind: MutationKind; mutationClassification?: MutationClassification; contract?: ActionContract;
 };
 export type SettleResult = { policyVersion: string; status: "settled" | "timed_out" | "target_lost" | "aborted"; elapsedMs: number; reasons: string[] };
 export type ExecutionResult = {
@@ -71,6 +73,7 @@ export type AdaptiveConfig = {
   schemaVersion: "lakda/adaptive-config/v1";
   adapter: { id: "playwright" | "airtest-poco" | "security"; endpoint?: string; initialTarget?: TargetRef };
   generator: { strategy: AdaptiveGeneratorStrategy; version?: string };
+  actionContracts?: ProductActionContract[];
   stopWhen: { any?: AdaptiveStopCondition[]; all?: AdaptiveStopCondition[] };
   settlePolicy: { policyVersion: string; maxWaitMs: number; stableWindowMs: number };
   fingerprintPolicy: { algorithmVersion: string; canonicalizationVersion: string };

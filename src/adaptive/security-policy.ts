@@ -8,7 +8,7 @@ export type AuthorizationRecord = {
 };
 export type SecurityAuthorizationDecision = { allowed: true } | { allowed: false; reason: string };
 
-const active = new Set<MutationKind>(["parameter-mutation", "skip", "reorder", "double-execution", "race", "update", "delete", "purchase", "publish", "external-message", "credential-change"]);
+const active = new Set<MutationKind>(["parameter-mutation", "skip", "reorder", "double-execution", "race", "update", "delete", "purchase", "publish", "external-message", "credential-change", "unknown"]);
 
 export function evaluateSecurityAuthorization(record: AuthorizationRecord | undefined, input: { now: Date; target: URL; environment: AuthorizationRecord["environment"]; mutationKind: MutationKind; activeRequests: number; recentRequests: number }): SecurityAuthorizationDecision {
   if (!record) return { allowed: false, reason: "authorization_missing" };

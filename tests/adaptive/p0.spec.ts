@@ -58,12 +58,17 @@ test("adaptive-explore requires a complete, fail-closed adaptive configuration",
     mode: "adaptive-explore",
     adaptive: { ...adaptive(), safety: { ...adaptive().safety, allowMutationKinds: ["delete"] } },
   })).toThrow(/破壊的mutation/);
+  expect(() => loadConfig(undefined, {
+    baseUrl: "http://127.0.0.1:3000", mode: "adaptive-explore",
+    adaptive: { ...adaptive(), actionContracts: [{ actionId: "save", mutationKind: "update" }, { actionId: "save", mutationKind: "update" }] },
+  })).toThrow(/actionContracts/);
 });
 
 test("adaptive safety applies kill switch, scope, mutation, and resource checks before execution", () => {
   const config = loadConfig(undefined, { baseUrl: "http://127.0.0.1:3000", mode: "adaptive-explore", adaptive: adaptive() });
   expect(evaluateAdaptiveSafety(candidate(), config, { actionCount: 0, artifactBytes: 0 })).toEqual({ allowed: true });
   expect(evaluateAdaptiveSafety(candidate({ mutationKind: "delete" }), config, { actionCount: 0, artifactBytes: 0 })).toEqual({ allowed: false, reason: "mutation_denied" });
+  expect(evaluateAdaptiveSafety(candidate({ mutationKind: "unknown" }), config, { actionCount: 0, artifactBytes: 0 })).toEqual({ allowed: false, reason: "mutation_denied" });
   expect(evaluateAdaptiveSafety(candidate({ targetRef: { targetId: "outside", kind: "page", origin: "http://example.com" } }), config, { actionCount: 0, artifactBytes: 0 })).toEqual({ allowed: false, reason: "host_denied" });
   const killSwitch = new KillSwitch(); killSwitch.request("operator");
   expect(evaluateAdaptiveSafety(candidate(), config, { actionCount: 0, artifactBytes: 0, killSwitch })).toEqual({ allowed: false, reason: "kill_switch" });

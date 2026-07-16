@@ -171,6 +171,33 @@ test("Playwright adapter accepts an explicit hashed card scope without a generic
     expect(await page.locator(`[data-lakda-scope-key="${firstKey}"]`).getAttribute("data-visited")).toBe("yes");
   } finally { await context.close(); await browser.close(); await fixture.close(); }
 });
+test("Playwright adapter classifies mutation from mechanical data, product contracts, heuristics, conflicts, and unknowns", async () => {
+  const fixture = await startFixture(() => ({ body: `<main>
+    <form method="post"><button data-testid="post-form">Proceed</button></form>
+    <button data-testid="icon-delete" data-lakda-action-id="delete-item" aria-label="削除"><svg aria-hidden="true"></svg></button>
+    <button data-testid="localized-send" data-lakda-action-id="post-comment">送信</button>
+    <button data-testid="negated">保存しない</button>
+    <form method="post"><button data-testid="conflict" data-lakda-action-id="delete-item">Delete</button></form>
+    <button data-testid="unknown">Proceed</button>
+  </main>` }));
+  const browser = await chromium.launch(); const context = await browser.newContext(); const page = await context.newPage();
+  const adapter = new PlaywrightAdaptiveAdapter({
+    page, context, scopeHosts: ["127.0.0.1"],
+    actionContracts: [{ actionId: "delete-item", mutationKind: "delete" }, { actionId: "post-comment", mutationKind: "external-message" }],
+  });
+  try {
+    await page.goto(fixture.baseUrl);
+    const observation = await adapter.observe(adapter.primaryTarget(), { runId: "mutation-contract-test", scopeHosts: ["127.0.0.1"] });
+    const candidates = await adapter.generateCandidates(observation);
+    const candidate = (testId: string) => candidates.find(value => value.locatorRecipe.value === testId)!;
+    expect(candidate("post-form")).toMatchObject({ mutationKind: "update", mutationClassification: { source: "mechanical", ruleId: "http-method/post/v1" } });
+    expect(candidate("icon-delete")).toMatchObject({ mutationKind: "delete", mutationClassification: { source: "action-contract", ruleId: "action-contract/v1", actionId: "delete-item" } });
+    expect(candidate("localized-send")).toMatchObject({ mutationKind: "external-message", mutationClassification: { source: "action-contract", actionId: "post-comment" } });
+    expect(candidate("negated")).toMatchObject({ mutationKind: "unknown", mutationClassification: { source: "unknown", ruleId: "unclassified-control/v1" } });
+    expect(candidate("conflict")).toMatchObject({ mutationKind: "unknown", mutationClassification: { source: "conflict", ruleId: "mutation-classification-conflict/v1", actionId: "delete-item" } });
+    expect(candidate("unknown")).toMatchObject({ mutationKind: "unknown", mutationClassification: { source: "unknown", ruleId: "unclassified-control/v1" } });
+  } finally { await context.close(); await browser.close(); await fixture.close(); }
+});
 test("Playwright adapter integrates generic browser failures into Observation", async () => {
   const fixture = await startFixture(url => {
     if (url.pathname === "/") return { body: `<button data-testid="emit-errors" onclick="console.error('fixture-console'); setTimeout(() => { throw new Error('fixture-pageerror'); }, 0); fetch('/failure')">Emit</button><a data-testid="off-page" target="_blank" href="/off-page">Off page</a>` };
@@ -268,9 +295,17 @@ test("Playwright adapter enforces explicit JavaScript dialog policy fail-closed"
     expect(await page.getByTestId("result").textContent()).toBe("idle");
 
     const authorized = await candidateFor("confirm");
-    expect(authorized).toBeTruthy();
+    expect(authorized).toMatchObject({ mutationKind: "unknown", mutationClassification: { source: "unknown" } });
+    const unknownAccept = {
+      ...authorized!,
+      contract: { dialog: { handling: "accept" as const } },
+    };
+    expect((await adapter.execute(unknownAccept, { runId: "dialog-policy-test", timeoutMs: 100, allowedMutationKinds: ["update"] })).status).toBe("denied");
+
     const explicitAccept = {
       ...authorized!,
+      mutationKind: "update" as const,
+      mutationClassification: { source: "action-contract" as const, ruleId: "fixture-action-contract/v1", actionId: "confirm-dialog" },
       contract: { dialog: { handling: "accept" as const } },
     };
     const accepted = await adapter.execute(explicitAccept, {
