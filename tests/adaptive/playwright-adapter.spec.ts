@@ -171,8 +171,31 @@ test("Playwright adapter scopes repeated controls and records every non-candidat
     const changed = await adapter.observe(adapter.primaryTarget(), { runId: "scope-debt-test", scopeHosts: ["127.0.0.1"] });
     const staleScope = { ...edits[0]!, sourceFingerprint: fingerprintObservation(changed).value };
     expect((await adapter.execute(staleScope, { runId: "scope-debt-test", timeoutMs: 2_000 })).status).toBe("action_failed");
+
+    await page.locator("[role=row]").evaluateAll(rows => rows.forEach(row => row.remove()));
+    const missingScope = { ...staleScope, sourceFingerprint: fingerprintObservation(await adapter.observe(adapter.primaryTarget(), { runId: "scope-debt-test", scopeHosts: ["127.0.0.1"] })).value };
+    expect((await adapter.execute(missingScope, { runId: "scope-debt-test", timeoutMs: 2_000 })).status).toBe("action_failed");
   } finally { await context.close(); await browser.close(); await fixture.close(); }
 });
+test("Playwright adapter records same-name tabs as coverage debt when no stable scope exists", async () => {
+  const fixture = await startFixture(() => ({ body: `<main>
+    <div role="tablist"><button role="tab">Overview</button><button role="tab">Overview</button></div>
+  </main>` }));
+  const browser = await chromium.launch(); const context = await browser.newContext(); const page = await context.newPage();
+  const adapter = new PlaywrightAdaptiveAdapter({ page, context, scopeHosts: ["127.0.0.1"], settlePolicy: { maxWaitMs: 2_000, stableWindowMs: 20 } });
+  try {
+    await page.goto(fixture.baseUrl);
+    const observation = await adapter.observe(adapter.primaryTarget(), { runId: "same-name-tab-test", scopeHosts: ["127.0.0.1"] });
+    const discovery = await adapter.discoverCandidates(observation);
+    expect(discovery.candidates).toEqual([]);
+    expect(discovery.coverageDebt).toHaveLength(2);
+    expect(discovery.coverageDebt).toEqual(expect.arrayContaining([
+      expect.objectContaining({ reason: "ambiguous-locator", role: "tab", name: "Overview", matchedCount: 2, scope: "unavailable" }),
+    ]));
+    expect(discovery.classification).toEqual({ observedControls: 2, classifiedControls: 2, unclassifiedControls: 0 });
+  } finally { await context.close(); await browser.close(); await fixture.close(); }
+});
+
 test("Playwright adapter accepts an explicit hashed card scope without a generic CSS fallback", async () => {
   const firstKey = "a".repeat(64); const secondKey = "b".repeat(64);
   const fixture = await startFixture(() => ({ body: `<main>
@@ -225,14 +248,24 @@ test("Playwright adapter consensus settle requires DOM, network, topology, and r
   const fixture = await startFixture(url => url.pathname === "/popup" ? { body: "<h1>Popup</h1>" } : { body: `<main>
     <output data-testid="ready" hidden>pending</output>
     <button data-testid="render" onclick="fetch('/slow').then(() => { document.querySelector('[data-testid=ready]').hidden = false; document.querySelector('[data-testid=ready]').textContent = 'ready'; })">Render</button>
-    <button data-testid="poll" onclick="fetch('/poll')">Poll</button>
-    <button data-testid="poll-neighbor" onclick="fetch('/polling')">Neighbor poll</button>
+    <button data-testid="poll" onclick="document.body.dataset.poll = 'started'; fetch('/poll')">Poll</button>
+
     <button data-testid="dialog-consensus" onclick="alert('fixture dialog')">Dialog</button>
     <a data-testid="popup-consensus" target="_blank" href="/popup">Open popup</a>
   </main>` });
   const browser = await chromium.launch(); const context = await browser.newContext(); const page = await context.newPage();
   await page.route("**/slow", async route => { await new Promise(resolve => setTimeout(resolve, 35)); await route.fulfill({ body: "ok" }); });
-  await page.route("**/poll*", async route => { await new Promise(resolve => setTimeout(resolve, 200)); await route.fulfill({ body: "ok" }); });
+  const pendingPollReleases: Array<() => void> = [];
+  const holdPoll = () => new Promise<void>(resolve => pendingPollReleases.push(resolve));
+
+  await page.route(/\/poll$/, async route => { await holdPoll(); await route.fulfill({ body: "ok" }).catch(() => undefined); });
+
+  const releaseNextPoll = () => { const release = pendingPollReleases.shift(); if (!release) throw new Error("poll request was not intercepted"); release(); };
+  const releaseAndWaitForPoll = async () => {
+    const finished = page.waitForResponse(response => new URL(response.url()).pathname === "/poll");
+    releaseNextPoll();
+    await finished;
+  };
   const adapter = new PlaywrightAdaptiveAdapter({ page, context, scopeHosts: ["127.0.0.1"], settlePolicy: { policyVersion: "consensus/v1", maxWaitMs: 1_000, stableWindowMs: 25, readiness: { testId: "ready", state: "visible" } } });
   try {
     await page.goto(fixture.baseUrl);
@@ -249,11 +282,12 @@ test("Playwright adapter consensus settle requires DOM, network, topology, and r
     await popupOpened;
     expect(popup.settleResult).toMatchObject({ status: "settled", signals: { topology: { state: "quiet" } } });
 
-    const polling = new PlaywrightAdaptiveAdapter({ page, context, scopeHosts: ["127.0.0.1"], settlePolicy: { policyVersion: "consensus/v1", maxWaitMs: 100, stableWindowMs: 25 } });
+    const polling = new PlaywrightAdaptiveAdapter({ page, context, scopeHosts: ["127.0.0.1"], settlePolicy: { policyVersion: "consensus/v1", maxWaitMs: 500, stableWindowMs: 25 } });
     const pollObservation = await polling.observe(polling.primaryTarget(), { runId: "consensus-poll", scopeHosts: ["127.0.0.1"] });
     const pollCandidate = (await polling.generateCandidates(pollObservation)).find(value => value.locatorRecipe.value === "poll")!;
     const timedOut = await polling.execute(pollCandidate, { runId: "consensus-poll", timeoutMs: 100 });
     expect(timedOut.settleResult).toMatchObject({ policyVersion: "consensus/v1", status: "timed_out", reasons: ["consensus-timeout"], signals: { network: { state: "pending" } } });
+    await releaseAndWaitForPoll();
 
     const manifestApprovedPolling = new PlaywrightAdaptiveAdapter({
       page, context, scopeHosts: ["127.0.0.1"],
@@ -263,15 +297,11 @@ test("Playwright adapter consensus settle requires DOM, network, topology, and r
     const approvedCandidate = (await manifestApprovedPolling.generateCandidates(approvedObservation)).find(value => value.locatorRecipe.value === "poll")!;
     const settled = await manifestApprovedPolling.execute(approvedCandidate, { runId: "consensus-poll-approved", timeoutMs: 300 });
     expect(settled.settleResult).toMatchObject({ policyVersion: "consensus/v1", status: "settled", signals: { network: { state: "quiet" } } });
+    const exactExclusion = manifestApprovedPolling as unknown as { networkExcluded(url: string): boolean };
+    expect(exactExclusion.networkExcluded(`${fixture.baseUrl}/poll`)).toBe(true);
+    expect(exactExclusion.networkExcluded(`${fixture.baseUrl}/polling`)).toBe(false);
+    await releaseAndWaitForPoll();
 
-    const neighborPolling = new PlaywrightAdaptiveAdapter({
-      page, context, scopeHosts: ["127.0.0.1"],
-      settlePolicy: { policyVersion: "consensus/v1", maxWaitMs: 100, stableWindowMs: 25, networkQuietExclusions: ["/poll"] },
-    });
-    const neighborObservation = await neighborPolling.observe(neighborPolling.primaryTarget(), { runId: "consensus-poll-neighbor", scopeHosts: ["127.0.0.1"] });
-    const neighborCandidate = (await neighborPolling.generateCandidates(neighborObservation)).find(value => value.locatorRecipe.value === "poll-neighbor")!;
-    const neighborTimedOut = await neighborPolling.execute(neighborCandidate, { runId: "consensus-poll-neighbor", timeoutMs: 100 });
-    expect(neighborTimedOut.settleResult).toMatchObject({ policyVersion: "consensus/v1", status: "timed_out", signals: { network: { state: "pending" } } });
   } finally { await context.close(); await browser.close(); await fixture.close(); }
 });
 test("Playwright adapter integrates generic browser failures into Observation", async () => {

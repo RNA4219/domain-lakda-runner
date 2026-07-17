@@ -623,6 +623,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
   private async waitConsensus(target: Target): Promise<ExecutionResult["settleResult"]> {
     const started = Date.now(); const pageId = this.targetPageId(target); let dom = await target.evaluate(() => document.documentElement?.innerHTML ?? ""); let domChanged = started; let topologySize = this.topologyEvents.length; let topologyChanged = started;
     let signals: NonNullable<ExecutionResult["settleResult"]["signals"]> = {};
+    let consensusQuietSince: number | undefined;
     while (Date.now() - started < this.settle.maxWaitMs) {
       await new Promise(resolve => setTimeout(resolve, Math.max(10, Math.min(50, this.settle.stableWindowMs || 10))));
       const now = Date.now(); const nextDom = await target.evaluate(() => document.documentElement?.innerHTML ?? "");
@@ -636,7 +637,11 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
         topology: { state: quiet(topologyChanged) ? "quiet" : "pending", reason: quiet(topologyChanged) ? "target-topology-quiet" : "target-topology-changing" },
         readiness,
       };
-      if (signals.domMutation.state === "quiet" && signals.network.state === "quiet" && signals.topology.state === "quiet" && signals.readiness.state === "met") return { policyVersion: this.settle.policyVersion, status: "settled", elapsedMs: now - started, reasons: ["consensus-settled"], signals };
+      const consensusQuiet = signals.domMutation.state === "quiet" && signals.network.state === "quiet" && signals.topology.state === "quiet" && signals.readiness.state === "met";
+      if (consensusQuiet) {
+        consensusQuietSince ??= now;
+        if (now - started < this.settle.maxWaitMs && now - consensusQuietSince >= Math.max(1, this.settle.stableWindowMs)) return { policyVersion: this.settle.policyVersion, status: "settled", elapsedMs: now - started, reasons: ["consensus-settled"], signals };
+      } else consensusQuietSince = undefined;
     }
     return { policyVersion: this.settle.policyVersion, status: "timed_out", elapsedMs: Date.now() - started, reasons: ["consensus-timeout"], signals };
   }

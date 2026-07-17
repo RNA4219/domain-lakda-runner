@@ -62,7 +62,7 @@ requirements: ../../../REQUIREMENTS-ADAPTIVE-EXPLORATION.md
 **対応要件:** REQ-OBS-001〜005、REQ-ACT-001〜006。
 
 - 前提: DOM、URL、frame、popupのいずれかがactionで変化する固定Web corpus。
-- 手順: 初回候補を保存し、各成功action後にsettle、Observation、fingerprint、candidate集合を採取する。旧candidate IDを意図的に再投入するnegative caseを含める。
+- 手順: 初回候補を保存し、各成功action後にsettle、Observation、fingerprint、candidate集合を採取する。旧candidate IDを意図的に再投入するnegative caseを含める。行/card内の同名操作、scope消失・重複、同名tab、無名iconについてcandidate/debt分類を採取し、mechanical・contract・heuristic・unknownのmutation分類、`lightweight-dom/v1`と`consensus/v1`のDOM/network/topology/readiness、許可済みpath prefixと隣接pathのnetwork quietを確認する。
 - oracle: observation sequence、source fingerprint、adapter execute call。
 - 合格: 全成功action後にObservationとcandidate集合が更新され、stale candidate実行0件。
 - 証跡: action trace、pre/post Observation、candidate snapshot、ExecutionResult、screenshot、network summary。
