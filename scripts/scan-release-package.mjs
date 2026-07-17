@@ -7,9 +7,20 @@ const rootArg = process.argv.find(value => value.startsWith("--path="))?.slice("
 const outputArg = process.argv.find(value => value.startsWith("--out="))?.slice("--out=".length);
 if (!rootArg) throw new Error("usage: scan-release-package --path=<unpacked-package> [--out=<result.json>]");
 const root = resolve(rootArg);
-const allowedTopLevels = new Set(["CHANGELOG.md", "LICENSE", "README.md", "RUNBOOK.md", "dist", "package.json", "schemas", "vendor"]);
+const allowedTopLevels = new Set([
+  "CHANGELOG.md", "LICENSE", "LICENSE.ja.md", "NOTICE", "LICENSING.md",
+  "COMMERCIAL-LICENSE.md", "THIRD_PARTY_NOTICES.md", "README.md", "RUNBOOK.md",
+  "dist", "package.json", "schemas", "vendor",
+]);
 const allowedExtensions = new Set([".js", ".ts", ".map", ".json", ".md"]);
-const requiredPaths = ["CHANGELOG.md", "LICENSE", "README.md", "RUNBOOK.md", "dist/index.js", "dist/index.d.ts", "package.json", "schemas/adaptive-contracts-v1.schema.json", "schemas/lakda-config-v1.schema.json", "vendor/hate/v1/artifact-manifest.schema.json"];
+const allowedExtensionless = new Set(["LICENSE", "NOTICE"]);
+const requiredPaths = [
+  "CHANGELOG.md", "LICENSE", "LICENSE.ja.md", "NOTICE", "LICENSING.md",
+  "COMMERCIAL-LICENSE.md", "THIRD_PARTY_NOTICES.md", "README.md", "RUNBOOK.md",
+  "dist/index.js", "dist/index.d.ts", "package.json",
+  "schemas/adaptive-contracts-v1.schema.json", "schemas/lakda-config-v1.schema.json",
+  "vendor/hate/LICENSE", "vendor/hate/v1/artifact-manifest.schema.json",
+];
 const sha256 = bytes => createHash("sha256").update(bytes).digest("hex");
 
 async function list(path) {
@@ -28,7 +39,7 @@ for (const path of await list(root)) {
   const portable = relative(root, path).replaceAll("\\", "/");
   const topLevel = portable.split("/")[0];
   if (!allowedTopLevels.has(topLevel)) throw new Error("release package contains an unexpected top-level path: " + portable);
-  if (basename(path) !== "LICENSE" && !allowedExtensions.has(extname(path))) throw new Error("release package contains an unsupported file type: " + portable);
+  if (!allowedExtensionless.has(basename(path)) && !allowedExtensions.has(extname(path))) throw new Error("release package contains an unsupported file type: " + portable);
   const bytes = await readFile(path);
   if (bytes.includes(0)) throw new Error("release package contains a binary or NUL byte: " + portable);
   const text = bytes.toString("utf8");
@@ -42,7 +53,7 @@ descriptors.sort((left, right) => left.path.localeCompare(right.path));
 const paths = new Set(descriptors.map(value => value.path));
 for (const required of requiredPaths) if (!paths.has(required)) throw new Error("release package is missing a required file: " + required);
 const packageJson = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
-if (packageJson.version !== "0.3.0-rc.5" || packageJson.private !== true || packageJson.main !== "./dist/index.js" || packageJson.types !== "./dist/index.d.ts" || packageJson.exports?.["."]?.import !== "./dist/index.js") {
+if (packageJson.version !== "0.4.0-rc.1" || packageJson.private !== true || packageJson.main !== "./dist/index.js" || packageJson.types !== "./dist/index.d.ts" || packageJson.exports?.["."]?.import !== "./dist/index.js") {
   throw new Error("release package metadata contract mismatch");
 }
 const result = { schemaVersion: "lakda/release-package-security-scan/v1", status: "passed", packageVersion: packageJson.version, files: descriptors };

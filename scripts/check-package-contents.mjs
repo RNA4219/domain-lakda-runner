@@ -17,4 +17,16 @@ const requiredRuntimeFiles = [
 for (const path of requiredRuntimeFiles) {
   if (!files.has(path)) throw new Error("runtime package is missing required file: " + path);
 }
-console.log(JSON.stringify({ status: "passed", fileCount: files.size, requiredRuntimeFiles }));
+const requiredLicenseFiles = [
+  "LICENSE",
+  "LICENSE.ja.md",
+  "NOTICE",
+  "LICENSING.md",
+  "COMMERCIAL-LICENSE.md",
+  "THIRD_PARTY_NOTICES.md",
+  "vendor/hate/LICENSE",
+];
+for (const path of requiredLicenseFiles) {
+  if (!files.has(path)) throw new Error("runtime package is missing required license file: " + path);
+}
+console.log(JSON.stringify({ status: "passed", fileCount: files.size, requiredRuntimeFiles, requiredLicenseFiles }));

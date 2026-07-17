@@ -1,6 +1,6 @@
 {
   "name": "domain-lakda-runner",
-  "version": "0.3.0-rc.5",
+  "version": "0.4.0-rc.1",
   "private": true,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,7 +18,13 @@
     "README.md",
     "RUNBOOK.md",
     "CHANGELOG.md",
-    "LICENSE"
+    "LICENSE",
+    "LICENSE.ja.md",
+    "NOTICE",
+    "LICENSING.md",
+    "COMMERCIAL-LICENSE.md",
+    "THIRD_PARTY_NOTICES.md",
+    "vendor/hate/LICENSE"
   ],
   "type": "module",
   "engines": {
@@ -71,5 +77,6 @@
   "dependencies": {
     "ajv": "8.20.0",
     "playwright": "1.61.1"
-  }
+  },
+  "license": "SEE LICENSE IN LICENSE"
 }

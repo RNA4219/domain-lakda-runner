@@ -160,7 +160,7 @@ erDiagram
 
 ### CLI 設計
 
-CLI 名は **`lakda`**、パッケージ名は **`domain-lakda-runner`** を推奨します。これは Playwright が Node/TypeScript 前提で導入しやすく、QEG の public contract も TypeScript facade を持つためです。既存 QEG / HATE がどちらも MIT ライセンスであることから、名称・ライセンス・配布形態を揃えやすいのも利点です。
+CLI 名は **`lakda`**、パッケージ名は **`domain-lakda-runner`** を推奨します。これは Playwright が Node/TypeScript 前提で導入しやすく、QEG の public contract も TypeScript facade を持つためです。初期設計時にはQEG / HATEのMIT条件と配布形態を参考にしました。現行版のライセンス境界はLICENSING.mdを正本とします。
 
 CLI は「実行」「再生」「変換」「検証」を分けた方が事故が少ないです。推奨コマンドは次の通りです。
 
@@ -566,7 +566,7 @@ Firefox/WebKit、route crawl、form fuzz、visual sanity、追加artifact、stag
 
 ### 推奨ライセンスとパッケージ名
 
-ライセンスは **MIT** とします。既存の `quality-evidence-graph` と `harness-auto-test-evidence` もMITであり、周辺OSSとの配布条件を揃えます。
+この記述は初期設計時の方針です。公開済みv0.3.0-rc.4まではMIT License、新版はRNA-TPSAL-1.0とし、詳細はLICENSING.mdを正本とします。
 
 推奨 naming は次の通りです。
 

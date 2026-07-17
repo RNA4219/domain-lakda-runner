@@ -1,4 +1,4 @@
-export const LAKDA_VERSION = "0.3.0-rc.5";
+export const LAKDA_VERSION = "0.4.0-rc.1";
 export type { LlmDecision, RunBatchResult, RunMode, RunOptions, RunOutcome, RunResult, TerminationReason, WorkerRunEntry } from "./core/types.js";
 export { ADAPTIVE_SCHEMA_VERSION, assertAdaptiveContract, assertCandidateDiscoveryResult, assertNoSensitivePublicData } from "./adaptive/contracts.js";
 export type {

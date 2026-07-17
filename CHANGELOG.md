@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.4.0-rc.1 - Unreleased
+
+### Changed
+
+- ライセンスをRNA Third-Party Service Attribution License 1.0へ変更し、第三者向け有償サービス利用を顧客向け帰属表示付きで許可。
+- 帰属表示なしのホワイトラベル利用向けに、別途書面による商用ライセンス導線を追加。
+- 過去のMIT版の権利を維持し、v0.3.0-rc.4 / 28bdbd03a14a1228c61f3c23ea88a8c8ce5d934eを最後の公開MIT境界として記録。
+- LICENSE関連文書とvendored HATE schemaの元MIT LICENSEをnpm packageへ同梱。
+
 - P7の固定corpus実環境受入、実機Airtest/Poco、認可済みSecurity target、manual-bb/QEG Gateを継続する。
 
 ## 0.3.0-rc.5 - 2026-07-16
