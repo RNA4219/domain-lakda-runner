@@ -8,7 +8,7 @@
 - Model: source-available; attribution-required for paid third-party service use
 - Public source: https://github.com/RNA4219/domain-lakda-runner
 - First version under this license: 0.4.0-rc.1
-- First commit under this license: **PENDING — replace with the exact full commit SHA before publication**
+- First commit under this license: `c2909367889128036b22b65885eb76c4428c7c9d`
 
 Personal use, research, education, open-source activities, and internal
 business use are permitted without charge. Paid third-party service use is
@@ -30,8 +30,7 @@ excluded from RNA-TPSAL-1.0 and remains under its original MIT License.
 Previously released MIT-licensed versions remain available under their
 original MIT terms. This change does not revoke any prior permission. Only
 new commits, new features, and releases beginning with 0.4.0-rc.1 are
-intended to use RNA-TPSAL-1.0. The pending application-start commit must be
-replaced with the release commit SHA before publication.
+intended to use RNA-TPSAL-1.0. The application-start commit above records the initial implementation draft.
 
 ## Customer attribution template / 顧客向け帰属表示テンプレート
 
