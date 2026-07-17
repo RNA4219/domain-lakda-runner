@@ -117,14 +117,24 @@ async function verifyManifest(manifest, result, runDir, assertHateManifest) {
   }
 }
 
+async function readCandidateSnapshots(manifest, runDir) {
+  const refs = manifest.artifacts.filter(artifact => artifact.path === "adaptive/candidate-snapshots.jsonl");
+  if (refs.length !== 1) throw new Error("real adaptive acceptance requires exactly one candidate snapshot artifact");
+  const bytes = await readFile(resolve(runDir, refs[0].path));
+  const source = bytes.toString("utf8").trim();
+  if (!source) return [];
+  try { return source.split(/\r?\n/).map(line => JSON.parse(line)); }
+  catch { throw new Error("candidate snapshot artifact is invalid JSONL"); }
+}
+
 async function main() {
   const input = loadInputs();
   const corpusRecord = await loadCorpus(input.corpusPath, input.caseId, input.targetRevision);
   const configBytes = await readFile(input.configPath);
   if (digest(configBytes) !== corpusRecord.selected.configDigest) throw new InputError("config digest does not match immutable corpus case");
   const targetManifest = await loadTargetManifest();
-  const [{ loadConfig }, { runLakda }, { assertHateManifest, exportHate }, { writeJsonAtomic }] = await Promise.all([
-    import("../dist/core/config.js"), import("../dist/core/runner.js"), import("../dist/core/hate.js"), import("../dist/core/artifact-store.js"),
+  const [{ loadConfig }, { runLakda }, { assertHateManifest, exportHate }, { writeJsonAtomic }, { auditTargetCandidateCoverage }] = await Promise.all([
+    import("../dist/core/config.js"), import("../dist/core/runner.js"), import("../dist/core/hate.js"), import("../dist/core/artifact-store.js"), import("../dist/adaptive/target-candidate-audit.js"),
   ]);
   const config = loadConfig(input.configPath);
   if (config.mode !== "adaptive-explore" || !config.baseUrl) throw new InputError("real adaptive acceptance requires mode=adaptive-explore and baseUrl");
@@ -137,7 +147,9 @@ async function main() {
   await verifyManifest(initialManifest, result, runDir, assertHateManifest);
   const oracleResultRefs = initialManifest.artifacts.filter(artifact => artifact.path === "adaptive/oracle-results.jsonl");
   if (oracleResultRefs.length !== 1) throw new Error("real adaptive acceptance requires exactly one OracleResult artifact");
-  const passed = result.outcome === corpusRecord.selected.expected.outcome;
+  const candidateAudit = auditTargetCandidateCoverage(await readCandidateSnapshots(initialManifest, runDir), targetManifest.manifest.acceptance);
+  const passed = result.outcome === corpusRecord.selected.expected.outcome && candidateAudit.eligible;
+  const ineligibilityReason = !candidateAudit.eligible ? `target_candidate_audit:${candidateAudit.violations.join(",")}` : passed ? null : "outcome_mismatch";
   const reportPath = resolve(runDir, "adaptive", `acceptance-case-${input.caseId}.json`);
   const report = {
     schemaVersion: "lakda/adaptive-acceptance-case/v1", acceptanceId: corpusRecord.selected.acceptanceId, caseId: input.caseId,
@@ -146,7 +158,7 @@ async function main() {
     runtime: { nodeVersion: process.version, platform: process.platform, arch: process.arch },
     seed: config.seed, configDigest: digest(configBytes), targetManifest: { manifestId: targetManifest.manifest.manifestId, sha256: targetManifest.sha256 }, corpus: { corpusId: corpusRecord.corpus.corpusId, version: corpusRecord.corpus.version, sha256: corpusRecord.sha256, targetRevision: corpusRecord.corpus.targetRevision, caseConfigDigest: corpusRecord.selected.configDigest },
     expected: corpusRecord.selected.expected, actual: { outcome: result.outcome, terminationReason: result.terminationReason, exitCode: result.exitCode },
-    oracleResultRefs, artifactRefs: initialManifest.artifacts, verdict: passed ? "passed" : "failed", ineligibilityReason: passed ? null : "outcome_mismatch",
+    oracleResultRefs, artifactRefs: initialManifest.artifacts, candidateAudit, verdict: passed ? "passed" : "failed", ineligibilityReason,
     qegHandoff: { status: "pending_external", verdictGeneratedByLakda: false }, generatedAt: new Date().toISOString(),
   };
   await assertJsonSchema(report, "adaptive-acceptance-case-v1.schema.json", "adaptive acceptance case report schema", false);

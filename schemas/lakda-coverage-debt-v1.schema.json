@@ -17,6 +17,7 @@
           "debtId": { "type": "string", "minLength": 1 },
           "reason": { "enum": ["ambiguous-locator", "sensitive-locator", "missing-accessible-name", "missing-input-profile", "out-of-scope-link", "disabled-control", "unsupported-control"] },
           "actionKind": { "type": "string", "minLength": 1 },
+          "actionId": { "type": "string", "minLength": 1 },
           "role": { "type": "string", "minLength": 1 },
           "name": { "type": "string", "minLength": 1 },
           "nameDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
@@ -27,6 +28,16 @@
         "allOf": [
           { "not": { "required": ["name", "nameDigest"] } }
         ]
+      }
+    },
+    "classification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["observedControls", "classifiedControls", "unclassifiedControls"],
+      "properties": {
+        "observedControls": { "type": "integer", "minimum": 0 },
+        "classifiedControls": { "type": "integer", "minimum": 0 },
+        "unclassifiedControls": { "type": "integer", "minimum": 0 }
       }
     }
   }

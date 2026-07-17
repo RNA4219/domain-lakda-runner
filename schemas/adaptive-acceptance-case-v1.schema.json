@@ -23,6 +23,7 @@
     "actual",
     "oracleResultRefs",
     "artifactRefs",
+    "candidateAudit",
     "verdict",
     "ineligibilityReason",
     "qegHandoff",
@@ -217,6 +218,26 @@
       "minItems": 1,
       "items": {
         "$ref": "https://quality-harness.dev/schemas/hate/v1/artifact-manifest.schema.json#/properties/artifacts/items"
+      }
+    },
+    "candidateAudit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "snapshotCount", "observedControls", "classifiedControls", "unclassifiedControls", "candidateCount", "coverageDebtCount", "debtByReason", "requiredActionIds", "observedActionIds", "debtActionIds", "eligible", "violations"],
+      "properties": {
+        "schemaVersion": { "const": "lakda/target-candidate-audit/v1" },
+        "snapshotCount": { "type": "integer", "minimum": 0 },
+        "observedControls": { "type": "integer", "minimum": 0 },
+        "classifiedControls": { "type": "integer", "minimum": 0 },
+        "unclassifiedControls": { "type": "integer", "minimum": 0 },
+        "candidateCount": { "type": "integer", "minimum": 0 },
+        "coverageDebtCount": { "type": "integer", "minimum": 0 },
+        "debtByReason": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } },
+        "requiredActionIds": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "observedActionIds": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "debtActionIds": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "eligible": { "type": "boolean" },
+        "violations": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
       }
     },
     "verdict": {

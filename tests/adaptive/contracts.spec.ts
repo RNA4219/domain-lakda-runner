@@ -43,5 +43,6 @@ test("candidate discovery accepts public debt and rejects sensitive or contradic
   };
   expect(() => assertCandidateDiscoveryResult(result)).not.toThrow();
   expect(() => assertCandidateDiscoveryResult({ ...result, coverageDebt: [{ ...result.coverageDebt[0], name: "person@example.com" }] })).toThrow(/sensitive/i);
+  expect(() => assertCandidateDiscoveryResult({ ...result, coverageDebt: [{ ...result.coverageDebt[0], actionId: "person@example.com" }] })).toThrow(/sensitive/i);
   expect(() => assertCandidateDiscoveryResult({ ...result, coverageDebt: [{ ...result.coverageDebt[0], nameDigest: `sha256:${"a".repeat(64)}` }] })).toThrow(/schema|name/i);
 });
