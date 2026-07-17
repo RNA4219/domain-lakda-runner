@@ -23,6 +23,7 @@ specification: SPEC-04-PLAYWRIGHT-ADAPTER.md
 - [x] CHK-AE-004-S-007 — 正常、境界、異常、禁止、replayシナリオがある。
 - [x] CHK-AE-004-S-008 — `AC-AE-008`、`AC-AE-010`、`AC-AE-014`への参照がある。
 - [x] CHK-AE-004-S-009 — TBD、未決定事項、孤立した一次所有要件がない。
+- [x] CHK-AE-004-S-010 — coverage debt、親scope locator、根拠順mutation分類、`lightweight-dom/v1`／`consensus/v1` settleとnetwork除外境界が定義されている。
 
 ## B. 実装・受入チェック
 
