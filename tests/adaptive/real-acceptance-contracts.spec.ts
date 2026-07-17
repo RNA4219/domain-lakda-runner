@@ -66,6 +66,7 @@ test("P7 case report schema reuses HATE artifact refs and forbids a Lakda QEG ve
     actual: { outcome: "passed", terminationReason: "completed", exitCode: 0 },
     oracleResultRefs: [artifact],
     artifactRefs: [artifact],
+    candidateAudit: { schemaVersion: "lakda/target-candidate-audit/v1", snapshotCount: 1, observedControls: 1, classifiedControls: 1, unclassifiedControls: 0, candidateCount: 1, coverageDebtCount: 0, debtByReason: {}, requiredActionIds: ["view-record"], observedActionIds: ["view-record"], debtActionIds: [], eligible: true, violations: [] },
     verdict: "passed",
     ineligibilityReason: null,
     qegHandoff: { status: "pending_external", verdictGeneratedByLakda: false },

@@ -4,6 +4,8 @@
 
 `run-adaptive-real-acceptance.mjs` を real target に対して実行するには、`LAKDA_ADAPTIVE_TARGET_MANIFEST` が必須です。manifest は、browser/config を読み込む前に schema と `ready` 状態を検証します。さらに config の origin、allow host/path、mutation allowlist、action contract が manifest と完全に一致しなければ停止します。ready manifestのpath scopeは、real runnerがruntimeへ注入し、adapterの観測・候補生成・実行前判定にも適用します。
 
+real runnerは`lakda/target-candidate-audit/v1`をcase reportへ記録します。全controlのcandidate/debt分類、未分類0、P0/P1 action IDのcandidate観測、P0/P1 debt 0を満たさない場合、そのcaseは`passed`になりません。
+
 `ready` 化は release owner が承認済み非本番環境の以下を入力してから行います。
 
 - HTTPS origin、allow host、path scope、認証元、approval evidence

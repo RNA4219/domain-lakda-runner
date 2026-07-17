@@ -32,13 +32,15 @@ export type CoverageDebt = {
   reason: CoverageDebtReason;
   actionKind: string;
   role?: string;
+  actionId?: string;
   name?: string;
   nameDigest?: string;
   matchedCount?: number;
   scope: "not-applicable" | "resolved" | "ambiguous" | "unavailable";
   targetFingerprint: string;
 };
-export type CandidateDiscoveryResult = { candidates: ActionCandidate[]; coverageDebt: CoverageDebt[] };
+export type CandidateClassification = { observedControls: number; classifiedControls: number; unclassifiedControls: number };
+export type CandidateDiscoveryResult = { candidates: ActionCandidate[]; coverageDebt: CoverageDebt[]; classification?: CandidateClassification };
 export type MutationKind = "none" | "create" | "update" | "delete" | "purchase" | "publish" | "external-message" | "credential-change" | "parameter-mutation" | "skip" | "reorder" | "double-execution" | "race" | "unknown";
 export type DialogHandling = "dismiss" | "hold" | "accept";
 export type MutationClassification = { source: "mechanical" | "action-contract" | "heuristic" | "unknown" | "conflict"; ruleId: string; actionId?: string };
@@ -121,6 +123,7 @@ export function assertCandidateDiscoveryResult(value: unknown): asserts value is
   result.candidates.forEach(assertAdaptiveContract);
   for (const debt of result.coverageDebt) {
     if (debt.name && findSensitive(debt.name).length) throw new Error("coverage debtにsensitive nameを含められません");
+    if (debt.actionId && findSensitive(debt.actionId).length) throw new Error("coverage debtにsensitive actionIdを含められません");
     if (debt.name && debt.nameDigest) throw new Error("coverage debtはnameとnameDigestを同時に含められません");
   }
   assertNoSensitivePublicData(result);

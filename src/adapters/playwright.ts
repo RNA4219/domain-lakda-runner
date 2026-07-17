@@ -541,7 +541,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
   }
 
   async discoverCandidates(observation: Observation): Promise<CandidateDiscoveryResult> {
-    if (observation.provenance.adapterId !== this.adapterId || observation.completeness !== "complete") return { candidates: [], coverageDebt: [] };
+    if (observation.provenance.adapterId !== this.adapterId || observation.completeness !== "complete") return { candidates: [], coverageDebt: [], classification: { observedControls: 0, classifiedControls: 0, unclassifiedControls: 0 } };
     const target = this.entry(observation.targetRef).target;
     const controls = await this.controls(target);
     const sourceFingerprint = fingerprintObservation(observation).value;
@@ -556,6 +556,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
         debtId: `debt-${sha256(`${sourceFingerprint}:${control.ordinal}:${reason}:${control.role ?? ""}:${name ?? ""}`).slice(0, 20)}`,
         reason,
         actionKind: control.actionKind,
+        ...(control.actionId ? { actionId: control.actionId } : {}),
         ...(control.role ? { role: control.role } : {}),
         ...(publicName ? { name: publicName } : {}),
         ...(!publicName && name ? { nameDigest: `sha256:${sha256(name)}` } : {}),
@@ -602,7 +603,8 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
       if (resolved) candidates.push(this.candidate(observation, control, sourceFingerprint, resolved));
       else recordDebt(control, "ambiguous-locator", scopeState, globalCount);
     }
-    return { candidates, coverageDebt };
+    const classifiedControls = candidates.length + coverageDebt.length;
+    return { candidates, coverageDebt, classification: { observedControls: controls.length, classifiedControls, unclassifiedControls: Math.max(0, controls.length - classifiedControls) } };
   }
 
   async generateCandidates(observation: Observation): Promise<ActionCandidate[]> {
