@@ -8,7 +8,7 @@
 - Model: source-available; attribution-required for paid third-party service use
 - Public source: https://github.com/RNA4219/domain-lakda-runner
 - First version under this license: 0.4.0-rc.1
-- First commit under this license: `c2909367889128036b22b65885eb76c4428c7c9d`
+- First repository snapshot offered under this license: `c2909367889128036b22b65885eb76c4428c7c9d`
 
 Personal use, research, education, open-source activities, and internal
 business use are permitted without charge. Paid third-party service use is
@@ -23,14 +23,17 @@ excluded from RNA-TPSAL-1.0 and remains under its original MIT License.
 
 ## Legacy MIT boundary
 
-- Last MIT-licensed release version: 0.3.0-rc.4
-- Last MIT-licensed tag: v0.3.0-rc.4
-- Last MIT-licensed commit: 28bdbd03a14a1228c61f3c23ea88a8c8ce5d934e
+- Last MIT-tagged release version: 0.3.0-rc.4
+- Last MIT-tagged release tag: v0.3.0-rc.4
+- Last MIT-tagged release commit: `28bdbd03a14a1228c61f3c23ea88a8c8ce5d934e`
+- Last public commit offered under MIT: `5f6854145ce0317f6c4d309a2672c530e6c5ac4d`
+- First repository snapshot offered under RNA-TPSAL-1.0: `c2909367889128036b22b65885eb76c4428c7c9d`
 
-Previously released MIT-licensed versions remain available under their
-original MIT terms. This change does not revoke any prior permission. Only
-new commits, new features, and releases beginning with 0.4.0-rc.1 are
-intended to use RNA-TPSAL-1.0. The application-start commit above records the initial implementation draft.
+The repository snapshot at and after
+`c2909367889128036b22b65885eb76c4428c7c9d` is offered under
+RNA-TPSAL-1.0. Repository snapshots before that commit remain available under
+the MIT License. No permission previously granted under the MIT License is
+revoked.
 
 ## Customer attribution template / 顧客向け帰属表示テンプレート
 

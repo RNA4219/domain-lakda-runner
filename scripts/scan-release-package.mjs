@@ -43,7 +43,10 @@ for (const path of await list(root)) {
   const bytes = await readFile(path);
   if (bytes.includes(0)) throw new Error("release package contains a binary or NUL byte: " + portable);
   const text = bytes.toString("utf8");
-  const sensitive = findSensitive(text);
+  const sensitiveText = portable === "COMMERCIAL-LICENSE.md"
+    ? text.replace(/^Contact:\s*.+$/m, "Contact: PUBLIC_COMMERCIAL_CONTACT")
+    : text;
+  const sensitive = findSensitive(sensitiveText);
   if (sensitive.length) throw new Error("release package sensitive scan failed: " + portable + " (" + sensitive.join(",") + ")");
   if (/[A-Za-z]:\\Users\\|\/home\/[^/]+\//i.test(text)) throw new Error("release package contains an absolute user path: " + portable);
   if (/https:\/\/[^\s/@:]+:[^\s/@]+@/i.test(text)) throw new Error("release package URL contains userinfo: " + portable);
@@ -55,6 +58,18 @@ for (const required of requiredPaths) if (!paths.has(required)) throw new Error(
 const packageJson = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
 if (packageJson.version !== "0.4.0-rc.1" || packageJson.private !== true || packageJson.main !== "./dist/index.js" || packageJson.types !== "./dist/index.d.ts" || packageJson.exports?.["."]?.import !== "./dist/index.js") {
   throw new Error("release package metadata contract mismatch");
+}
+const commercialLicense = await readFile(resolve(root, "COMMERCIAL-LICENSE.md"), "utf8");
+if (commercialLicense.includes("[COMMERCIAL_CONTACT]")) {
+  throw new Error("COMMERCIAL-LICENSE.md still contains [COMMERCIAL_CONTACT]");
+}
+if (!commercialLicense.includes("https://licensing.rna4219.com/")) {
+  throw new Error("COMMERCIAL-LICENSE.md is missing the public licensing portal");
+}
+const readme = await readFile(resolve(root, "README.md"), "utf8");
+const readmeVersion = readme.match(/現在の候補版は `([^`]+)`/)?.[1];
+if (readmeVersion !== packageJson.version) {
+  throw new Error(`README.md version mismatch: expected ${packageJson.version}, got ${readmeVersion ?? "missing"}`);
 }
 const result = { schemaVersion: "lakda/release-package-security-scan/v1", status: "passed", packageVersion: packageJson.version, files: descriptors };
 if (outputArg) {
