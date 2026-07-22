@@ -1,7 +1,7 @@
 ---
 task_id: TASK.20260722-57
 intent_id: INT-LAKDA-MNT-001
-status: reviewing
+status: done
 owner: RNA4219
 created_at: 2026-07-22
 updated_at: 2026-07-22
@@ -50,5 +50,7 @@ mock/fixture exampleは補助資料であり、本証跡として数えない。
 ## Evidence
 
 - 対象test: `tests/examples.spec.ts`、package contents/install test。
+- 対象revision: `74a2a9b47cc106795320323a597dfdf5931cbead`。
 - 対象command: `npx playwright test --workers=1 tests/examples.spec.ts`、`npm run test:examples`、`npm run pack:check`。
-- 状態: 統合Gate記録待ち。
+- 終了code: 対象commandはいずれも`0`。
+- Acceptance: [AC-20260722-20](../acceptance/AC-20260722-20.lakda-040-rc2-local-release-validation.md)。

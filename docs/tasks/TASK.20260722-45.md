@@ -1,7 +1,7 @@
 ---
 task_id: TASK.20260722-45
 intent_id: INT-LAKDA-MNT-001
-status: in_progress
+status: done
 owner: RNA4219
 created_at: 2026-07-22
 updated_at: 2026-07-22
@@ -48,3 +48,11 @@ schema、package version、参照path、required check allowlist、external inpu
 ## Notes
 
 profileがlocal validationを通ってもreal staging/manual-bb/QEG未完了なら`pending_external`である。
+
+## Evidence
+
+- 対象test: release profile schema/version/path/check negativeとlive workflow固定値検査。
+- 対象revision: `74a2a9b47cc106795320323a597dfdf5931cbead`。
+- 対象command: `npm run release:validate-profile`、`npm run check:docs`、`git diff --check`。
+- 終了code: 対象commandはいずれも`0`。
+- Acceptance: [AC-20260722-20](../acceptance/AC-20260722-20.lakda-040-rc2-local-release-validation.md)。

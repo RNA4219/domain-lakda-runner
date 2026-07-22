@@ -1,0 +1,34 @@
+{
+  "run_id": "RUN-LAKDA-RC402-74a2a9b47cc1-TC004",
+  "tc_id": "TC-LAKDA-RC402-004",
+  "feature_id": "LAKDA-RC-402",
+  "build_id": "74a2a9b47cc106795320323a597dfdf5931cbead",
+  "timestamp": "2026-07-22T12:28:34+09:00",
+  "env": "local-workspace",
+  "device": "Windows repository inspection",
+  "network_profile": "offline/no-real-target",
+  "tester": "codex-local-review",
+  "oracle_type": "specified",
+  "oracle_refs": ["AC-RC402-002", "AC-MNT-007", "AC-MNT-008"],
+  "expected": [
+    "list/show/compareがcanonicalで決定的な結果を返す",
+    "比較元run artifactを変更しない",
+    "改ざん、非互換graph、path逸脱を非0で拒否する"
+  ],
+  "actual": [
+    "run catalogとcomparisonのlocal contractおよびnegative境界を対象SHAの実装・testで再照合した",
+    "read-only入力、artifact digest、graph version、portable pathの検査が存在することを確認した",
+    "実target runの品質判定またはQEG verdictは生成していない"
+  ],
+  "result": "pass",
+  "attachments": [
+    "tests/runs.spec.ts",
+    "schemas/lakda-run-index-v1.schema.json",
+    "schemas/lakda-run-detail-v1.schema.json",
+    "schemas/lakda-run-comparison-v1.schema.json"
+  ],
+  "anomaly_notes": [
+    "このpassはlocal contract再検証に限定され、real P7/P11 evidenceの代替ではない。"
+  ],
+  "time_spent_minutes": 25
+}

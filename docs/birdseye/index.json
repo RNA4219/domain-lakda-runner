@@ -1,5 +1,5 @@
 {
-  "generated_at": "00042",
+  "generated_at": "00044",
   "nodes": {
     "README.md": {
       "role": "overview",
@@ -574,6 +574,10 @@
     "docs/tasks/TASK.20260722-58.md": {
       "role": "task",
       "caps": "docs/birdseye/caps/docs.tasks.TASK.20260722-58.md.json"
+    },
+    "docs/acceptance/AC-20260722-20.lakda-040-rc2-local-release-validation.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260722-20.lakda-040-rc2-local-release-validation.md.json"
     }
   },
   "edges": [

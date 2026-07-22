@@ -1,0 +1,101 @@
+{
+  "feature_id": "LAKDA-RC-402",
+  "observations": [
+    {
+      "id": "OBS-GOV-01",
+      "title": "current profileとfreeze済みcandidate identityを同一revisionで照合する",
+      "view": "gray",
+      "mandatory": true,
+      "techniques": ["state_transition", "error_guessing"],
+      "rationale": "過去revisionまたはstale profileの証跡をcurrent sourceへ誤適用しないため。",
+      "source_refs": [
+        {
+          "id": "AC-RC402-001",
+          "kind": "ac",
+          "excerpt": "current release profile、package version、local evidenceを対象SHAへ固定する"
+        }
+      ],
+      "confidence": "high"
+    },
+    {
+      "id": "OBS-PREFLIGHT-01",
+      "title": "P7/P11は承認targetとimmutable bindingの成立前に接続しない",
+      "view": "black",
+      "mandatory": true,
+      "techniques": ["decision_table", "state_transition"],
+      "rationale": "target manifest、revision、config digestの不足または不一致を接続前にfail-closedで止める必要があるため。",
+      "source_refs": [
+        {
+          "id": "AC-RC402-002",
+          "kind": "ac",
+          "excerpt": "P7/P11 preflightの不一致はtargetへ接続せずpending_externalにする"
+        }
+      ],
+      "confidence": "high"
+    },
+    {
+      "id": "OBS-LLM-01",
+      "title": "registryとstrict llm-selectが提示外の実行内容を受理しない",
+      "view": "gray",
+      "mandatory": true,
+      "techniques": ["equivalence_partitioning", "error_guessing"],
+      "rationale": "LLM応答がselector、URL、command、oracle verdictを新規生成してSafety Policyを迂回しないことを確認するため。",
+      "source_refs": [
+        {
+          "id": "AC-RC402-002",
+          "kind": "ac",
+          "excerpt": "registryとllm-selectのfail-closed negativeを再検証可能にする"
+        }
+      ],
+      "confidence": "high"
+    },
+    {
+      "id": "OBS-RUN-01",
+      "title": "run catalogとgraph comparisonは入力artifactを独立再検証する",
+      "view": "gray",
+      "mandatory": true,
+      "techniques": ["state_transition", "error_guessing"],
+      "rationale": "改ざんrun、非互換graph、path逸脱を回帰判断へ混入させず、入力runを変更しないため。",
+      "source_refs": [
+        {
+          "id": "AC-RC402-002",
+          "kind": "ac",
+          "excerpt": "run比較のdeterminismとfail-closed境界を再検証可能にする"
+        }
+      ],
+      "confidence": "high"
+    },
+    {
+      "id": "OBS-PACKAGE-01",
+      "title": "module分割後の公開契約とsanitized package境界を維持する",
+      "view": "gray",
+      "mandatory": true,
+      "techniques": ["use_case", "error_guessing"],
+      "rationale": "後方互換破壊、credential、PII、storageState、ready real targetの配布を防止するため。",
+      "source_refs": [
+        {
+          "id": "AC-RC402-001",
+          "kind": "ac",
+          "excerpt": "local contract、package、HATE検証を対象SHAで成功させる"
+        }
+      ],
+      "confidence": "high"
+    },
+    {
+      "id": "OBS-GATE-01",
+      "title": "five-tool chainを同一revisionへ結び最終GoをQEGだけに限定する",
+      "view": "gray",
+      "mandatory": true,
+      "techniques": ["decision_table", "state_transition"],
+      "rationale": "証跡chainの欠落または非QEG toolによる最終Go主張を防止するため。",
+      "source_refs": [
+        {
+          "id": "AC-RC402-003",
+          "kind": "ac",
+          "excerpt": "real evidenceとfive-tool chainを対象SHAへ結びQEG以外が最終Goを生成しない"
+        }
+      ],
+      "confidence": "high"
+    }
+  ]
+}

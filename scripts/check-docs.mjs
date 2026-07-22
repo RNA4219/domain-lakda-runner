@@ -388,8 +388,16 @@ if (statSync(maintainabilityRequirementsPath, { throwIfNoEntry: false }) && stat
   }
 }
 const maintainabilityTaskIds = Array.from({ length: 16 }, (_, index) => "TASK.20260722-" + (index + 43));
+const maintainabilityEvidenceRevisions = new Set();
+const maintainabilityAcceptancePath = resolve(root, "docs/acceptance/AC-20260722-20.lakda-040-rc2-local-release-validation.md");
 if (statSync(maintainabilityPlanPath, { throwIfNoEntry: false })) {
   const plan = readFileSync(maintainabilityPlanPath, "utf8");
+  const planMeta = metadata(plan);
+  if (planMeta.status !== "local_complete") failures.push("maintainability plan: status must be local_complete");
+  if (!plan.includes("[AC-20260722-20](acceptance/AC-20260722-20.lakda-040-rc2-local-release-validation.md)")) {
+    failures.push("maintainability plan: missing local release Acceptance link");
+  }
+  if (!statSync(maintainabilityAcceptancePath, { throwIfNoEntry: false })) failures.push("maintainability Acceptance: missing local release record");
   for (const heading of ["## Plan", "## 監査Backlog", "## Patch", "## Tests", "## Commands", "## Notes"]) {
     if (!plan.includes(heading)) failures.push("maintainability plan: missing " + heading);
   }
@@ -403,20 +411,43 @@ if (statSync(maintainabilityPlanPath, { throwIfNoEntry: false })) {
       failures.push("maintainability plan/task: missing individual link " + taskId);
       continue;
     }
-    const number = Number(taskId.slice(-2));
-    if (number < 46) continue;
+
     const taskText = readFileSync(taskPath, "utf8");
     const taskMeta = metadata(taskText);
-    const expectedStatus = number === 58 ? "in_progress" : "reviewing";
+
     if (taskMeta.task_id !== taskId) failures.push(taskId + ": incorrect task_id");
     if (taskMeta.intent_id !== "INT-LAKDA-MNT-001") failures.push(taskId + ": incorrect intent_id");
-    if (taskMeta.status !== expectedStatus) failures.push(taskId + ": status must be " + expectedStatus);
+    if (taskMeta.status !== "done") failures.push(taskId + ": status must be done");
     for (const heading of ["## Objective", "## Scope", "## Requirements", "## Plan", "## Patch", "## Tests", "## Commands", "## Notes", "## Evidence"]) {
       if (!taskText.includes(heading)) failures.push(taskId + ": missing " + heading);
     }
-    for (const marker of ["対象test:", "対象command:", "統合Gate記録待ち"]) {
+    for (const marker of ["対象test:", "対象revision:", "対象command:", "終了code:", "Acceptance:"]) {
       if (!taskText.includes(marker)) failures.push(taskId + ": Evidence missing " + marker);
     }
+    const revisionMatch = taskText.match(/^- 対象revision: `([0-9a-f]{40})`。$/m);
+    if (!revisionMatch) failures.push(taskId + ": invalid Evidence revision");
+    else maintainabilityEvidenceRevisions.add(revisionMatch[1]);
+    if (!/^- 対象command: .+。$/m.test(taskText)) failures.push(taskId + ": invalid Evidence command");
+    const exitCodeMatch = taskText.match(/^- 終了code: (.+)$/m);
+    if (!exitCodeMatch) failures.push(taskId + ": invalid Evidence exit code");
+    else if (taskId !== "TASK.20260722-58" && !exitCodeMatch[1].endsWith("`0`。")) {
+      failures.push(taskId + ": local Evidence exit code must be 0");
+    }
+    if (taskId === "TASK.20260722-58") {
+      for (const marker of ["npm run check:docs", "npm run typecheck", "npm run lint", "npm run build", "npm test", "npm run acceptance:fixture", "npm run acceptance:adaptive", "npm run check:hate", "npm run pack:check", "npm run release:validate-profile", "npm run test:contracts", "npm run test:examples", "npm run acceptance:adaptive:real", "npm run acceptance:extension:real", "manual-bb strict Gate", "tools.codemap.update", "git diff --check", "`2`", "未取得"]) {
+        if (!taskText.includes(marker)) failures.push(taskId + ": integrated Evidence missing " + marker);
+      }
+    }
+    if (!taskText.includes("[AC-20260722-20](../acceptance/AC-20260722-20.lakda-040-rc2-local-release-validation.md)")) {
+      failures.push(taskId + ": missing local release Acceptance link");
+    }
+    if (/統合Gate[^\r\n]*(?:待ち|未完|保留)/.test(taskText)) failures.push(taskId + ": stale pending Gate marker");
+  }
+  if (maintainabilityEvidenceRevisions.size !== 1) failures.push("maintainability tasks: Evidence must use one revision");
+  else if (statSync(maintainabilityAcceptancePath, { throwIfNoEntry: false })) {
+    const acceptanceText = readFileSync(maintainabilityAcceptancePath, "utf8");
+    const [evidenceRevision] = maintainabilityEvidenceRevisions;
+    if (!acceptanceText.includes(evidenceRevision)) failures.push("maintainability Acceptance: task Evidence revision mismatch");
   }
 }
 const extensionAliasPairs = new Map([

@@ -1,7 +1,7 @@
 ---
 task_id: TASK.20260722-43
 intent_id: INT-LAKDA-MNT-001
-status: in_progress
+status: done
 owner: RNA4219
 created_at: 2026-07-22
 updated_at: 2026-07-22
@@ -49,3 +49,11 @@ REQ-MNT-GOV-001、REQ-MNT-GOV-003。AC-MNT-001。
 ## Notes
 
 仕様完成チェックと実装受入チェックを混同せず、未取得証跡を`[x]`へしない。
+
+## Evidence
+
+- 対象test: 要件IDと仕様/checklistの1対1、alias checkbox 0件、文書contract。
+- 対象revision: `74a2a9b47cc106795320323a597dfdf5931cbead`。
+- 対象command: `npm run check:docs`、`git diff --check`。
+- 終了code: 対象commandはいずれも`0`。
+- Acceptance: [AC-20260722-20](../acceptance/AC-20260722-20.lakda-040-rc2-local-release-validation.md)。

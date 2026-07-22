@@ -1,7 +1,7 @@
 ---
 document_id: LAKDA-PLAN-MNT-001
 intent_id: INT-LAKDA-MNT-001
-status: in_progress
+status: local_complete
 owner: RNA4219
 last_updated: 2026-07-22
 requirements: ../REQUIREMENTS-MAINTAINABILITY.md
@@ -28,9 +28,14 @@ requirements: ../REQUIREMENTS-MAINTAINABILITY.md
 | 5 | [TASK.20260722-55](tasks/TASK.20260722-55.md) | runs list/showをread-onlyで追加する | 順序、上限、sanitized schema |
 | 5 | [TASK.20260722-56](tasks/TASK.20260722-56.md) | graph compareとtamper/PII境界を実装する | bytes/hash/version/traversal |
 | 5 | [TASK.20260722-57](tasks/TASK.20260722-57.md) | sanitized examplesとpackage検証を追加する | schema/secret/PII/package |
-| 6 | [TASK.20260722-58](tasks/TASK.20260722-58.md) | 統合Gate、manual-bb、Birdseye、Acceptanceを確定する | local Gate完了、外部はpending_external |
+| 6 | [TASK.20260722-58](tasks/TASK.20260722-58.md) | 統合Gate、manual-bb、Birdseye、Acceptanceを確定する | local実装完了、Gate実績をAcceptanceへ記録、外部はpending_external |
 
 依存順は43→44→45→46→47→48→49→50→51→52→53→54→55→56→57→58とする。各PhaseのGateが失敗した場合、次Phaseへ進まない。
+
+## 実績
+
+- Phase 0〜6のlocal実装は完了した。取得済みlocal Gate、P7/P11のexit 2、最終subject SHAで未取得のlint再実行を区別し、対象revision、command、終了codeは[AC-20260722-20](acceptance/AC-20260722-20.lakda-040-rc2-local-release-validation.md)へ記録する。
+- P7/P11 real target、Airtest/Poco実機、認可済みSecurity target、実Qwen、外部manual-bb、QEGは未実施であり、release状態は`pending_external`を維持する。
 
 ## 監査Backlog
 
@@ -81,4 +86,4 @@ requirements: ../REQUIREMENTS-MAINTAINABILITY.md
 - 既存`smoke`、`seeded-random`、`regression-replay`、HATE/v1、QEG責務境界を変更しない。
 - 歴史的RC5/QEG/Acceptance artifactは移動、再生成、書換えをしない。
 - 実target、実機、Security target、manual-bb外部確認、QEGが揃うまでreleaseは`pending_external`である。
-- Task Seedの実績statusと証跡欄は各担当がGate完了時に更新する。
+- Task Seed 43〜58はlocal実装完了として`done`へ更新した。外部実証跡の未達はTask完了と分離し、releaseの`pending_external`として管理する。

@@ -12,6 +12,7 @@ last_updated: 2026-07-22
 
 ## 現在の資格
 
+- [Lakda 0.4.0-rc.2 local validation](AC-20260722-20.lakda-040-rc2-local-release-validation.md) — `local_complete` / `pending_external`
 - [P11 pending external](AC-20260715-17.lakda-extension-p11-pending-external.md)
 - [Lakda extension release validation](AC-20260716-18.lakda-extension-release-validation.md)
 - [reference staging QEG go](AC-20260716-19.reference-staging-qeg-go.md) — 記載revisionだけに有効

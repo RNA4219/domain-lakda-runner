@@ -1,0 +1,35 @@
+{
+  "run_id": "RUN-LAKDA-RC402-74a2a9b47cc1-TC001",
+  "tc_id": "TC-LAKDA-RC402-001",
+  "feature_id": "LAKDA-RC-402",
+  "build_id": "74a2a9b47cc106795320323a597dfdf5931cbead",
+  "timestamp": "2026-07-22T12:28:34+09:00",
+  "env": "local-workspace",
+  "device": "Windows repository inspection",
+  "network_profile": "offline/no-real-target",
+  "tester": "codex-local-review",
+  "oracle_type": "specified",
+  "oracle_refs": ["AC-RC402-001", "AC-MNT-002"],
+  "expected": [
+    "current profileとpackage versionが0.4.0-rc.2で一致する",
+    "design input参照がrepository相対pathで解決できる",
+    "本manual-bb入力のbuild_idがfreeze済みsubject SHAと一致する"
+  ],
+  "actual": [
+    "release-profiles/current.jsonとpackage.jsonは0.4.0-rc.2で一致した",
+    "feature spec、risk register、manual case setの参照はrepository相対pathで存在した",
+    "build_idを74a2a9b47cc106795320323a597dfdf5931cbeadへ固定した"
+  ],
+  "result": "pass",
+  "attachments": [
+    "release-profiles/current.json",
+    "release-profiles/0.4.0-rc.2/feature-spec.json",
+    "release-profiles/0.4.0-rc.2/risk-register.json",
+    "release-profiles/0.4.0-rc.2/manual-case-set.json",
+    "package.json"
+  ],
+  "anomaly_notes": [
+    "この結果はlocal profile identityの確認だけであり、real target、実Qwen、manual black-box実環境、QEGの完了を示さない。"
+  ],
+  "time_spent_minutes": 20
+}

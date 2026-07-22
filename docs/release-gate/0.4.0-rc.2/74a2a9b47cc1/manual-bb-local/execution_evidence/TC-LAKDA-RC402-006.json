@@ -1,0 +1,36 @@
+{
+  "run_id": "RUN-LAKDA-RC402-74a2a9b47cc1-TC006",
+  "tc_id": "TC-LAKDA-RC402-006",
+  "feature_id": "LAKDA-RC-402",
+  "build_id": "74a2a9b47cc106795320323a597dfdf5931cbead",
+  "timestamp": "2026-07-22T12:28:34+09:00",
+  "env": "pending_external",
+  "device": "external five-tool chain not executed",
+  "network_profile": "not-applicable",
+  "tester": "codex-local-review",
+  "oracle_type": "specified",
+  "oracle_refs": ["AC-RC402-003"],
+  "expected": [
+    "RanD、Code-to-gate、HATE、manual-bb、QEG artifactを同一subject SHAへ結ぶ",
+    "各artifactのtool revisionとSHA-256を追跡できる",
+    "QEG goとP0/P1 blockerなしの場合だけpublish可能とする"
+  ],
+  "actual": [
+    "subject SHA 74a2a9b47cc106795320323a597dfdf5931cbeadに対するfive-tool chainは完了していない",
+    "external manual black-box、real P7/P11、real Qwen、QEG gate/recordは未生成である",
+    "このlocal入力は最終Goまたはpublish承認を主張しない"
+  ],
+  "result": "blocked",
+  "attachments": [
+    "release-profiles/current.json",
+    "release-profiles/0.4.0-rc.2/risk-register.json",
+    "README.md"
+  ],
+  "anomaly_notes": [
+    "過去revision 600a037のQEG goは履歴であり、このsubject SHAへ適用しない。"
+  ],
+  "findings": [
+    "最終Gateはpending_externalであり、QEG recordを本作業では生成していない。"
+  ],
+  "time_spent_minutes": 10
+}

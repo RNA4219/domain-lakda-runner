@@ -1,7 +1,7 @@
 ---
 task_id: TASK.20260722-54
 intent_id: INT-LAKDA-MNT-001
-status: reviewing
+status: done
 owner: RNA4219
 created_at: 2026-07-22
 updated_at: 2026-07-22
@@ -49,5 +49,7 @@ run delete/prune/uploadやLakda内QEG verdict commandは追加しない。
 ## Evidence
 
 - 対象test: `tests/cli-boundaries.spec.ts`、`tests/adaptive/p10-cli.spec.ts`。
+- 対象revision: `74a2a9b47cc106795320323a597dfdf5931cbead`。
 - 対象command: `npx playwright test --workers=1 tests/cli-boundaries.spec.ts tests/adaptive/p10-cli.spec.ts`、`npm run typecheck`。
-- 状態: 統合Gate記録待ち。
+- 終了code: 対象commandはいずれも`0`。
+- Acceptance: [AC-20260722-20](../acceptance/AC-20260722-20.lakda-040-rc2-local-release-validation.md)。

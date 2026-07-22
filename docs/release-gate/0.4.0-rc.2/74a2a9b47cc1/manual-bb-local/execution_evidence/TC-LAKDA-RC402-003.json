@@ -1,0 +1,34 @@
+{
+  "run_id": "RUN-LAKDA-RC402-74a2a9b47cc1-TC003",
+  "tc_id": "TC-LAKDA-RC402-003",
+  "feature_id": "LAKDA-RC-402",
+  "build_id": "74a2a9b47cc106795320323a597dfdf5931cbead",
+  "timestamp": "2026-07-22T12:28:34+09:00",
+  "env": "pending_external",
+  "device": "self-hosted Windows Qwen runner not configured",
+  "network_profile": "loopback provider not attested",
+  "tester": "codex-local-review",
+  "oracle_type": "specified",
+  "oracle_refs": ["AC-RC402-002", "AC-MNT-005", "AC-MNT-006"],
+  "expected": [
+    "組み込みregistry IDだけを解決する",
+    "提示外candidate、extra key、selector、URL、command、timeoutをfail-closedで拒否する",
+    "実Qwen timeoutまたは不正応答をrandom fallbackへ変換しない"
+  ],
+  "actual": [
+    "attested loopback実Qwenと固定model artifactが未設定である",
+    "fixture/mockによるllm-select検証はreal provider acceptanceとして数えないためcase全体を判定できない"
+  ],
+  "result": "blocked",
+  "attachments": [
+    "release-profiles/0.4.0-rc.2/manual-case-set.json",
+    "tests/adaptive/llm-select.spec.ts"
+  ],
+  "anomaly_notes": [
+    "registryのlocal contract確認だけでは、実Qwenのprovider identity、model ID、GGUF SHA-256、timeout証跡を代替できない。"
+  ],
+  "findings": [
+    "real Qwen acceptanceはpending_externalのままである。"
+  ],
+  "time_spent_minutes": 10
+}

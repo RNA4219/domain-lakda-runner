@@ -1,0 +1,18 @@
+{
+  "feature_id": "LAKDA-RC-402",
+  "build_id": "74a2a9b47cc106795320323a597dfdf5931cbead",
+  "coverage_scope": "changed_code",
+  "coverage_percent": 0,
+  "hotspot_review_percent": 0,
+  "new_issues": {
+    "blocker": 0,
+    "critical": 0
+  },
+  "source_refs": [
+    {
+      "id": "LOCAL-AUTO-74a2a9b47cc1",
+      "kind": "auto_test",
+      "excerpt": "このmanual-bb入力には対象SHAのchanged-code coverage測定値を取り込んでいないためautomation creditは0%とする。fixture/mockはreal evidenceとして数えない。"
+    }
+  ]
+}

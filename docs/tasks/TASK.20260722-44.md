@@ -1,7 +1,7 @@
 ---
 task_id: TASK.20260722-44
 intent_id: INT-LAKDA-MNT-001
-status: in_progress
+status: done
 owner: RNA4219
 created_at: 2026-07-22
 updated_at: 2026-07-22
@@ -48,3 +48,11 @@ broken link、重複document ID、孤立要件、alias checkbox、schema compile
 ## Notes
 
 Birdseyeは生成物間の世代を揃え、indexだけを手編集しない。
+
+## Evidence
+
+- 対象test: docs索引、schema/profile/Birdseye contract、生成差分監査。
+- 対象revision: `74a2a9b47cc106795320323a597dfdf5931cbead`。
+- 対象command: `npm run check:docs`、`uv run python -m tools.codemap.update --repo-root C:\Users\ryo-n\Codex_dev\domain-lakda-runner --targets docs/birdseye/index.json,docs/birdseye/hot.json --emit index+caps`、`git diff --check`。
+- 終了code: 対象commandはいずれも`0`。
+- Acceptance: [AC-20260722-20](../acceptance/AC-20260722-20.lakda-040-rc2-local-release-validation.md)。

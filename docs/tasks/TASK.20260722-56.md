@@ -1,7 +1,7 @@
 ---
 task_id: TASK.20260722-56
 intent_id: INT-LAKDA-MNT-001
-status: reviewing
+status: done
 owner: RNA4219
 created_at: 2026-07-22
 updated_at: 2026-07-22
@@ -49,5 +49,7 @@ REQ-MNT-RUN-003、REQ-MNT-RUN-004、REQ-MNT-RUN-005、REQ-MNT-RUN-006、REQ-MNT-
 ## Evidence
 
 - 対象test: `tests/runs.spec.ts`。
+- 対象revision: `74a2a9b47cc106795320323a597dfdf5931cbead`。
 - 対象command: `npx playwright test --workers=1 tests/runs.spec.ts`、`npm run test:contracts`。
-- 状態: 統合Gate記録待ち。
+- 終了code: 対象commandはいずれも`0`。
+- Acceptance: [AC-20260722-20](../acceptance/AC-20260722-20.lakda-040-rc2-local-release-validation.md)。

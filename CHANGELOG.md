@@ -17,6 +17,7 @@
 ### Release Status
 
 - fixtureとローカル自動検証を候補版証跡とし、実target・実機・認可済みsecurity target・manual-bb外部確認・QEGは`pending_external`。
+- revision `74a2a9b47cc106795320323a597dfdf5931cbead`の[ローカル受入記録](docs/acceptance/AC-20260722-20.lakda-040-rc2-local-release-validation.md)を追加。manual-bb strict Gateは外部項目未実施により`no_go`。
 
 ## 0.4.0-rc.1 - Superseded candidate
 

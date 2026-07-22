@@ -1,0 +1,34 @@
+{
+  "run_id": "RUN-LAKDA-RC402-74a2a9b47cc1-TC005",
+  "tc_id": "TC-LAKDA-RC402-005",
+  "feature_id": "LAKDA-RC-402",
+  "build_id": "74a2a9b47cc106795320323a597dfdf5931cbead",
+  "timestamp": "2026-07-22T12:28:34+09:00",
+  "env": "local-workspace",
+  "device": "Windows repository inspection",
+  "network_profile": "offline/no-real-target",
+  "tester": "codex-local-review",
+  "oracle_type": "specified",
+  "oracle_refs": ["AC-RC402-001", "AC-MNT-009", "AC-MNT-010"],
+  "expected": [
+    "module分割後も公開export、CLI help、action sequenceの互換を維持する",
+    "sanitized examplesがschemaに適合する",
+    "packageとexamplesへcredential、storageState、ready real targetを含めない"
+  ],
+  "actual": [
+    "characterisation、example schema、package securityのlocal検証対象を対象SHAで再照合した",
+    "examplesはsanitized入力として分離され、real-ready targetまたはcredentialを証跡として扱っていない",
+    "実環境受入と外部QEG最終判定は未実施のまま維持した"
+  ],
+  "result": "pass",
+  "attachments": [
+    "tests/examples.spec.ts",
+    "tests/release-package-security.spec.js",
+    "examples/README.md",
+    "package.json"
+  ],
+  "anomaly_notes": [
+    "sanitized exampleとfixtureはpackage境界の補助証跡であり、real execution evidenceではない。"
+  ],
+  "time_spent_minutes": 25
+}

@@ -1,0 +1,69 @@
+{
+  "feature_id": "LAKDA-RC-402",
+  "status": "no_go",
+  "profile": "strict",
+  "reasons": [
+    "P0 pass rate 40.0% < 100%",
+    "automation coverage below 80%",
+    "hotspot review below 100%",
+    "P0 blocking risks unresolved: RISK-RC402-01, RISK-RC402-02, RISK-RC402-03, RISK-RC402-06",
+    "mandatory observation execution 50.0% < 100%",
+    "waiver missing for risks: RISK-RC402-01, RISK-RC402-02, RISK-RC402-03, RISK-RC402-06"
+  ],
+  "build_id": "74a2a9b47cc106795320323a597dfdf5931cbead",
+  "evidence_summary": {
+    "manual_by_priority": {
+      "P0": {
+        "pass": 2,
+        "fail": 0,
+        "skip": 3,
+        "blocked": 3,
+        "unknown": 0,
+        "untested": 0,
+        "total": 5
+      },
+      "P1": {
+        "pass": 1,
+        "fail": 0,
+        "skip": 0,
+        "blocked": 0,
+        "unknown": 0,
+        "untested": 0,
+        "total": 1
+      },
+      "P2": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0,
+        "blocked": 0,
+        "unknown": 0,
+        "untested": 0,
+        "total": 0
+      },
+      "P3": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0,
+        "blocked": 0,
+        "unknown": 0,
+        "untested": 0,
+        "total": 0
+      }
+    },
+    "mandatory_observation_rate": 50.0
+  },
+  "blocking_risks": [
+    "RISK-RC402-01",
+    "RISK-RC402-02",
+    "RISK-RC402-03",
+    "RISK-RC402-06"
+  ],
+  "unmet_conditions": [
+    "P0 pass rate 40.0% < 100%",
+    "automation coverage below 80%",
+    "hotspot review below 100%",
+    "P0 blocking risks unresolved: RISK-RC402-01, RISK-RC402-02, RISK-RC402-03, RISK-RC402-06",
+    "mandatory observation execution 50.0% < 100%",
+    "waiver missing for risks: RISK-RC402-01, RISK-RC402-02, RISK-RC402-03, RISK-RC402-06"
+  ]
+}
