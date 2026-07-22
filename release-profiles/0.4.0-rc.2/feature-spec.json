@@ -1,0 +1,33 @@
+{
+  "feature_id": "LAKDA-RC-402",
+  "title": "domain-lakda-runner 0.4.0-rc.2 maintainability and extensibility release",
+  "summary": "保守要件の正本化、real acceptance共通化、安全なregistry、strict llm-select、run比較、module分割、sanitized examplesをrevision-bound証跡へ接続する。",
+  "actors": ["release_operator", "reference_staging_operator", "manual_bb_reviewer", "qeg_reviewer"],
+  "acceptance_criteria": [
+    "AC-RC402-001: current release profileとpackage versionが一致し、全local contract、fixture、adaptive、package、HATE検証が対象SHAで成功する",
+    "AC-RC402-002: P7/P11 preflight、registry、llm-select、run比較のfail-closed negativeを第三者が再検証できる",
+    "AC-RC402-003: real target、real Qwen、manual-bb、five-tool chainを対象SHAへ結び、QEG以外が最終Goを生成しない"
+  ],
+  "business_rules": [
+    "Lakdaはrun outcomeとHATE/v1証跡までを担当し、最終verdictは外部QEGだけが決定する",
+    "fixture、mock、simulated、sanitized exampleをreal-target execution evidenceへ昇格しない",
+    "認証値、raw prompt、storageState、絶対path、raw browser artifactをrelease evidenceへ含めない",
+    "freeze後にsource、release profile、target manifest、corpus、config digestが変化した場合はGateを最初から再実行する"
+  ],
+  "changed_areas": ["documentation governance", "release profile", "real acceptance", "extension registry", "LLM selection", "run comparison", "module boundaries", "examples"],
+  "devices": ["Windows Chromium", "self-hosted Windows Qwen runner"],
+  "source_refs": [
+    {"id": "AC-RC402-001", "kind": "ac", "excerpt": "profile-bound deterministic and contract evidence"},
+    {"id": "AC-RC402-002", "kind": "ac", "excerpt": "fail-closed acceptance and extension boundaries"},
+    {"id": "AC-RC402-003", "kind": "ac", "excerpt": "real evidence and external QEG authority"}
+  ],
+  "assumptions": [
+    {
+      "id": "ASM-RC402-01",
+      "text": "実target接続は承認済みreference stagingとimmutable target manifestのscope内だけに限定する。",
+      "severity": "high",
+      "impact_on_coverage": "別SaaS、実機、security targetは個別の承認とreal acceptanceがない限りpending_externalである。",
+      "resolution_status": "accepted"
+    }
+  ]
+}

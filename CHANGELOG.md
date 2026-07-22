@@ -2,7 +2,23 @@
 
 ## Unreleased
 
-## 0.4.0-rc.1 - Unreleased
+## 0.4.0-rc.2 - Unreleased
+
+### Added
+
+- release profile v1、P7/P11共通real acceptance、P11 target manifest/candidate audit、Adapter/Generator/Oracle registryを追加。
+- `llm-select`のstrict選択、`lakda runs list/show/compare`、sanitized examples、公開run schemaを追加。
+
+### Changed
+
+- Playwright Adapter、Coordinator、Combination、CLIを互換facadeの背後で責務分割し、追加要件に対する変更境界を縮小。
+- package、runtime producer、文書、検証profileを`0.4.0-rc.2`へ同期。
+
+### Release Status
+
+- fixtureとローカル自動検証を候補版証跡とし、実target・実機・認可済みsecurity target・manual-bb外部確認・QEGは`pending_external`。
+
+## 0.4.0-rc.1 - Superseded candidate
 
 ### Changed
 

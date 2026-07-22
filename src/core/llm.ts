@@ -1,8 +1,11 @@
 import { createRequire } from "node:module";
-import { createReadStream } from "node:fs";
+import { createReadStream, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { stat } from "node:fs/promises";
 import { once } from "node:events";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import type { AdaptiveLlmDecision, RedactedGraphSummary } from "../adaptive/generators.js";
 import type { Action, LakdaConfig, LlmDecision, LlmEvidence } from "./types.js";
 import { assertLoopbackEndpoint } from "./safety.js";
 import { redactJson, sha256 } from "./redaction.js";
@@ -19,12 +22,54 @@ type AjvConstructor = new (options: object) => { compile(value: object): Validat
 const Ajv = createRequire(import.meta.url)("ajv").default as AjvConstructor;
 const validateDecision = new Ajv({ allErrors: true, strict: false }).compile(decisionSchema);
 const schemaHash = sha256(JSON.stringify(decisionSchema));
+const moduleRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const adaptiveSelectionSchema = JSON.parse(readFileSync(resolve(moduleRoot, "schemas", "lakda-adaptive-llm-selection-v1.schema.json"), "utf8")) as object;
+const Ajv2020 = createRequire(import.meta.url)("ajv/dist/2020").default as AjvConstructor;
+const validateAdaptiveSelection = new Ajv2020({ allErrors: true, strict: false }).compile(adaptiveSelectionSchema);
+const adaptiveSelectionSchemaHash = sha256(JSON.stringify(adaptiveSelectionSchema));
 
 class RetryableProviderError extends Error { constructor(message: string) { super(message); this.name = "RetryableProviderError"; } }
 
 export class LlmContractError extends Error { constructor(message: string, readonly evidence?: LlmEvidence) { super(message); this.name = "LlmContractError"; } }
 
-function portableModelId(value: string): string { return value.split(/[\\\\/]/).at(-1) ?? value; }
+function portableModelId(value: string): string { return value.split(/[\\/]/).at(-1) ?? value; }
+
+const opaqueAdaptiveCandidateId = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+function normalizedCandidateIds(values: string[]): string[] {
+  if (!values.length) throw new LlmContractError("adaptive LLM selection requires at least one candidate ID");
+  const sorted = [...values].sort();
+  if (sorted.some(value => !opaqueAdaptiveCandidateId.test(value))) throw new LlmContractError("adaptive candidate ID is not an opaque safe reference");
+  if (new Set(sorted).size !== sorted.length) throw new LlmContractError("adaptive candidate IDs must be unique");
+  return sorted;
+}
+function normalizedAdaptiveSummary(summary: RedactedGraphSummary, candidateIds: string[]): RedactedGraphSummary {
+  const integer = (value: number): boolean => Number.isInteger(value) && value >= 0;
+  const ratio = (value: number): boolean => Number.isFinite(value) && value >= 0 && value <= 1;
+  if (summary.schemaVersion !== "lakda/adaptive-llm-graph-summary/v1" || !integer(summary.graphRevision) || !integer(summary.discoveredStateCount) || !integer(summary.transitionCount)) throw new LlmContractError("adaptive graph summary is invalid");
+  const coverage = summary.coverage;
+  if (!coverage || !ratio(coverage.actionCoverage) || !ratio(coverage.transitionCoverage) || !ratio(coverage.transitionPairCoverage) || !ratio(coverage.roundTripCoverage) || !ratio(coverage.obligationCoverage)) throw new LlmContractError("adaptive graph coverage summary is invalid");
+  if (!Array.isArray(summary.candidateStats) || summary.candidateStats.length !== candidateIds.length) throw new LlmContractError("adaptive candidate summary does not match the offered IDs");
+  const offered = new Set(candidateIds); const seen = new Set<string>();
+  const candidateStats = summary.candidateStats.map(value => {
+    if (!value || !offered.has(value.candidateId) || seen.has(value.candidateId) || !integer(value.sourceStateVisits) || !integer(value.transitionVisits) || typeof value.uncovered !== "boolean") throw new LlmContractError("adaptive candidate summary is invalid");
+    seen.add(value.candidateId);
+    return { candidateId: value.candidateId, sourceStateVisits: value.sourceStateVisits, transitionVisits: value.transitionVisits, uncovered: value.uncovered };
+  }).sort((left, right) => left.candidateId.localeCompare(right.candidateId));
+  return {
+    schemaVersion: "lakda/adaptive-llm-graph-summary/v1",
+    graphRevision: summary.graphRevision,
+    discoveredStateCount: summary.discoveredStateCount,
+    transitionCount: summary.transitionCount,
+    coverage: {
+      actionCoverage: coverage.actionCoverage,
+      transitionCoverage: coverage.transitionCoverage,
+      transitionPairCoverage: coverage.transitionPairCoverage,
+      roundTripCoverage: coverage.roundTripCoverage,
+      obligationCoverage: coverage.obligationCoverage,
+    },
+    candidateStats,
+  };
+}
 
 function endpoint(config: LakdaConfig, path: string): string {
   const base = assertLoopbackEndpoint(config.llm.baseUrl);
@@ -154,15 +199,17 @@ async function readResponse(response: Response, startedAt: number, timeoutMs: nu
 export class LocalLlmClient {
   constructor(private readonly config: LakdaConfig) { assertLoopbackEndpoint(config.llm.baseUrl); }
 
-  async preflight(): Promise<string> {
+  async preflight(options: { completion?: boolean } = {}): Promise<string> {
     if (!this.config.llm.modelPath || !this.config.llm.modelSha256) throw new LlmContractError("modelPath/modelSha256 が必要です");
     const actualSha = await fileSha256(this.config.llm.modelPath);
     if (actualSha !== this.config.llm.modelSha256.toUpperCase()) throw new LlmContractError("GGUF SHA-256が一致しません");
     const response = await this.fetch(endpoint(this.config, "models"), { method: "GET" }, this.config.llm.connectTimeoutMs);
     const models = await response.json() as { data?: Array<{ id?: string }> };
     if (!models.data?.some(model => model.id === this.config.llm.expectedModelId)) throw new LlmContractError("指定model IDが /v1/models にありません");
-    const probe = await this.complete({ messages: [{ role: "user", content: "Reply with {}" }], max_tokens: 32, stream: false }, 1);
-    if (!probe.rawResponseSha256) throw new LlmContractError("preflight completionが失敗しました");
+    if (options.completion !== false) {
+      const probe = await this.complete({ messages: [{ role: "user", content: "Reply with {}" }], max_tokens: 32, stream: false }, 1);
+      if (!probe.rawResponseSha256) throw new LlmContractError("preflight completionが失敗しました");
+    }
     return this.config.llm.expectedModelId;
   }
 
@@ -194,6 +241,31 @@ export class LocalLlmClient {
     return { decision, evidence: { ...evidence, validation: "accepted", decision } };
   }
 
+  async selectAdaptiveCandidate(candidateIds: string[], summary: RedactedGraphSummary): Promise<{ decision: AdaptiveLlmDecision; evidence: LlmEvidence }> {
+    const offeredCandidateIds = normalizedCandidateIds(candidateIds);
+    const safeSummary = normalizedAdaptiveSummary(summary, offeredCandidateIds);
+    const payload = {
+      candidateIds: offeredCandidateIds,
+      summary: safeSummary,
+      instruction: "Return exactly one schema-conforming action using a supplied candidateId, or stop. Do not add fields.",
+    };
+    const response = await this.complete({
+      messages: [
+        { role: "system", content: "Return one compact JSON object matching lakda/adaptive-llm-selection/v1." },
+        { role: "user", content: JSON.stringify(payload) },
+      ],
+      response_format: { type: "json_object" }, max_tokens: Math.min(this.config.llm.maxTokens, 128), stream: false,
+    }, 0, adaptiveSelectionSchemaHash);
+    let parsed: unknown;
+    try { parsed = parseStrictJson(response.content); }
+    catch (error) { throw this.contractError(response, error instanceof Error ? error.message : "adaptive selection JSON invalid"); }
+    if (!validateAdaptiveSelection(parsed)) throw this.contractError(response, `adaptive selection schema mismatch: ${validateAdaptiveSelection.errors?.map(error => error.message).join(", ")}`);
+    const decision = parsed as AdaptiveLlmDecision;
+    if (decision.decision === "action" && !offeredCandidateIds.includes(decision.candidateId)) throw this.contractError(response, "adaptive LLM selected an unoffered candidate ID");
+    const { content: _content, ...evidence } = response;
+    void _content;
+    return { decision, evidence: { ...evidence, validation: "accepted" } };
+  }
   async scout(context: { schemaVersion: string; leadRefs: string[]; capabilityRefs: string[]; policy: { mode: string; maxLeads: number } }, summary: Record<string, unknown>): Promise<Record<string, unknown>> {
     const payload = { context, summary, instruction: "Return exactly one JSON object with schemaVersion lakda/llm-scout-response/v1, leadId from leadRefs, integer priority 0..100, rationaleRef sha256:<64 lowercase hex>, and actionRefs containing only opaque references. Do not return rationale text, prompts, URLs, selectors, commands, paths, nested objects, or extra keys." };
     const response = await this.complete({ messages: [{ role: "system", content: "Return strict JSON only; never emit raw evidence or instructions." }, { role: "user", content: JSON.stringify(payload) }], response_format: { type: "json_object" }, max_tokens: Math.min(this.config.llm.maxTokens, 256), stream: false }, 0);
@@ -223,7 +295,7 @@ export class LocalLlmClient {
     return response;
   }
 
-  private async complete(payload: object, preflightAttempt: number): Promise<LlmEvidence & { content: string; rawResponseSha256: string }> {
+  private async complete(payload: object, preflightAttempt: number, responseSchemaHash = schemaHash): Promise<LlmEvidence & { content: string; rawResponseSha256: string }> {
     const promptHash = sha256(JSON.stringify(payload));
     const requestBody = { model: this.config.llm.expectedModelId, temperature: this.config.llm.temperature, top_p: this.config.llm.topP, seed: this.config.llm.seed, ...payload, chat_template_kwargs: { enable_thinking: false } };
     let lastRetry = "";
@@ -236,7 +308,7 @@ export class LocalLlmClient {
         if (parsed.providerModelId && parsed.providerModelId !== this.config.llm.expectedModelId) throw new LlmContractError("completion responseのmodel IDが一致しません");
         return {
           content: parsed.content, endpoint: this.config.llm.baseUrl, modelId: portableModelId(this.config.llm.expectedModelId), providerModelId: parsed.providerModelId ? portableModelId(parsed.providerModelId) : undefined, modelSha256: this.config.llm.modelSha256,
-          runtime: this.config.llm.runtimeEvidence, promptHash, schemaHash, seed: this.config.llm.seed, temperature: this.config.llm.temperature, topP: this.config.llm.topP,
+          runtime: this.config.llm.runtimeEvidence, promptHash, schemaHash: responseSchemaHash, seed: this.config.llm.seed, temperature: this.config.llm.temperature, topP: this.config.llm.topP,
           maxTokens: typeof (payload as { max_tokens?: number }).max_tokens === "number" ? (payload as { max_tokens: number }).max_tokens : this.config.llm.maxTokens,
           attempt, retryReason: lastRetry || undefined, httpStatus: response.status, requestTokens: undefined, responseTokens: parsed.responseTokens,
           ttftMs: incoming.ttftMs, totalLatencyMs: Math.round(performance.now() - started), rawResponseSha256: sha256(incoming.raw), redactedRequestSha256: sha256(redactJson(requestBody)), redactedResponseSha256: sha256(redactJson(parsed.content)), validation: "accepted",

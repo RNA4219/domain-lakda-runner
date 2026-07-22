@@ -32,7 +32,15 @@ Workflow-cookbook の `GUARDRAILS.md` を上位方針とし、このリポジト
 - `lakda:` ID は HATE 入力内だけで使用し、QEG ID として出力しない。
 - HATE audit record は Lakda が生成しない。artifact 検証後に HATE が生成する。
 
-## v0.2.1 責務境界
+## 現行release profile境界
+
+- `release-profiles/current.json`を現行RCの正本とし、package version、設計入力、必須check、受入ID、artifact namespaceを同時に検証する。
+- live release workflowへ過去RC固有のartifact名、scope、acceptance ID、RanD入力を直書きしない。
+- profile IDとSHA-256をcandidate revisionへ束縛し、finalize時にcheckout側とprepared artifact側の両方を再照合する。
+- 未知check、repository外参照、欠落参照、未承認target manifestはtarget接続前にfail-closedとする。
+- `docs/release-gate`と`docs/acceptance`の既存証跡は履歴としてimmutableに扱い、現行profileへ転用しない。
+
+## Historical / Legacy: v0.2.1 責務境界
 
 - Artifact Storeへfilesystem、JSON、列挙、hash、portable pathを集約し、CollectorとHATE Exporterを相互importさせない。
 - Artifact Policyが実bytesのsecret/PII scan、必須artifact、profile、容量を検査し、Outcome Policyが最終outcome/termination reasonを決める。Policy順序はbase保存→scan→outcome→atomic metadata/failure→再scan→HATE exportで固定する。

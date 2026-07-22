@@ -9,10 +9,21 @@
     "docs/spec/lakda-extension/**/*.md",
     "docs/tasks/TASK.20260714-*.md",
     "docs/acceptance/**/*.md",
-    "docs/acceptance/**/*.json"
+    "docs/acceptance/**/*.json",
+    "REQUIREMENTS-MAINTAINABILITY.md",
+    "docs/README.md",
+    "docs/spec/README.md",
+    "docs/tasks/README.md",
+    "docs/acceptance/README.md",
+    "docs/release-gate/README.md",
+    "docs/IMPLEMENTATION-PLAN-MAINTAINABILITY.md",
+    "docs/spec/maintainability/**/*.md",
+    "docs/tasks/TASK.20260722-*.md",
+    "release-profiles/current.json"
   ],
   "exclude": [
-    ".lakda/**"
+    ".lakda/**",
+    "docs/acceptance/RC5-SAAS-TARGET-MANIFESTS.md"
   ],
   "defaultRole": "doc"
 }

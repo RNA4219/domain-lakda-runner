@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -51,6 +51,21 @@ const requiredRuntimeFiles = [
 for (const path of requiredRuntimeFiles) {
   if (!files.has(path)) throw new Error("runtime package is missing required file: " + path);
 }
+const publicSchemas = readdirSync(resolve(root, "schemas"), { withFileTypes: true })
+  .filter(entry => entry.isFile() && entry.name.endsWith(".schema.json"))
+  .map(entry => "schemas/" + entry.name)
+  .sort();
+for (const path of publicSchemas) {
+  if (!files.has(path)) throw new Error("runtime package is missing public schema: " + path);
+}
+const packagedExamples = readdirSync(resolve(root, "examples"), { withFileTypes: true })
+  .filter(entry => entry.isFile())
+  .map(entry => "examples/" + entry.name)
+  .sort();
+if (packagedExamples.length === 0) throw new Error("examples directory is empty");
+for (const path of packagedExamples) {
+  if (!files.has(path)) throw new Error("runtime package is missing example: " + path);
+}
 const requiredLicenseFiles = [
   "LICENSE",
   "LICENSE.ja.md",
@@ -63,4 +78,4 @@ const requiredLicenseFiles = [
 for (const path of requiredLicenseFiles) {
   if (!files.has(path)) throw new Error("runtime package is missing required license file: " + path);
 }
-console.log(JSON.stringify({ status: "passed", fileCount: files.size, requiredRuntimeFiles, requiredLicenseFiles }));
+console.log(JSON.stringify({ status: "passed", fileCount: files.size, requiredRuntimeFiles, publicSchemas, packagedExamples, requiredLicenseFiles }));

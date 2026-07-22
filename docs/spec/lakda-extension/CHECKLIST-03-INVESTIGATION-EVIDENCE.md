@@ -1,22 +1,13 @@
-# Lakda拡張 Checklist-03: Investigation/Promotion/Evidence
+---
+document_id: LAKDA-CHK-LX-003-ALIAS
+status: non-normative-alias
+version: 1.0.0
+last_updated: 2026-07-22
+alias_of: CHECKLIST-03-INVESTIGATE-EVIDENCE.md
+---
 
-## A. 仕様・実装前
+# Checklist-03 Investigation/Promotion/Evidence（非規範alias）
 
-- [x] strict replayを1回に固定し、divergenceをfail-closedにした
-- [x] reproduced以外のpromoteを拒否し、parent digestを保持する
-- [x] shrinkingのmutation/scope/budget/kill switchを定義した
-- [x] KPIを分子・分母・revisionで保存する
-- [x] P11をreal executionMode、revision/config digest、Oracle/HATE refs、pending_externalへ固定した
+この文書は互換リンク専用であり、チェック項目・完了状態・受入判定の正本ではない。
 
-## B. ローカル実証
-
-- [x] replay divergence、reproduced-only promote、parent digestを検証した
-- [x] shrinkingとKPIを検証した
-- [x] P11未設定runner/verifierが非0かつpending_externalになることを検証した
-- [x] HATE/v1 export経路とredaction/scan契約を再利用した
-
-## C. 外部・残課題
-
-- [ ] 承認済みtargetでP11 case runnerを実行する（pending_external）
-- [ ] real HATE artifact refsを最終manifestで照合する（external）
-- [ ] manual-bb/QEG handoffを外部工程で完了する（external）
+正本: [CHECKLIST-03-INVESTIGATE-EVIDENCE.md](CHECKLIST-03-INVESTIGATE-EVIDENCE.md)

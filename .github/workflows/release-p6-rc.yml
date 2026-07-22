@@ -1,4 +1,4 @@
-name: P6 RC package
+name: Legacy P6 RC package
 
 on:
   workflow_dispatch:
@@ -37,7 +37,7 @@ jobs:
         env:
           HATE_UPSTREAM_SCHEMA: .upstream-hate/schemas/HATE/v1/artifact-manifest.schema.json
       - run: npm run pack:check
-      - name: Build P6 RC delivery
+      - name: Build Legacy P6 RC delivery
         run: |
           New-Item -ItemType Directory -Force delivery | Out-Null
           $tarballName = (npm pack --pack-destination delivery | Select-Object -Last 1).Trim()

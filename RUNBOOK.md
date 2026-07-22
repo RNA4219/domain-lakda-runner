@@ -9,9 +9,20 @@
 | local-deterministic | 開発、通常CI相当、headed/headless確認 | 不使用。`llm_status=unavailable`を記録 |
 | local-llm-explore | 実GGUFの受入 | loopback OpenAI互換endpointのみ |
 | CI | 再現性・契約・fixture integration | fake OpenAI互換server固定 |
-| staging | v0.2.1 RCの一回限りmanual-bb。継続監視はpost-v1 | browser実機、認証はEnvironment/local auth stateから注入 |
+| staging | 現行release profileに束縛したRC検証。real targetは承認済みmanifestがある場合だけ接続 | browser実機、認証はEnvironment/local auth stateから注入 |
 
 固定版とSHAは [REQUIREMENTS.md](https://github.com/RNA4219/domain-lakda-runner/blob/main/REQUIREMENTS.md) / [SPECIFICATION.md](https://github.com/RNA4219/domain-lakda-runner/blob/main/SPECIFICATION.md) を正本とする。run metadataには実行時の版、commit SHA、seed、schema/upstream SHAを記録する。
+
+## 1.1 現行release profile
+
+現行候補の唯一の可変入口は [release-profiles/current.json](release-profiles/current.json) である。package version、設計入力、必須check、RanD入力、受入ID、artifact prefix、five-tool namespaceを同一profileへ固定し、次で接続前に検証する。
+
+```powershell
+npm run release:validate-profile
+npm run check:docs
+```
+
+`.github/workflows/release-evidence.yml` は `reference_target_manifest_path` を含む承認済み外部入力を検査し、profile ID/SHA-256とcandidate revisionをprepared evidenceへ保存する。profile不一致、未知check、参照欠落、target manifest欠落ではreal targetへ接続しない。manual-bbは人間の確認記録、QEGだけが最終Go/No-Goを決定する。
 
 ## 2. Prepare
 
@@ -72,12 +83,12 @@ npm run acceptance:verify -- --report=.lakda/reports/worker-smoke.json --bundle=
 
 bundleにはdecision JSONL、action sequence、HATE manifest、bundle manifestだけを含める。DOM、trace、screenshot、auth state、raw prompt、絶対pathは含めず、Gitへcommitしない。report summary、検証結果、bundle SHAだけをGit文書へ記録する。
 
-### v0.2.1 worker batch / artifact確認
+### Historical / Legacy: v0.2.1 worker batch / artifact確認
 
 `workers=1`は従来どおり単一の`RunResult`をstdoutへ返す。`workers=2..4`の`run`/`replay`は`lakda/run-batch/v1`の`RunBatchResult`を返し、child runごとに独立run directoryとHATE manifestを保存する。workerは逐次実行し、1件の失敗や基盤error後も残りを実行する。seedは`baseSeed + workerIndex`、batch共有Action Budgetは60秒sliding windowで、上限到達時は待機せず`partial/rate_limit`でworkerを終了する。
 
 `artifacts.domSnapshots=true`を指定したrunでは、成功action後の`artifacts/dom/0001-<action-id>.html`を確認する。保存内容はredacted HTMLのみで、script本文、form値、password/token/secret要素、`data-lakda-sensitive`要素の内容と全属性を含めない。保存前は実際に保存するUTF-8 bytesで容量判定し、metadataなど最終必須artifactの保存後に上限超過となった場合は、任意artifactであるDOM snapshotを削除して`partial/artifact_limit`とする。HAR指定時は`artifacts/network.har`だけを確認し、一時raw HARが残っていないこと、すべてのheader値、cookie、Set-Cookie、query値、bodyにsecret/PIIがないことを確認する。
-### v0.3.0-rc.1 適応型探索 / P6
+### Historical / Legacy: v0.3.0-rc.1 適応型探索 / P6
 
 `lakda.config.json`で`mode=adaptive-explore`と`adaptive`契約を明示し、対象host、target kind、mutation kind、停止条件、recovery budgetを固定して実行する。
 
@@ -116,7 +127,7 @@ qeg gate --input <qeg-record>
 ```
 
 Lakdaの責務はHATE/v1 manifestまでである。HATE adapterがQEG IDへ変換し、QEGがGateを決定する。
-### v0.3.0-rc.5 revision-bound Release Candidate Gate
+### Historical / Legacy: v0.3.0-rc.5 revision-bound Release Candidate Gate
 
 `.github/workflows/release-evidence.yml`は手動起動の二段階Gateです。対象は`candidate_ref`で固定した40桁SHAであり、`package.json`のrc versionと一致しなければなりません。workflowはこのSHA以外のcommitやdirty worktreeを受け入れません。
 

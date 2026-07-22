@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "lakda/release-profile/v1",
+  "profileId": "lakda-0-4-0-rc-2",
+  "releaseVersion": "0.4.0-rc.2",
+  "releaseScope": "0.4.0-rc.2 revision-bound release evidence",
+  "artifactPrefix": "lakda-0-4-0-rc-2",
+  "fiveToolNamespace": "lakda-0-4-0-rc-2",
+  "designInputs": {
+    "featureSpec": "release-profiles/0.4.0-rc.2/feature-spec.json",
+    "riskRegister": "release-profiles/0.4.0-rc.2/risk-register.json",
+    "manualCaseSet": "release-profiles/0.4.0-rc.2/manual-case-set.json"
+  },
+  "randAudit": {
+    "preset": "release-profiles/0.4.0-rc.2/rand-audit-preset.json",
+    "evidence": "release-profiles/0.4.0-rc.2/rand-audit-evidence.json",
+    "runtimePresetName": "lakda_release_audit"
+  },
+  "requiredChecks": [
+    "check",
+    "acceptance:fixture",
+    "acceptance:adaptive",
+    "pack:check",
+    "check:hate:upstream",
+    "test:contracts",
+    "test:examples"
+  ],
+  "externalInputs": {
+    "candidateRef": "candidate_ref",
+    "referenceStagingOrigin": "reference_staging_origin",
+    "referenceConfigPath": "reference_config_path",
+    "referenceCorpusPath": "reference_corpus_path",
+    "referenceCaseId": "reference_case_id",
+    "referenceTargetRevision": "reference_target_revision",
+    "referenceTargetManifestPath": "reference_target_manifest_path",
+    "manualEvidencePath": "manual_evidence_path",
+    "releaseTag": "release_tag",
+    "publishRelease": "publish_release"
+  },
+  "acceptanceIds": {
+    "full": "0.4.0-rc.2-full",
+    "workerSmoke": "0.4.0-rc.2-worker-smoke"
+  }
+}

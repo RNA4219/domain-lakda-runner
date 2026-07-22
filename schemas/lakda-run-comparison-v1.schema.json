@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/lakda/run-comparison/v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "graphSchemaVersion", "fingerprintAlgorithmVersion", "fingerprintCanonicalizationVersion", "base", "head", "states", "transitions", "transitionPairs", "roundTrips", "coverage", "outcome", "terminationReason"],
+  "properties": {
+    "schemaVersion": {"const": "lakda/run-comparison/v1"},
+    "graphSchemaVersion": {"const": "lakda/state-graph/v1"},
+    "fingerprintAlgorithmVersion": {"type": "string", "minLength": 1},
+    "fingerprintCanonicalizationVersion": {"type": "string", "minLength": 1},
+    "base": {"$ref": "#/$defs/runIdentity"},
+    "head": {"$ref": "#/$defs/runIdentity"},
+    "states": {"$ref": "#/$defs/stateComparison"},
+    "transitions": {"$ref": "#/$defs/transitionComparison"},
+    "transitionPairs": {"$ref": "#/$defs/setComparison"},
+    "roundTrips": {"$ref": "#/$defs/setComparison"},
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "action", "transition", "transitionPair", "roundTrip", "obligation", "stateCoverage", "actionCoverage", "transitionCoverage", "transitionPairCoverage", "roundTripCoverage", "obligationCoverage"],
+      "properties": {
+        "state": {"$ref": "#/$defs/coverageMetricComparison"},
+        "action": {"$ref": "#/$defs/coverageMetricComparison"},
+        "transition": {"$ref": "#/$defs/coverageMetricComparison"},
+        "transitionPair": {"$ref": "#/$defs/coverageMetricComparison"},
+        "roundTrip": {"$ref": "#/$defs/coverageMetricComparison"},
+        "obligation": {"$ref": "#/$defs/coverageMetricComparison"},
+        "stateCoverage": {"$ref": "#/$defs/ratioValueComparison"},
+        "actionCoverage": {"$ref": "#/$defs/ratioValueComparison"},
+        "transitionCoverage": {"$ref": "#/$defs/ratioValueComparison"},
+        "transitionPairCoverage": {"$ref": "#/$defs/ratioValueComparison"},
+        "roundTripCoverage": {"$ref": "#/$defs/ratioValueComparison"},
+        "obligationCoverage": {"$ref": "#/$defs/ratioValueComparison"}
+      }
+    },
+    "outcome": {"$ref": "#/$defs/valueComparison"},
+    "terminationReason": {"$ref": "#/$defs/valueComparison"}
+  },
+  "$defs": {
+    "runSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runId", "runRef", "startedAt", "endedAt", "mode", "outcome", "terminationReason", "seed", "producerVersion", "commitSha"],
+      "properties": {
+        "runId": {"type": "string", "minLength": 1},
+        "runRef": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"},
+        "startedAt": {"type": "string", "minLength": 1},
+        "endedAt": {"type": "string", "minLength": 1},
+        "mode": {"type": "string", "minLength": 1},
+        "outcome": {"enum": ["passed", "failed", "partial", "error"]},
+        "terminationReason": {"type": "string", "minLength": 1},
+        "seed": {"type": "integer"},
+        "producerVersion": {"type": "string", "minLength": 1},
+        "commitSha": {"type": "string", "pattern": "^[A-Fa-f0-9]{7,64}$"}
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "manifestSha256", "artifactCount", "verifiedArtifactBytes"],
+      "properties": {
+        "status": {"const": "verified"},
+        "manifestSha256": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "artifactCount": {"type": "integer", "minimum": 1},
+        "verifiedArtifactBytes": {"type": "integer", "minimum": 0}
+      }
+    },
+    "runIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run", "integrity"],
+      "properties": {
+        "run": {"$ref": "#/$defs/runSummary"},
+        "integrity": {"$ref": "#/$defs/integrity"}
+      }
+    },
+    "setComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseCount", "headCount", "delta", "commonCount", "added", "removed"],
+      "properties": {
+        "baseCount": {"type": "integer", "minimum": 0},
+        "headCount": {"type": "integer", "minimum": 0},
+        "delta": {"type": "integer"},
+        "commonCount": {"type": "integer", "minimum": 0},
+        "added": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "removed": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    },
+    "stateChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fingerprint", "changedFields"],
+      "properties": {
+        "fingerprint": {"type": "string", "minLength": 1},
+        "changedFields": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"enum": ["componentSummary", "firstSeenAction", "knownCandidateIds", "lastSeenAction", "obligations", "observationDigest", "visits"]}
+        }
+      }
+    },
+    "stateComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseCount", "headCount", "delta", "commonCount", "added", "removed", "changed"],
+      "properties": {
+        "baseCount": {"type": "integer", "minimum": 0},
+        "headCount": {"type": "integer", "minimum": 0},
+        "delta": {"type": "integer"},
+        "commonCount": {"type": "integer", "minimum": 0},
+        "added": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "removed": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "changed": {"type": "array", "items": {"$ref": "#/$defs/stateChange"}}
+      }
+    },
+    "countChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "base", "head", "delta"],
+      "properties": {
+        "key": {"type": "string"},
+        "base": {"type": "integer", "minimum": 1},
+        "head": {"type": "integer", "minimum": 1},
+        "delta": {"type": "integer"}
+      }
+    },
+    "transitionComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseCount", "headCount", "delta", "commonCount", "added", "removed", "countChanges"],
+      "properties": {
+        "baseCount": {"type": "integer", "minimum": 0},
+        "headCount": {"type": "integer", "minimum": 0},
+        "delta": {"type": "integer"},
+        "commonCount": {"type": "integer", "minimum": 0},
+        "added": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "removed": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "countChanges": {"type": "array", "items": {"$ref": "#/$defs/countChange"}}
+      }
+    },
+    "countValueComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base", "head", "delta"],
+      "properties": {
+        "base": {"type": "integer", "minimum": 0},
+        "head": {"type": "integer", "minimum": 0},
+        "delta": {"type": "integer"}
+      }
+    },
+    "ratioValueComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base", "head", "delta"],
+      "properties": {
+        "base": {"type": "number", "minimum": 0, "maximum": 1},
+        "head": {"type": "number", "minimum": 0, "maximum": 1},
+        "delta": {"type": "number", "minimum": -1, "maximum": 1}
+      }
+    },
+    "coverageMetricComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["numerator", "denominator", "ratio"],
+      "properties": {
+        "numerator": {"$ref": "#/$defs/countValueComparison"},
+        "denominator": {"$ref": "#/$defs/countValueComparison"},
+        "ratio": {"$ref": "#/$defs/ratioValueComparison"}
+      }
+    },
+    "valueComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base", "head", "changed"],
+      "properties": {
+        "base": {"type": "string", "minLength": 1},
+        "head": {"type": "string", "minLength": 1},
+        "changed": {"type": "boolean"}
+      }
+    }
+  }
+}

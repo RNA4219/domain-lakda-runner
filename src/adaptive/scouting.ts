@@ -1,7 +1,6 @@
 import { canonicalJson } from "../core/plan.js";
 import { sha256 } from "../core/redaction.js";
 import { writeVerifiedText } from "../core/artifact-store.js";
-import type { LocalLlmClient } from "../core/llm.js";
 
 export const SIGNAL_SCHEMA_VERSION = "lakda/exploration-signal/v1" as const;
 export const LEAD_SCHEMA_VERSION = "lakda/exploration-lead/v1" as const;
@@ -21,6 +20,10 @@ export type ExplorationLead = {
 export type ScoutContext = { schemaVersion: typeof SCOUT_CONTEXT_SCHEMA_VERSION; contextId: string; leadRefs: string[]; capabilityRefs: string[]; policy: { mode: "loopback-json/v1"; maxLeads: number } };
 export type ScoutResponse = { schemaVersion: typeof SCOUT_RESPONSE_SCHEMA_VERSION; leadId: string; priority: number; rationaleRef: string; actionRefs: string[] };
 export type ScoutResult = { signals: ExplorationSignal[]; leads: ExplorationLead[]; context: ScoutContext };
+export type ScoutLlmClient = {
+  preflight(options?: { completion?: boolean }): Promise<string>;
+  scout(context: ScoutContext, summary: Record<string, unknown>): Promise<unknown>;
+};
 
 function object(value: unknown, name: string): Record<string, unknown> { if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(name + " must be an object"); return value as Record<string, unknown>; }
 function keys(value: Record<string, unknown>, allowed: string[], name: string): void { const extra = Object.keys(value).filter(key => !allowed.includes(key)); if (extra.length) throw new Error(name + " has unknown keys: " + extra.join(",")); }
@@ -132,11 +135,36 @@ export function assertScoutResponse(value: unknown, allowedLeadIds: string[]): a
   const priority = typeof current.priority === "number" ? current.priority : -1;
   if (current.schemaVersion !== SCOUT_RESPONSE_SCHEMA_VERSION || typeof current.leadId !== "string" || !allowedLeadIds.includes(current.leadId) || !Number.isInteger(priority) || priority < 0 || priority > 100 || typeof current.rationaleRef !== "string" || !/^sha256:[0-9a-f]{64}$/.test(current.rationaleRef) || !Array.isArray(current.actionRefs) || current.actionRefs.some(ref => typeof ref !== "string" || /selector|https?:|url|path|code|command|input/i.test(ref))) throw new Error("scout response contains unknown lead or forbidden action ref");
 }
-export async function writeScoutEvidence(path: string, event: { context: ScoutContext; response?: ScoutResponse; accepted: boolean; rejectionReason?: string }): Promise<void> {
-  const record = { schemaVersion: "lakda/scout-evidence/v1", contextId: event.context.contextId, inputDigest: digest(event.context), ...(event.response ? { outputDigest: digest(event.response) } : {}), accepted: event.accepted, ...(event.rejectionReason ? { rejectionReason: digest(event.rejectionReason) } : {}) };
+export function scoutResponseSchemaHash(): string {
+  return digest({
+    schemaVersion: SCOUT_RESPONSE_SCHEMA_VERSION,
+    required: ["schemaVersion", "leadId", "priority", "rationaleRef", "actionRefs"],
+    additionalProperties: false,
+  });
+}
+export async function writeScoutEvidence(path: string, event: {
+  context: ScoutContext;
+  response?: unknown;
+  accepted: boolean;
+  rejectionReason?: string;
+  modelAttestation: unknown;
+  runRevision: string;
+}): Promise<void> {
+  const record = {
+    schemaVersion: "lakda/scout-evidence/v1",
+    contextId: event.context.contextId,
+    inputDigest: digest(event.context),
+    ...(event.response !== undefined ? { outputDigest: digest(event.response) } : {}),
+    accepted: event.accepted,
+    ...(event.rejectionReason ? { rejectionReasonDigest: digest(event.rejectionReason) } : {}),
+    responseSchemaHash: scoutResponseSchemaHash(),
+    modelAttestationRef: digest(event.modelAttestation),
+    runRevision: event.runRevision,
+    providerSwitchAttempted: false,
+  };
   await writeVerifiedText(path, JSON.stringify(record));
 }
 
-export async function scoutWithLoopback(client: Pick<LocalLlmClient, "scout">, context: ScoutContext, leads: ExplorationLead[], summary: Record<string, unknown> = {}): Promise<ScoutResponse> {
+export async function scoutWithLoopback(client: Pick<ScoutLlmClient, "scout">, context: ScoutContext, leads: ExplorationLead[], summary: Record<string, unknown> = {}): Promise<ScoutResponse> {
   const allowed = leads.filter(lead => context.leadRefs.includes(lead.leadId)).map(lead => lead.leadId); const response = await client.scout(context, summary); assertScoutResponse(response, allowed); return response;
 }

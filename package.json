@@ -1,6 +1,6 @@
 {
   "name": "domain-lakda-runner",
-  "version": "0.4.0-rc.1",
+  "version": "0.4.0-rc.2",
   "private": true,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -14,6 +14,7 @@
   "files": [
     "dist",
     "schemas",
+    "examples",
     "vendor/hate/v1/artifact-manifest.schema.json",
     "README.md",
     "RUNBOOK.md",
@@ -44,7 +45,7 @@
     "test:headed": "playwright test tests/headed.spec.ts --headed",
     "smoke:external": "npm run build && node scripts/run-external-smoke.mjs",
     "check": "npm run check:docs && npm run typecheck && npm run lint && npm run build && npm test",
-    "pack:check": "node scripts/check-package-contents.mjs",
+    "pack:check": "npm run build && node scripts/check-package-contents.mjs && node scripts/check-package-install.mjs",
     "acceptance:fixture": "npm run build && node scripts/run-acceptance.mjs",
     "acceptance:adaptive": "npm run build && npx playwright test tests/adaptive",
     "acceptance:adaptive:real": "npm run build && node scripts/run-adaptive-real-acceptance.mjs",
@@ -64,7 +65,10 @@
     "release:prepare-rand": "npm run build && node scripts/prepare-rand-release-summary.mjs",
     "release:prepare-reference-staging": "npm run build && node scripts/prepare-reference-staging-summary.mjs",
     "release:scan-evidence": "npm run build && node scripts/scan-release-evidence.mjs",
-    "release:scan-package": "npm run build && node scripts/scan-release-package.mjs"
+    "release:scan-package": "npm run build && node scripts/scan-release-package.mjs",
+    "release:validate-profile": "node scripts/validate-release-profile.mjs",
+    "test:contracts": "playwright test --workers=1 tests/adaptive/acceptance-common.spec.ts tests/adaptive/registries.spec.ts tests/adaptive/llm-select.spec.ts tests/runs.spec.ts tests/schema-catalog.spec.ts tests/release-profile.spec.ts",
+    "test:examples": "playwright test --workers=1 tests/examples.spec.ts"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

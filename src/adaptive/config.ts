@@ -1,8 +1,15 @@
 import type { LakdaConfig } from "../core/types.js";
 import { assertLoopbackEndpoint } from "../core/safety.js";
+import { assertBuiltInAdapterConfiguration } from "../adapters/registry.js";
 import type { AdaptiveConfig, AdaptiveStopCondition } from "./contracts.js";
+import { assertBuiltInGenerator } from "./generators.js";
 
-const strategies = new Set(["random", "weighted-random", "least-visited-transition", "shortest-to-uncovered", "risk-weighted-uncovered", "llm-select"]);
+
+
+function assertOnlyKeys(value: object, allowed: readonly string[], label: string): void {
+  const extra = Object.keys(value).filter(key => !allowed.includes(key));
+  if (extra.length) throw new Error(`${label} contains unsupported extension fields: ${extra.join(",")}`);
+}
 
 function assertStopCondition(value: AdaptiveStopCondition): void {
   if (value.type === "noveltyPlateau") {
@@ -19,7 +26,10 @@ function assertStopCondition(value: AdaptiveStopCondition): void {
 export function validateAdaptiveConfig(adaptive: AdaptiveConfig | undefined, config: LakdaConfig): asserts adaptive is AdaptiveConfig {
   if (!adaptive) throw new Error("adaptive-exploreにはadaptive設定が必要です");
   if (adaptive.schemaVersion !== "lakda/adaptive-config/v1") throw new Error("adaptive.schemaVersionはlakda/adaptive-config/v1だけを許可します");
-  if (!["playwright", "airtest-poco", "security"].includes(adaptive.adapter.id)) throw new Error("adaptive.adapter.idが未対応です");
+  assertOnlyKeys(adaptive.adapter, ["id", "endpoint", "initialTarget"], "adaptive.adapter");
+  assertOnlyKeys(adaptive.generator, ["strategy", "version"], "adaptive.generator");
+  assertBuiltInAdapterConfiguration(adaptive.adapter.id, adaptive.safety.allowTargetKinds, adaptive.adapter.initialTarget?.kind);
+  if (adaptive.adapter.id === "playwright" && (adaptive.adapter.endpoint || adaptive.adapter.initialTarget)) throw new Error("playwright adapter does not accept an external runtime endpoint or initialTarget");
   if (adaptive.adapter.endpoint) assertLoopbackEndpoint(adaptive.adapter.endpoint);
   if (adaptive.adapter.id !== "playwright") {
     if (!adaptive.adapter.endpoint || !adaptive.adapter.initialTarget) throw new Error("external adaptive adapter requires loopback endpoint and initialTarget");
@@ -29,7 +39,8 @@ export function validateAdaptiveConfig(adaptive: AdaptiveConfig | undefined, con
     const host = new URL(adaptive.adapter.initialTarget.origin).hostname;
     if (!config.safety.allowHosts.includes(host)) throw new Error("external initialTarget host must be in allowlist");
   }
-  if (!strategies.has(adaptive.generator.strategy)) throw new Error("adaptive generator strategyが未対応です");
+  assertBuiltInGenerator(adaptive.generator.strategy, adaptive.generator.version);
+  if (adaptive.generator.strategy === "llm-select" && (!config.llm.enabled || !config.llm.modelPath || !config.llm.modelSha256)) throw new Error("adaptive llm-select requires llm.enabled=true, modelPath, and modelSha256");
   const actionIds = new Set<string>();
   for (const contract of adaptive.actionContracts ?? []) {
     if (!contract.actionId.trim() || actionIds.has(contract.actionId)) throw new Error("adaptive actionContractsには一意なactionIdが必要です");

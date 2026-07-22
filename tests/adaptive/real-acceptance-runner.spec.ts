@@ -22,6 +22,7 @@ test("real adaptive acceptance fails closed before loading config without explic
   const result = await run();
   expect(result.code).toBe(2);
   expect(result.stderr).toContain("LAKDA_ADAPTIVE_REAL_CONFIRM=I_UNDERSTAND");
+  expect(result.stderr).toContain('"status":"pending_external"');
 });
 
 test("real adaptive acceptance rejects an invalid corpus case before external execution", async () => {
@@ -123,6 +124,7 @@ test("real adaptive acceptance rejects a target-manifest settle profile mismatch
     }), "utf8");
     await writeFile(manifestPath, JSON.stringify({
       schemaVersion: "lakda/target-manifest/v1", manifestId: "ready-target", targetClass: "crm-list", status: "ready", owner: "owner@example.test",
+      binding: { targetRevision: "corpus-revision", configDigest: "sha256:" + createHash("sha256").update(configBytes).digest("hex") },
       environment: { name: "staging", baseUrlOrigin: "https://staging.example.test" }, access: { approved: true, authSource: "github-environment", approvalEvidenceRef: "approval-ref" },
       scope: { allowHosts: ["staging.example.test"], pathPrefixes: ["/app"] }, safety: { allowMutationKinds: ["none"], resetProcedureRef: "reset-ref", killSwitchRef: "kill-ref" },
       privacy: { piiPolicyRef: "pii-ref", sensitiveValuesPersisted: false }, actionContracts: [{ actionId: "view-record", mutationKind: "none" }],
@@ -161,6 +163,7 @@ test("real adaptive acceptance rejects an expanded config host scope before brow
     }), "utf8");
     await writeFile(manifestPath, JSON.stringify({
       schemaVersion: "lakda/target-manifest/v1", manifestId: "ready-target", targetClass: "crm-list", status: "ready", owner: "owner@example.test",
+      binding: { targetRevision: "corpus-revision", configDigest: "sha256:" + createHash("sha256").update(configBytes).digest("hex") },
       environment: { name: "staging", baseUrlOrigin: "https://staging.example.test" }, access: { approved: true, authSource: "github-environment", approvalEvidenceRef: "approval-ref" },
       scope: { allowHosts: ["staging.example.test"], pathPrefixes: ["/app"] }, safety: { allowMutationKinds: ["none"], resetProcedureRef: "reset-ref", killSwitchRef: "kill-ref" },
       privacy: { piiPolicyRef: "pii-ref", sensitiveValuesPersisted: false }, actionContracts: [{ actionId: "view-record", mutationKind: "none" }],
@@ -198,6 +201,7 @@ test("real adaptive acceptance rejects a target-manifest path scope mismatch bef
     }), "utf8");
     await writeFile(manifestPath, JSON.stringify({
       schemaVersion: "lakda/target-manifest/v1", manifestId: "ready-target", targetClass: "crm-list", status: "ready", owner: "owner@example.test",
+      binding: { targetRevision: "corpus-revision", configDigest: "sha256:" + createHash("sha256").update(configBytes).digest("hex") },
       environment: { name: "staging", baseUrlOrigin: "https://staging.example.test" }, access: { approved: true, authSource: "github-environment", approvalEvidenceRef: "approval-ref" },
       scope: { allowHosts: ["staging.example.test"], pathPrefixes: ["/app"] }, safety: { allowMutationKinds: ["none"], resetProcedureRef: "reset-ref", killSwitchRef: "kill-ref" },
       privacy: { piiPolicyRef: "pii-ref", sensitiveValuesPersisted: false }, actionContracts: [{ actionId: "view-record", mutationKind: "none" }],
@@ -228,6 +232,55 @@ test("real adaptive acceptance rejects config digest mismatch before loading con
     });
     expect(result.code).toBe(2);
     expect(result.stderr).toContain("config digest does not match immutable corpus case");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+
+test("real adaptive acceptance classifies an invalid bound config as structured pending_external", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "lakda-real-invalid-config-"));
+  const configPath = join(directory, "config.json");
+  const corpusPath = join(directory, "corpus.json");
+  const manifestPath = join(directory, "target.json");
+  const invalidConfigText = "[]";
+  try {
+    await writeFile(configPath, invalidConfigText, "utf8");
+    await writeFile(corpusPath, JSON.stringify({
+      schemaVersion: "lakda/adaptive-acceptance-corpus/v1",
+      corpusId: "fixed-corpus",
+      version: "1",
+      targetRevision: "corpus-revision",
+      cases: [{ caseId: "case-1", acceptanceId: "AC-AE-001", configDigest: "sha256:" + createHash("sha256").update(invalidConfigText).digest("hex"), expected: { outcome: "passed" } }],
+    }), "utf8");
+    await writeFile(manifestPath, JSON.stringify({
+      schemaVersion: "lakda/target-manifest/v1",
+      manifestId: "ready-target",
+      targetClass: "crm-list",
+      status: "ready",
+      binding: { targetRevision: "corpus-revision", configDigest: "sha256:" + createHash("sha256").update(invalidConfigText).digest("hex") },
+      owner: "owner@example.test",
+      environment: { name: "staging", baseUrlOrigin: "https://staging.example.test" },
+      access: { approved: true, authSource: "github-environment", approvalEvidenceRef: "approval-ref" },
+      scope: { allowHosts: ["staging.example.test"], pathPrefixes: ["/app"] },
+      safety: { allowMutationKinds: ["none"], resetProcedureRef: "reset-ref", killSwitchRef: "kill-ref" },
+      privacy: { piiPolicyRef: "pii-ref", sensitiveValuesPersisted: false },
+      actionContracts: [{ actionId: "view-record", mutationKind: "none" }],
+      settleProfile: { policyVersion: "consensus/v1", readiness: null, networkQuietExclusions: [] },
+      acceptance: { p0ActionIds: ["view-record"], p1ActionIds: [] },
+    }), "utf8");
+    const result = await run({
+      LAKDA_ADAPTIVE_REAL_CONFIG: configPath,
+      LAKDA_ADAPTIVE_REAL_CONFIRM: "I_UNDERSTAND",
+      LAKDA_ADAPTIVE_CORPUS_PATH: corpusPath,
+      LAKDA_ADAPTIVE_CASE_ID: "case-1",
+      LAKDA_ADAPTIVE_ENVIRONMENT: "staging",
+      LAKDA_ADAPTIVE_TARGET_REVISION: "corpus-revision",
+      LAKDA_ADAPTIVE_TARGET_MANIFEST: manifestPath,
+    });
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain('"status":"pending_external"');
+    expect(result.stderr).toContain("real adaptive acceptance config is invalid");
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

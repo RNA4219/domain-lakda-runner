@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/lakda/run-index/v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "total", "returned", "truncated", "runs"],
+  "properties": {
+    "schemaVersion": {"const": "lakda/run-index/v1"},
+    "total": {"type": "integer", "minimum": 0},
+    "returned": {"type": "integer", "minimum": 0, "maximum": 100},
+    "truncated": {"type": "boolean"},
+    "runs": {"type": "array", "maxItems": 100, "items": {"$ref": "#/$defs/runSummary"}}
+  },
+  "$defs": {
+    "runSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runId", "runRef", "startedAt", "endedAt", "mode", "outcome", "terminationReason", "seed", "producerVersion", "commitSha"],
+      "properties": {
+        "runId": {"type": "string", "minLength": 1},
+        "runRef": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"},
+        "startedAt": {"type": "string", "minLength": 1},
+        "endedAt": {"type": "string", "minLength": 1},
+        "mode": {"type": "string", "minLength": 1},
+        "outcome": {"enum": ["passed", "failed", "partial", "error"]},
+        "terminationReason": {"type": "string", "minLength": 1},
+        "seed": {"type": "integer"},
+        "producerVersion": {"type": "string", "minLength": 1},
+        "commitSha": {"type": "string", "pattern": "^[A-Fa-f0-9]{7,64}$"}
+      }
+    }
+  }
+}

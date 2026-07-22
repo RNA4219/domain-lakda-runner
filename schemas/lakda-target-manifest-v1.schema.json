@@ -9,6 +9,7 @@
     "manifestId": {"type": "string", "pattern": "^[a-z][a-z0-9-]{2,63}$"},
     "targetClass": {"enum": ["crm-list", "commerce-card", "collaboration-workspace"]},
     "status": {"enum": ["pending_external", "ready"]},
+    "binding": {"type": "object", "additionalProperties": false, "required": ["targetRevision", "configDigest"], "properties": {"targetRevision": {"type": "string", "minLength": 1}, "configDigest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}}},
     "owner": {"type": "string", "minLength": 1},
     "environment": {"type": "object", "additionalProperties": false, "required": ["name", "baseUrlOrigin"], "properties": {"name": {"const": "staging"}, "baseUrlOrigin": {"type": ["string", "null"]}}},
     "access": {"type": "object", "additionalProperties": false, "required": ["approved", "authSource", "approvalEvidenceRef"], "properties": {"approved": {"type": "boolean"}, "authSource": {"enum": ["pending_external", "github-environment", "local-auth-state", "none"]}, "approvalEvidenceRef": {"type": "string", "minLength": 1}}},
@@ -19,5 +20,5 @@
     "settleProfile": {"type": "object", "additionalProperties": false, "required": ["policyVersion", "networkQuietExclusions"], "properties": {"policyVersion": {"enum": ["lightweight-dom/v1", "consensus/v1"]}, "readiness": {"type": ["object", "null"]}, "networkQuietExclusions": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^/"}}}},
     "acceptance": {"type": "object", "additionalProperties": false, "required": ["p0ActionIds", "p1ActionIds"], "properties": {"p0ActionIds": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "p1ActionIds": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}}
   },
-  "allOf": [{"if": {"properties": {"status": {"const": "ready"}}}, "then": {"properties": {"environment": {"properties": {"baseUrlOrigin": {"type": "string", "pattern": "^https://[^/?#]+$"}}}, "access": {"properties": {"approved": {"const": true}, "authSource": {"enum": ["github-environment", "local-auth-state", "none"]}}}, "scope": {"properties": {"allowHosts": {"minItems": 1}, "pathPrefixes": {"minItems": 1}}}, "actionContracts": {"minItems": 1}, "acceptance": {"properties": {"p0ActionIds": {"minItems": 1}}}}}}]
+  "allOf": [{"if": {"properties": {"status": {"const": "ready"}}}, "then": {"required": ["binding"], "properties": {"environment": {"properties": {"baseUrlOrigin": {"type": "string", "pattern": "^https://[^/?#]+$"}}}, "access": {"properties": {"approved": {"const": true}, "authSource": {"enum": ["github-environment", "local-auth-state", "none"]}}}, "scope": {"properties": {"allowHosts": {"minItems": 1}, "pathPrefixes": {"minItems": 1}}}, "actionContracts": {"minItems": 1}, "acceptance": {"properties": {"p0ActionIds": {"minItems": 1}}}}}}]
 }

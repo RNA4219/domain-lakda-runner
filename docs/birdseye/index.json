@@ -1,5 +1,5 @@
 {
-  "generated_at": "00037",
+  "generated_at": "00042",
   "nodes": {
     "README.md": {
       "role": "overview",
@@ -426,6 +426,154 @@
     "docs/acceptance/AC-20260715-17.lakda-extension-p11-pending-external.md": {
       "role": "doc",
       "caps": "docs/birdseye/caps/docs.acceptance.AC-20260715-17.lakda-extension-p11-pending-external.md.json"
+    },
+    "docs/acceptance/AC-20260716-18.lakda-extension-release-validation.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260716-18.lakda-extension-release-validation.md.json"
+    },
+    "docs/acceptance/AC-20260716-19.reference-staging-qeg-go.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.acceptance.AC-20260716-19.reference-staging-qeg-go.md.json"
+    },
+    "docs/acceptance/README.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.acceptance.README.md.json"
+    },
+    "REQUIREMENTS-MAINTAINABILITY.md": {
+      "role": "requirements",
+      "caps": "docs/birdseye/caps/REQUIREMENTS-MAINTAINABILITY.md.json"
+    },
+    "docs/README.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.README.md.json"
+    },
+    "docs/spec/README.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.spec.README.md.json"
+    },
+    "docs/tasks/README.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.tasks.README.md.json"
+    },
+    "docs/release-gate/README.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.release-gate.README.md.json"
+    },
+    "docs/IMPLEMENTATION-PLAN-MAINTAINABILITY.md": {
+      "role": "plan",
+      "caps": "docs/birdseye/caps/docs.IMPLEMENTATION-PLAN-MAINTAINABILITY.md.json"
+    },
+    "docs/spec/maintainability/CHECKLIST-01-REPOSITORY-GOVERNANCE-RELEASE-PROFILE.md": {
+      "role": "checklist",
+      "caps": "docs/birdseye/caps/docs.spec.maintainability.CHECKLIST-01-REPOSITORY-GOVERNANCE-RELEASE-PROFILE.md.json"
+    },
+    "docs/spec/maintainability/CHECKLIST-02-REAL-ACCEPTANCE-CORE.md": {
+      "role": "checklist",
+      "caps": "docs/birdseye/caps/docs.spec.maintainability.CHECKLIST-02-REAL-ACCEPTANCE-CORE.md.json"
+    },
+    "docs/spec/maintainability/CHECKLIST-03-EXTENSION-REGISTRY-LLM-SELECTION.md": {
+      "role": "checklist",
+      "caps": "docs/birdseye/caps/docs.spec.maintainability.CHECKLIST-03-EXTENSION-REGISTRY-LLM-SELECTION.md.json"
+    },
+    "docs/spec/maintainability/CHECKLIST-04-RUN-CATALOG-GRAPH-COMPARISON.md": {
+      "role": "checklist",
+      "caps": "docs/birdseye/caps/docs.spec.maintainability.CHECKLIST-04-RUN-CATALOG-GRAPH-COMPARISON.md.json"
+    },
+    "docs/spec/maintainability/CHECKLIST-05-MODULE-BOUNDARIES-EXAMPLES.md": {
+      "role": "checklist",
+      "caps": "docs/birdseye/caps/docs.spec.maintainability.CHECKLIST-05-MODULE-BOUNDARIES-EXAMPLES.md.json"
+    },
+    "docs/spec/maintainability/README.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.spec.maintainability.README.md.json"
+    },
+    "docs/spec/maintainability/SPEC-01-REPOSITORY-GOVERNANCE-RELEASE-PROFILE.md": {
+      "role": "specification",
+      "caps": "docs/birdseye/caps/docs.spec.maintainability.SPEC-01-REPOSITORY-GOVERNANCE-RELEASE-PROFILE.md.json"
+    },
+    "docs/spec/maintainability/SPEC-02-REAL-ACCEPTANCE-CORE.md": {
+      "role": "specification",
+      "caps": "docs/birdseye/caps/docs.spec.maintainability.SPEC-02-REAL-ACCEPTANCE-CORE.md.json"
+    },
+    "docs/spec/maintainability/SPEC-03-EXTENSION-REGISTRY-LLM-SELECTION.md": {
+      "role": "specification",
+      "caps": "docs/birdseye/caps/docs.spec.maintainability.SPEC-03-EXTENSION-REGISTRY-LLM-SELECTION.md.json"
+    },
+    "docs/spec/maintainability/SPEC-04-RUN-CATALOG-GRAPH-COMPARISON.md": {
+      "role": "specification",
+      "caps": "docs/birdseye/caps/docs.spec.maintainability.SPEC-04-RUN-CATALOG-GRAPH-COMPARISON.md.json"
+    },
+    "docs/spec/maintainability/SPEC-05-MODULE-BOUNDARIES-EXAMPLES.md": {
+      "role": "specification",
+      "caps": "docs/birdseye/caps/docs.spec.maintainability.SPEC-05-MODULE-BOUNDARIES-EXAMPLES.md.json"
+    },
+    "docs/tasks/TASK.20260722-43.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260722-43.md.json"
+    },
+    "docs/tasks/TASK.20260722-44.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260722-44.md.json"
+    },
+    "docs/tasks/TASK.20260722-45.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260722-45.md.json"
+    },
+    "release-profiles/current.json": {
+      "role": "release-profile",
+      "caps": "docs/birdseye/caps/release-profiles.current.json.json"
+    },
+    "docs/tasks/TASK.20260722-46.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260722-46.md.json"
+    },
+    "docs/tasks/TASK.20260722-47.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260722-47.md.json"
+    },
+    "docs/tasks/TASK.20260722-48.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260722-48.md.json"
+    },
+    "docs/tasks/TASK.20260722-49.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260722-49.md.json"
+    },
+    "docs/tasks/TASK.20260722-50.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260722-50.md.json"
+    },
+    "docs/tasks/TASK.20260722-51.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260722-51.md.json"
+    },
+    "docs/tasks/TASK.20260722-52.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260722-52.md.json"
+    },
+    "docs/tasks/TASK.20260722-53.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260722-53.md.json"
+    },
+    "docs/tasks/TASK.20260722-54.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260722-54.md.json"
+    },
+    "docs/tasks/TASK.20260722-55.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260722-55.md.json"
+    },
+    "docs/tasks/TASK.20260722-56.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260722-56.md.json"
+    },
+    "docs/tasks/TASK.20260722-57.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260722-57.md.json"
+    },
+    "docs/tasks/TASK.20260722-58.md": {
+      "role": "task",
+      "caps": "docs/birdseye/caps/docs.tasks.TASK.20260722-58.md.json"
     }
   },
   "edges": [

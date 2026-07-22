@@ -30,6 +30,7 @@ test("a ready target manifest fails closed until its real approval, scope, and a
   expect(validate(incompleteReady)).toBe(false);
   const ready = {
     ...manifests[0], status: "ready", owner: "owner@example.test",
+    binding: { targetRevision: "revision-1", configDigest: "sha256:" + "0".repeat(64) },
     environment: { name: "staging", baseUrlOrigin: "https://staging.example.test" },
     access: { approved: true, authSource: "github-environment", approvalEvidenceRef: "approval-ref" },
     scope: { allowHosts: ["staging.example.test"], pathPrefixes: ["/app"] },

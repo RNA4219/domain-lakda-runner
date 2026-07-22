@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/lakda/release-profile/v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "profileId",
+    "releaseVersion",
+    "releaseScope",
+    "artifactPrefix",
+    "fiveToolNamespace",
+    "designInputs",
+    "randAudit",
+    "requiredChecks",
+    "externalInputs",
+    "acceptanceIds"
+  ],
+  "properties": {
+    "schemaVersion": {"const": "lakda/release-profile/v1"},
+    "profileId": {"type": "string", "pattern": "^[a-z][a-z0-9-]{2,63}$"},
+    "releaseVersion": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+-rc\\.\\d+$"},
+    "releaseScope": {"type": "string", "minLength": 1, "maxLength": 160},
+    "artifactPrefix": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{2,63}$"},
+    "fiveToolNamespace": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{2,63}$"},
+    "designInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["featureSpec", "riskRegister", "manualCaseSet"],
+      "properties": {
+        "featureSpec": {"$ref": "#/$defs/portablePath"},
+        "riskRegister": {"$ref": "#/$defs/portablePath"},
+        "manualCaseSet": {"$ref": "#/$defs/portablePath"}
+      }
+    },
+    "randAudit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["preset", "evidence", "runtimePresetName"],
+      "properties": {
+        "preset": {"$ref": "#/$defs/portablePath"},
+        "evidence": {"$ref": "#/$defs/portablePath"},
+        "runtimePresetName": {"type": "string", "pattern": "^[a-z][a-z0-9_]{2,63}$"}
+      }
+    },
+    "requiredChecks": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "check",
+          "acceptance:fixture",
+          "acceptance:adaptive",
+          "pack:check",
+          "check:hate:upstream",
+          "test:contracts",
+          "test:examples"
+        ]
+      }
+    },
+    "externalInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidateRef",
+        "referenceStagingOrigin",
+        "referenceConfigPath",
+        "referenceCorpusPath",
+        "referenceCaseId",
+        "referenceTargetRevision",
+        "referenceTargetManifestPath",
+        "manualEvidencePath",
+        "releaseTag",
+        "publishRelease"
+      ],
+      "properties": {
+        "candidateRef": {"const": "candidate_ref"},
+        "referenceStagingOrigin": {"const": "reference_staging_origin"},
+        "referenceConfigPath": {"const": "reference_config_path"},
+        "referenceCorpusPath": {"const": "reference_corpus_path"},
+        "referenceCaseId": {"const": "reference_case_id"},
+        "referenceTargetRevision": {"const": "reference_target_revision"},
+        "referenceTargetManifestPath": {"const": "reference_target_manifest_path"},
+        "manualEvidencePath": {"const": "manual_evidence_path"},
+        "releaseTag": {"const": "release_tag"},
+        "publishRelease": {"const": "publish_release"}
+      }
+    },
+    "acceptanceIds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["full", "workerSmoke"],
+      "properties": {
+        "full": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{2,79}$"},
+        "workerSmoke": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{2,79}$"}
+      }
+    }
+  },
+  "$defs": {
+    "portablePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?![A-Za-z]:)(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$"
+    }
+  }
+}

@@ -2,7 +2,7 @@
 document_id: LAKDA-CHK-LX-003
 status: review-ready
 version: 0.1.0-draft
-last_updated: 2026-07-15
+last_updated: 2026-07-22
 specification: SPEC-03-INVESTIGATE-EVIDENCE.md
 evaluation: EVALUATION-LAKDA-EXTENSION.md
 ---
@@ -20,6 +20,7 @@ evaluation: EVALUATION-LAKDA-EXTENSION.md
 - [x] CHK-LX-003-S-003 — shrinking、安全、redaction、HATE/QEG、real/mock資格が定義されている。
 - [x] CHK-LX-003-S-004 — 正常、境界、異常、禁止シナリオとAC参照がある。
 - [x] CHK-LX-003-S-005 — Workflow-cookbookのPlan/Patch/Tests/Commands/Notesがある。
+- [x] CHK-LX-003-S-006 — P11 target manifest、candidate audit、接続前fail-closed契約が定義されている。
 
 ## B. 実装・受入チェック
 
@@ -45,7 +46,7 @@ evaluation: EVALUATION-LAKDA-EXTENSION.md
 
 - [ ] CHK-LX-003-A-001 — AC-LX-009〜011のreplay、promotion、shrink証跡が揃っている。
 - [ ] CHK-LX-003-A-002 — AC-LX-012でredaction、scan、digest、HATE/v1が検証済みである。
-- [ ] CHK-LX-003-A-003 — AC-LX-014でreal/mock資格、target revision、config digest、oracle/HATE refsが揃っている。
+- [ ] CHK-LX-003-A-003 — AC-LX-014でreal/mock資格、target manifest ID/SHA-256、candidate audit、target revision、config digest、oracle/HATE refsが揃っている。
 - [ ] CHK-LX-003-A-004 — LakdaがQEG record/verdict、approval、waiverを生成していない。
 
 証跡欄にはrun ID、artifact相対path、SHA-256、テストrecordのいずれかを記載する。

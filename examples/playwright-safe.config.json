@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "lakda/v1",
+  "baseUrl": "https://example.invalid/",
+  "mode": "adaptive-explore",
+  "browser": "chromium",
+  "seed": 4219,
+  "persona": "guest",
+  "durationMs": 60000,
+  "maxActions": 20,
+  "workers": 1,
+  "outputDir": ".lakda/runs",
+  "headed": false,
+  "actionCatalog": [
+    {"id": "navigate-root", "kind": "navigate", "path": "/", "accessibleName": "root"}
+  ],
+  "inputProfiles": {},
+  "safety": {
+    "allowHosts": ["example.invalid"],
+    "denyActionKinds": [],
+    "maxActionsPerMinute": 20,
+    "requireFixtureResetForMutations": false,
+    "fixtureResetConfigured": false
+  },
+  "llm": {
+    "enabled": false
+  },
+  "artifacts": {
+    "classification": "internal",
+    "trace": "retain-on-non-pass",
+    "screenshot": "retain-on-non-pass",
+    "video": false,
+    "har": false,
+    "domSnapshots": false,
+    "maxRunBytes": 10485760
+  },
+  "adaptive": {
+    "schemaVersion": "lakda/adaptive-config/v1",
+    "adapter": {"id": "playwright"},
+    "generator": {"strategy": "least-visited-transition", "version": "builtin/v1"},
+    "actionContracts": [],
+    "stopWhen": {
+      "any": [
+        {"type": "noveltyPlateau", "windowActions": 5, "minActions": 3},
+        {"type": "durationMs", "atMost": 60000}
+      ]
+    },
+    "settlePolicy": {
+      "policyVersion": "settle/v1",
+      "maxWaitMs": 3000,
+      "stableWindowMs": 250
+    },
+    "fingerprintPolicy": {
+      "algorithmVersion": "sha256/v1",
+      "canonicalizationVersion": "canonical/v1"
+    },
+    "recovery": {
+      "maxBacktracks": 2,
+      "maxAttemptsPerState": 2
+    },
+    "safety": {
+      "allowTargetKinds": ["page", "frame", "dialog"],
+      "denyActionIds": [],
+      "allowMutationKinds": ["none"]
+    }
+  }
+}

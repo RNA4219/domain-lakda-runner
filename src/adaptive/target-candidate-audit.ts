@@ -36,6 +36,15 @@ function stableActionId(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
 }
 
+function hasResolvedMutationClassification(value: unknown): boolean {
+  if (!isRecord(value) || typeof value.mutationKind !== "string" || value.mutationKind === "unknown") return false;
+  const classification = value.mutationClassification;
+  return isRecord(classification)
+    && ["mechanical", "action-contract", "heuristic"].includes(String(classification.source))
+    && typeof classification.ruleId === "string"
+    && classification.ruleId.length > 0;
+}
+
 export function auditTargetCandidateCoverage(snapshotsValue: unknown, requirements: AuditRequirements): TargetCandidateAudit {
   const violations: string[] = [];
   const snapshots = Array.isArray(snapshotsValue) ? snapshotsValue : [];
@@ -58,9 +67,10 @@ export function auditTargetCandidateCoverage(snapshotsValue: unknown, requiremen
     const coverageDebt = snapshot.coverageDebt as CoverageDebt[];
     candidateCount += candidates.length;
     coverageDebtCount += coverageDebt.length;
-    for (const candidate of candidates) {
+    for (const [candidateIndex, candidate] of candidates.entries()) {
       const actionId = stableActionId(candidate?.mutationClassification?.actionId);
       if (actionId) observedActionIds.add(actionId);
+      if (!hasResolvedMutationClassification(candidate)) violations.push(`candidate_mutation_unclassified:${index}:${candidateIndex}`);
     }
     for (const debt of coverageDebt) {
       const actionId = stableActionId(debt?.actionId);
@@ -78,6 +88,8 @@ export function auditTargetCandidateCoverage(snapshotsValue: unknown, requiremen
     if (classification.classifiedControls !== candidates.length + coverageDebt.length) violations.push(`candidate_classification_count_mismatch:${index}`);
     if (classification.observedControls !== classification.classifiedControls || classification.unclassifiedControls !== 0) violations.push(`candidate_classification_incomplete:${index}`);
   });
+
+  if (coverageDebtCount > 0) violations.push("candidate_coverage_debt_present");
 
   const p0 = [...new Set(requirements.p0ActionIds)].sort();
   const p1 = [...new Set(requirements.p1ActionIds)].sort();

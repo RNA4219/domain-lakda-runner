@@ -2,7 +2,7 @@
 document_id: LAKDA-SPEC-AE-002
 status: review-ready
 version: 0.1.0-draft
-last_updated: 2026-07-14
+last_updated: 2026-07-22
 requirements: ../../../REQUIREMENTS-ADAPTIVE-EXPLORATION.md
 checklist: CHECKLIST-02-STATE-GRAPH-EXPLORATION.md
 ---
@@ -94,6 +94,12 @@ Generatorは実行可能candidate集合、graph snapshot、obligation、top-leve
 | `llm-select` | 提示済みcandidate IDからのみ選択する独立Generator |
 
 最初の受入対象は`random`、`weighted-random`、`least-visited-transition`とする。後二者はcapabilityとして明示し、未実装時に別strategyへ暗黙fallbackしない。
+
+### 5.2 `llm-select` strict selection
+
+`llm-select`はLocal LLMへSafety Policy適用済みcandidateのIDとredaction済みgraph summaryだけを提示し、strict JSONの`select`または`stop`だけを受理する。selector、URL、input、path、code、command、Safety Policy変更、oracle verdict、QEG verdictをpromptまたはresponseへ含めない。追加key、duplicate key、提示外candidate ID、未知versionは応答全体をrejectする。
+
+LLMが不在、timeout、model/schema不一致、意味的不合格の場合は`random`その他のGeneratorへ暗黙fallbackしない。runを`partial`、termination reasonを`llm_error`として停止し、attestation ref、input/output digest、reject reasonをredaction済み証跡へ保存する。LLMの明示的`stop`は正常なGenerator停止として記録するが、run pass/failやoracle resultを上書きしない。
 
 ### 5.2 決定性
 

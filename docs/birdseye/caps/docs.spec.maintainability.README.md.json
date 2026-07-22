@@ -1,0 +1,11 @@
+{
+  "id": "docs/spec/maintainability/README.md",
+  "role": "doc",
+  "public_api": [],
+  "summary": "docs/spec/maintainability/README.md",
+  "deps_out": [],
+  "deps_in": [],
+  "risks": [],
+  "tests": [],
+  "generated_at": "00038"
+}

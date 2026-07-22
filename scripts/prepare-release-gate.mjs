@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { assembleReleaseQegInput } from "./release-gate-evidence.mjs";
 
@@ -10,9 +11,16 @@ const values = Object.fromEntries(required.map(name => [name, flag(name)]));
 const missing = required.filter(name => !values[name]);
 if (missing.length) throw new Error("不足している引数: " + missing.join(", "));
 
+const releaseProfilePath = resolve(flag("release-profile") ?? "release-profiles/current.json");
+const releaseProfile = JSON.parse(await readFile(releaseProfilePath, "utf8"));
+if (releaseProfile.schemaVersion !== "lakda/release-profile/v1") throw new Error("release profile schema is unsupported");
+if (releaseProfile.releaseVersion !== values["release-version"]) throw new Error("release profile version does not match release-version");
 const result = await assembleReleaseQegInput({
   revision: values.revision,
   releaseVersion: values["release-version"],
+  profileId: releaseProfile.profileId,
+  fiveToolNamespace: releaseProfile.fiveToolNamespace,
+  featureSpecPath: releaseProfile.designInputs.featureSpec,
   stagingOrigin: values["staging-origin"],
   fullReport: resolve(values["full-report"]),
   fullBundle: resolve(values["full-bundle"]),

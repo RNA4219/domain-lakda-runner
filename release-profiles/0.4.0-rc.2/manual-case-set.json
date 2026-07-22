@@ -1,0 +1,90 @@
+{
+  "feature_id": "LAKDA-RC-402",
+  "manual_cases": [
+    {
+      "tc_id": "TC-LAKDA-RC402-001",
+      "title": "current profileとfreeze済みcandidate identityを照合する",
+      "priority": "P0",
+      "primary_view": "gray",
+      "techniques": ["independent_reverification", "state_transition"],
+      "preconditions": ["candidate SHAとpackage versionがfreeze済み", "current profileと全design inputが存在する"],
+      "steps": ["profile schemaとpackage versionを照合する", "design inputとrequired checkを確認する", "prepared evidenceのrevision/profile digestを確認する"],
+      "expected_results": ["profileとpackage versionが一致する", "全参照がportableで対象SHAに存在する", "stale profileまたは変更後sourceはGateを通らない"],
+      "oracle": {"type": "specified", "refs": ["AC-RC402-001", "AC-MNT-002"]},
+      "source_ref": {"type": "acceptance", "refs": ["AC-RC402-001"]},
+      "estimate_minutes": 20,
+      "trace_to": ["RISK-RC402-01", "OBS-GOV-01"]
+    },
+    {
+      "tc_id": "TC-LAKDA-RC402-002",
+      "title": "P7/P11の接続前preflightとtarget manifestを確認する",
+      "priority": "P0",
+      "primary_view": "black",
+      "techniques": ["decision_table", "state_transition", "negative_testing"],
+      "preconditions": ["承認済みreference staging", "immutable corpus/config/target manifest/revision"],
+      "steps": ["正常入力でP11 caseを実行する", "manifest、revision、config digest、mutationを各1件不一致にして再試行する", "接続記録とexit codeを確認する"],
+      "expected_results": ["正常時だけtargetへ接続する", "不一致は接続0回、pending_external、exit 2になる", "P0/P1 candidate audit欠落をpassedにしない"],
+      "oracle": {"type": "specified", "refs": ["AC-RC402-002", "AC-MNT-003", "AC-MNT-004"]},
+      "source_ref": {"type": "acceptance", "refs": ["AC-RC402-002"]},
+      "estimate_minutes": 30,
+      "trace_to": ["RISK-RC402-02", "OBS-PREFLIGHT-01"]
+    },
+    {
+      "tc_id": "TC-LAKDA-RC402-003",
+      "title": "registryとstrict llm-selectの安全境界を確認する",
+      "priority": "P0",
+      "primary_view": "gray",
+      "techniques": ["equivalence_partitioning", "negative_testing"],
+      "preconditions": ["attested loopback LLM", "固定candidate corpus"],
+      "steps": ["組み込みIDで実行する", "未知ID/capabilityを指定する", "提示外candidate、extra key、selector/URL/command、timeoutを投入する"],
+      "expected_results": ["組み込みIDだけを解決する", "不正応答を100%拒否する", "randomへfallbackせずpartial/llm_errorを記録する"],
+      "oracle": {"type": "specified", "refs": ["AC-RC402-002", "AC-MNT-005", "AC-MNT-006"]},
+      "source_ref": {"type": "acceptance", "refs": ["AC-RC402-002"]},
+      "estimate_minutes": 30,
+      "trace_to": ["RISK-RC402-03", "OBS-LLM-01"]
+    },
+    {
+      "tc_id": "TC-LAKDA-RC402-004",
+      "title": "run catalogとgraph comparisonの独立再検証を確認する",
+      "priority": "P1",
+      "primary_view": "gray",
+      "techniques": ["independent_reverification", "tamper_testing"],
+      "preconditions": ["比較可能な2 run", "各runのHATE manifestとgraph"],
+      "steps": ["list/show/compareを実行する", "state/transition/coverage差分を照合する", "artifact改ざん、graph version不一致、path traversalを投入する"],
+      "expected_results": ["正常比較はcanonicalで決定的である", "入力runは変更されない", "全negativeを非0で拒否する"],
+      "oracle": {"type": "specified", "refs": ["AC-RC402-002", "AC-MNT-007", "AC-MNT-008"]},
+      "source_ref": {"type": "acceptance", "refs": ["AC-RC402-002"]},
+      "estimate_minutes": 25,
+      "trace_to": ["RISK-RC402-04", "OBS-RUN-01"]
+    },
+    {
+      "tc_id": "TC-LAKDA-RC402-005",
+      "title": "module分割互換とsanitized examplesを確認する",
+      "priority": "P0",
+      "primary_view": "gray",
+      "techniques": ["regression_testing", "security_testing"],
+      "preconditions": ["characterisation test結果", "npm package tarball"],
+      "steps": ["公開export/CLI help/action sequenceを分割前baselineと比較する", "全exampleをschema検証する", "packageとexampleをsecret/PII scanする"],
+      "expected_results": ["公開契約差分0件", "example schema違反0件", "credential、storageState、ready real target残存0件"],
+      "oracle": {"type": "specified", "refs": ["AC-RC402-001", "AC-MNT-009", "AC-MNT-010"]},
+      "source_ref": {"type": "acceptance", "refs": ["AC-RC402-001"]},
+      "estimate_minutes": 25,
+      "trace_to": ["RISK-RC402-05", "OBS-PACKAGE-01"]
+    },
+    {
+      "tc_id": "TC-LAKDA-RC402-006",
+      "title": "five-tool chainと外部QEG最終権限を確認する",
+      "priority": "P0",
+      "primary_view": "gray",
+      "techniques": ["decision_table", "independent_reverification"],
+      "preconditions": ["RanD、Code-to-gate、HATE、manual-bb、QEG artifactが対象SHAに揃う"],
+      "steps": ["各tool revisionとartifact hashを照合する", "QEG schema/evidence/gate/recordを確認する", "QEG go以外のrelease阻止を確認する"],
+      "expected_results": ["five-tool順序と対象SHAを追跡できる", "非QEG toolが最終Goを主張しない", "QEG goとP0/P1 blockerなしの場合だけpublish可能である"],
+      "oracle": {"type": "specified", "refs": ["AC-RC402-003"]},
+      "source_ref": {"type": "acceptance", "refs": ["AC-RC402-003"]},
+      "estimate_minutes": 30,
+      "trace_to": ["RISK-RC402-01", "RISK-RC402-06", "OBS-GATE-01"]
+    }
+  ],
+  "exploratory_charters": []
+}

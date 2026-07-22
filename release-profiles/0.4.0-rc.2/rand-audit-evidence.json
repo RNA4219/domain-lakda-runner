@@ -1,0 +1,91 @@
+{
+  "items": [
+    {
+      "id": "lakda-current-001",
+      "kind": "audit_evidence",
+      "source_name": "lakda_release_profile",
+      "url": "fixture://lakda/current/profile-bound-gate",
+      "title": "current profileとcandidate revisionの固定",
+      "summary": "RC402-001: package version、source SHA、profile、design input、QEG入力を同じfreeze対象へ結び付ける。",
+      "claims": ["release tagはQEG goの対象SHAだけを指す", "profileまたはsource変更はGate再実行を要求する"],
+      "evidence": ["fixture primary: release-profiles/current.json"],
+      "tags": ["audit", "official", "ja-JP"],
+      "priority": 10,
+      "high_priority": true,
+      "metadata": {
+        "requirement_id": "AC-RC402-001",
+        "original_text": "current release profileとpackage versionが一致し、全local checkを対象SHAへ固定する。",
+        "source_type": "official",
+        "source_tier": "primary",
+        "locale": "ja-JP",
+        "freshness_days": 1,
+        "kano_type": "must_be",
+        "confidence": 0.97,
+        "weight": 1.0,
+        "testability": "high",
+        "implementation_alignment": "high",
+        "risks": ["stale profileまたは過去revisionのGate結果を引用する"],
+        "issues": [],
+        "suggested_action": "SHA、package version、profile digest、evidence hashをGate前後で再照合する。"
+      }
+    },
+    {
+      "id": "lakda-current-002",
+      "kind": "audit_evidence",
+      "source_name": "lakda_maintainability_requirements",
+      "url": "fixture://lakda/current/fail-closed-contracts",
+      "title": "acceptance・registry・comparisonのfail-closed境界",
+      "summary": "RC402-002: 接続前preflight、strict llm-select、run tamper検証を独立再検証する。",
+      "claims": ["fixture成功はreal target受入を代替しない", "未知ref、scope外、LLM提示外candidate、tamperを拒否する"],
+      "evidence": ["fixture primary: REQUIREMENTS-MAINTAINABILITY.md"],
+      "tags": ["audit", "official", "ja-JP"],
+      "priority": 10,
+      "high_priority": true,
+      "metadata": {
+        "requirement_id": "AC-RC402-002",
+        "original_text": "P7/P11、registry、llm-select、run比較のfail-closed negativeを再検証する。",
+        "source_type": "official",
+        "source_tier": "primary",
+        "locale": "ja-JP",
+        "freshness_days": 1,
+        "kano_type": "must_be",
+        "confidence": 0.96,
+        "weight": 1.0,
+        "testability": "high",
+        "implementation_alignment": "high",
+        "risks": ["入力不整合をsilent fallbackまたはpartial successで隠す"],
+        "issues": [],
+        "suggested_action": "接続0回、nonzero exit、tamper拒否、no-fallbackをnegative testで固定する。"
+      }
+    },
+    {
+      "id": "lakda-current-003",
+      "kind": "audit_evidence",
+      "source_name": "lakda_release_policy",
+      "url": "fixture://lakda/current/five-tool-boundary",
+      "title": "five-tool chainと外部QEG最終権限",
+      "summary": "RC402-003: RanD、Code-to-gate、HATE、manual-bb、QEGを順に接続し、QEG以外は最終Goを生成しない。",
+      "claims": ["QEG go以外ではreleaseを作成しない", "実target未承認時はpending_externalを維持する"],
+      "evidence": ["fixture primary: release-profiles/0.4.0-rc.2/feature-spec.json"],
+      "tags": ["audit", "official", "ja-JP"],
+      "priority": 10,
+      "high_priority": true,
+      "metadata": {
+        "requirement_id": "AC-RC402-003",
+        "original_text": "real evidenceとfive-tool chainを対象SHAへ結び、QEG以外が最終Goを生成しない。",
+        "source_type": "official",
+        "source_tier": "primary",
+        "locale": "ja-JP",
+        "freshness_days": 1,
+        "kano_type": "must_be",
+        "confidence": 0.98,
+        "weight": 1.0,
+        "testability": "high",
+        "implementation_alignment": "high",
+        "risks": ["部分証跡または非QEG判断をfinal Gateへ昇格する"],
+        "issues": [],
+        "suggested_action": "five-tool manifestでrevision、artifact hash、QEG policy hash、verdictを再検証する。"
+      }
+    }
+  ]
+}

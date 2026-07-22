@@ -307,7 +307,9 @@ export async function runLakda(config: LakdaConfig, replayInput?: string, runtim
         execution = { outcome: "error", terminationReason: "llm_error" };
       }
     } else if (config.mode === "adaptive-explore") {
-      execution = await runAdaptiveExplore(config, collector, resolvedRuntime);
+      const adaptiveExecution = await runAdaptiveExplore(config, collector, resolvedRuntime);
+      execution = adaptiveExecution;
+      llmStatus = adaptiveExecution.llmStatus;
     } else {
       plan = createActionPlan(config, config.mode);
       llmStatus = config.llm.enabled ? await probeLlm(config) : "not_requested";

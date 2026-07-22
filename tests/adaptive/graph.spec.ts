@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { StateGraph } from "../../src/adaptive/graph.js";
+import { selectAdaptiveGenerator } from "../../src/adaptive/generators.js";
 import type { ActionCandidate, ExecutionResult, OracleResult } from "../../src/adaptive/contracts.js";
 
 function candidate(id: string, sourceFingerprint: string, weight = 1): ActionCandidate {
@@ -83,12 +84,15 @@ test("graph separates action, timeout, and backtrack control transitions", () =>
   expect(graph.coverage().action).toEqual({ numerator: 1, denominator: 1, ratio: 1 });
 });
 
-test("weighted-random uses one cumulative seeded draw over stable candidate order", () => {
+test("weighted-random uses one cumulative seeded draw over stable candidate order", async () => {
   const graph = new StateGraph();
   const candidates = [candidate("a", "state:one", 1), candidate("b", "state:one", 3)];
   let calls = 0;
-  expect(graph.choose(candidates, "weighted-random", () => { calls += 1; return 0.2; })?.candidateId).toBe("a");
+  const first = await selectAdaptiveGenerator("weighted-random", { candidates, graph, random: () => { calls += 1; return 0.2; } });
+  expect(first.kind === "candidate" ? first.candidate.candidateId : undefined).toBe("a");
   expect(calls).toBe(1);
-  expect(graph.choose(candidates, "weighted-random", () => 0.25)?.candidateId).toBe("b");
-  expect(graph.choose([...candidates].reverse(), "weighted-random", () => 0.2)?.candidateId).toBe("a");
+  const second = await selectAdaptiveGenerator("weighted-random", { candidates, graph, random: () => 0.25 });
+  expect(second.kind === "candidate" ? second.candidate.candidateId : undefined).toBe("b");
+  const reversed = await selectAdaptiveGenerator("weighted-random", { candidates: [...candidates].reverse(), graph, random: () => 0.2 });
+  expect(reversed.kind === "candidate" ? reversed.candidate.candidateId : undefined).toBe("a");
 });

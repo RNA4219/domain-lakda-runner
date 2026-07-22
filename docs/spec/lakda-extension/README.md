@@ -14,9 +14,11 @@ P8〜P11の追加経路を、既存のObservation、ActionCandidate、ExecutionR
 
 各仕様には対応チェックリストを紐付ける。
 
-- [Checklist-01 Combination](CHECKLIST-01-COMBINATION.md)
-- [Checklist-02 Scouting](CHECKLIST-02-SCOUTING.md)
-- [Checklist-03 Investigation/Evidence](CHECKLIST-03-INVESTIGATION-EVIDENCE.md)
+- [Checklist-01 Combination](CHECKLIST-01-COMBINATION-TESTING.md)
+- [Checklist-02 Scouting](CHECKLIST-02-SIGNAL-LLM-SCOUTING.md)
+- [Checklist-03 Investigation/Evidence](CHECKLIST-03-INVESTIGATE-EVIDENCE.md)
+
+短縮名の3文書は既存リンク互換のための非規範aliasであり、チェック項目と完了判定を持たない。
 
 ## 2. Combination契約（P8）
 

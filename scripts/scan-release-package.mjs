@@ -5,12 +5,13 @@ import { findSensitive } from "../dist/core/redaction.js";
 
 const rootArg = process.argv.find(value => value.startsWith("--path="))?.slice("--path=".length);
 const outputArg = process.argv.find(value => value.startsWith("--out="))?.slice("--out=".length);
-if (!rootArg) throw new Error("usage: scan-release-package --path=<unpacked-package> [--out=<result.json>]");
+const profileArg = process.argv.find(value => value.startsWith("--release-profile="))?.slice("--release-profile=".length) ?? "release-profiles/current.json";
+if (!rootArg) throw new Error("usage: scan-release-package --path=<unpacked-package> [--out=<result.json>] [--release-profile=<profile.json>]");
 const root = resolve(rootArg);
 const allowedTopLevels = new Set([
   "CHANGELOG.md", "LICENSE", "LICENSE.ja.md", "NOTICE", "LICENSING.md",
   "COMMERCIAL-LICENSE.md", "THIRD_PARTY_NOTICES.md", "README.md", "RUNBOOK.md",
-  "dist", "package.json", "schemas", "vendor",
+  "dist", "examples", "package.json", "schemas", "vendor",
 ]);
 const allowedExtensions = new Set([".js", ".ts", ".map", ".json", ".md"]);
 const allowedExtensionless = new Set(["LICENSE", "NOTICE"]);
@@ -56,7 +57,9 @@ descriptors.sort((left, right) => left.path.localeCompare(right.path));
 const paths = new Set(descriptors.map(value => value.path));
 for (const required of requiredPaths) if (!paths.has(required)) throw new Error("release package is missing a required file: " + required);
 const packageJson = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
-if (packageJson.version !== "0.4.0-rc.1" || packageJson.private !== true || packageJson.main !== "./dist/index.js" || packageJson.types !== "./dist/index.d.ts" || packageJson.exports?.["."]?.import !== "./dist/index.js") {
+const releaseProfile = JSON.parse(await readFile(resolve(profileArg), "utf8"));
+if (releaseProfile.schemaVersion !== "lakda/release-profile/v1" || typeof releaseProfile.releaseVersion !== "string") throw new Error("release profile contract mismatch");
+if (packageJson.version !== releaseProfile.releaseVersion || packageJson.private !== true || packageJson.main !== "./dist/index.js" || packageJson.types !== "./dist/index.d.ts" || packageJson.exports?.["."]?.import !== "./dist/index.js") {
   throw new Error("release package metadata contract mismatch");
 }
 const commercialLicense = await readFile(resolve(root, "COMMERCIAL-LICENSE.md"), "utf8");

@@ -154,6 +154,10 @@ export async function assembleReleaseQegInput(options) {
     artifact("lakda:artifact-reference-staging", "lakda", "reference-staging-real-acceptance", summaries.referenceStaging.path, summaries.referenceStaging.sha256, revision),
   ];
   const releaseId = releaseVersion.replace(/[^A-Za-z0-9]+/g, "-");
+  const fiveToolNamespace = options.fiveToolNamespace ?? "lakda-" + releaseId.toLowerCase();
+  assert(/^[a-z0-9][a-z0-9-]{2,63}$/.test(fiveToolNamespace), "fiveToolNamespace is invalid");
+  const featureSpecPath = options.featureSpecPath ?? "docs/release-gate/feature_spec.json";
+  assert(!/^([A-Za-z]:|\/)/.test(featureSpecPath) && !/(^|[\\/])\.\.([\\/]|$)/.test(featureSpecPath), "featureSpecPath is not portable");
   const createdAt = options.createdAt ?? new Date().toISOString();
   const metadata = {
     qegVersion: "0.2",
@@ -171,12 +175,12 @@ export async function assembleReleaseQegInput(options) {
     ],
   };
   const requirementId = "qeg:req-lakda-" + releaseId + "-release";
-  const acEvidenceId = "qeg:ac-rc5-evidence";
-  const acGateId = "qeg:ac-rc5-gate";
+  const acEvidenceId = "qeg:ac-" + fiveToolNamespace + "-evidence";
+  const acGateId = "qeg:ac-" + fiveToolNamespace + "-gate";
   const nodes = [
-    { id: requirementId, kind: "requirement", title: releaseVersion + " release evidence is revision-bound and independently verifiable", priority: "P0", acceptanceCriteriaIds: [acEvidenceId, acGateId], traceability: trace("qeg:sr-feature-spec", "docs/release-gate/feature_spec.json"), sourceArtifactIds: inputArtifacts.map(value => value.id) },
-    { id: acEvidenceId, kind: "acceptance_criteria", title: "revision-bound deterministic, adaptive, package, and real acceptance evidence", requirementIds: [requirementId], traceability: trace("qeg:sr-ac-evidence", "docs/release-gate/feature_spec.json"), sourceArtifactIds: [inputArtifacts[0].id, inputArtifacts[1].id, inputArtifacts[2].id, inputArtifacts[5].id] },
-    { id: acGateId, kind: "acceptance_criteria", title: "five-tool gate and real reference staging manual verification", requirementIds: [requirementId], traceability: trace("qeg:sr-ac-gate", "docs/release-gate/feature_spec.json"), sourceArtifactIds: inputArtifacts.map(value => value.id) },
+    { id: requirementId, kind: "requirement", title: releaseVersion + " release evidence is revision-bound and independently verifiable", priority: "P0", acceptanceCriteriaIds: [acEvidenceId, acGateId], traceability: trace("qeg:sr-feature-spec", featureSpecPath), sourceArtifactIds: inputArtifacts.map(value => value.id) },
+    { id: acEvidenceId, kind: "acceptance_criteria", title: "revision-bound deterministic, adaptive, package, and real acceptance evidence", requirementIds: [requirementId], traceability: trace("qeg:sr-ac-evidence", featureSpecPath), sourceArtifactIds: [inputArtifacts[0].id, inputArtifacts[1].id, inputArtifacts[2].id, inputArtifacts[5].id] },
+    { id: acGateId, kind: "acceptance_criteria", title: "five-tool gate and real reference staging manual verification", requirementIds: [requirementId], traceability: trace("qeg:sr-ac-gate", featureSpecPath), sourceArtifactIds: inputArtifacts.map(value => value.id) },
     { id: "rand:evidence-requirements-audit", kind: "execution_evidence", title: "RanD requirements audit packet and handoff verified", passed: true, traceability: trace("rand:sr-audit", summaries.rand.path), sourceArtifactIds: [inputArtifacts[0].id] },
     { id: "lakda:evidence-reference-staging", kind: "execution_evidence", title: "Verified real reference staging P11 acceptance", passed: true, traceability: trace("lakda:sr-reference-staging", summaries.referenceStaging.path), sourceArtifactIds: [inputArtifacts[6].id] },
     { id: "hate:test-real-llm-full", kind: "test", title: "Real Qwen full 90 child runs", testExecutionMode: "real", evidenceStrength: 1, recentGreenRuns: 90, traceability: trace("hate:sr-full", summaries.full.path), sourceArtifactIds: [inputArtifacts[1].id] },
@@ -191,8 +195,8 @@ export async function assembleReleaseQegInput(options) {
   }
   const edge = (id, kind, from, to, sourceId, path) => ({ id, kind, from, to, traceability: trace(sourceId, path) });
   const edges = [
-    edge("qeg:edge-evidence-requirement", "satisfies", acEvidenceId, requirementId, "qeg:sr-evidence-edge", "docs/release-gate/feature_spec.json"),
-    edge("qeg:edge-gate-requirement", "satisfies", acGateId, requirementId, "qeg:sr-gate-edge", "docs/release-gate/feature_spec.json"),
+    edge("qeg:edge-evidence-requirement", "satisfies", acEvidenceId, requirementId, "qeg:sr-evidence-edge", featureSpecPath),
+    edge("qeg:edge-gate-requirement", "satisfies", acGateId, requirementId, "qeg:sr-gate-edge", featureSpecPath),
     edge("rand:edge-audit-gate", "supports", "rand:evidence-requirements-audit", acGateId, "rand:sr-audit-gate", summaries.rand.path),
     edge("lakda:edge-reference-staging-gate", "supports", "lakda:evidence-reference-staging", acGateId, "lakda:sr-reference-staging-gate", summaries.referenceStaging.path),
     edge("hate:edge-full-evidence", "evidenced_by", "hate:test-real-llm-full", "hate:evidence-real-llm-full", "hate:sr-full-edge", summaries.full.path),
@@ -204,8 +208,9 @@ export async function assembleReleaseQegInput(options) {
   ];
   for (const item of manual.manualEvidence) edges.push(edge("mbb:edge-" + item.executedCaseId.slice(4) + "-gate", "supports", item.executedCaseId, acGateId, "mbb:sr-edge-" + item.executedCaseId.slice(4), summaries.manual.path));
 
-  const policyHash = shaRef(sha256(canonicalJson({ id: "qeg:policy-lakda-rc5", profile: "strict", source: "docs/release-gate/feature_spec.json#AC-RC5-003", releaseVersion })));
-  const policy = { policyId: "qeg:policy-lakda-rc5", policyHash, profile: "strict", effectiveDate: createdAt, approver: options.approver, sourceRefs: [{ id: "qeg:sr-release-policy", path: "docs/release-gate/feature_spec.json" }], dqScope: Array.from({ length: 17 }, (_, index) => "DQ-" + String(index + 1).padStart(2, "0")), exitCodePolicy: { go: 0, conditional_go: 2, no_go: 2, disqualified: 2 } };
+  const policyId = "qeg:policy-" + fiveToolNamespace;
+  const policyHash = shaRef(sha256(canonicalJson({ id: policyId, profile: "strict", source: featureSpecPath + "#release-gate", releaseVersion })));
+  const policy = { policyId, policyHash, profile: "strict", effectiveDate: createdAt, approver: options.approver, sourceRefs: [{ id: "qeg:sr-release-policy", path: featureSpecPath }], dqScope: Array.from({ length: 17 }, (_, index) => "DQ-" + String(index + 1).padStart(2, "0")), exitCodePolicy: { go: 0, conditional_go: 2, no_go: 2, disqualified: 2 } };
   const chainEvidenceHash = shaRef(sha256(canonicalJson({ revision, releaseVersion, artifacts: inputArtifacts.map(value => value.contentHash), createdAt })));
   const approvalSource = options.workflowUrl || "github-actions://manual-release-environment";
   const optionalEvidence = {

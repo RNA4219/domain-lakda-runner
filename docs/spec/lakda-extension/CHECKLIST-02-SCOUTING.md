@@ -1,21 +1,13 @@
-# Lakda拡張 Checklist-02: Signal/Lead/Scout
+---
+document_id: LAKDA-CHK-LX-002-ALIAS
+status: non-normative-alias
+version: 1.0.0
+last_updated: 2026-07-22
+alias_of: CHECKLIST-02-SIGNAL-LLM-SCOUTING.md
+---
 
-## A. 仕様・実装前
+# Checklist-02 Signal/Lead/Scout（非規範alias）
 
-- [x] Signalはrule-first、source ref必須、stable ID・dedupeとした
-- [x] Lead capを1〜3に制限し、未調査Leadをfinding扱いにした
-- [x] scout responseをstrict JSON、additional key/unknown ref拒否とした
-- [x] loopback以外のprovider切替とLLMの操作権限を禁止した
+この文書は互換リンク専用であり、チェック項目・完了状態・受入判定の正本ではない。
 
-## B. ローカル実証
-
-- [x] timeout/oracle/topology/coverage/safety Signalをfixture traceから生成した
-- [x] rule-only fallbackを検証した
-- [x] unknown Lead/extra keyをrejectした
-- [x] npm run typecheck、npm run lint、対象Playwright testsがpassした
-
-## C. 外部・残課題
-
-- [ ] attested loopback modelでscout JSONL evidenceを取得する（pending_external）
-- [ ] 実Leadのmanual investigationを実施する（external）
-- [ ] LLM usefulness/replayability KPIのrevision baselineを決める（external）
+正本: [CHECKLIST-02-SIGNAL-LLM-SCOUTING.md](CHECKLIST-02-SIGNAL-LLM-SCOUTING.md)

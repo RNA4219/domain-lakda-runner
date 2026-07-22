@@ -1,0 +1,65 @@
+{
+  "feature_id": "LAKDA-RC-402",
+  "risks": [
+    {
+      "id": "RISK-RC402-01",
+      "scenario": "stale release profileまたは過去revisionのGate結果をcurrent sourceへ引用する",
+      "impact": 5,
+      "likelihood": 3,
+      "score": 80,
+      "priority": "P0",
+      "rationale": "package、source、設計入力、release tagのidentityが乖離する",
+      "trace_to": ["TC-LAKDA-RC402-001", "TC-LAKDA-RC402-006"]
+    },
+    {
+      "id": "RISK-RC402-02",
+      "scenario": "P7/P11のpreflight分岐またはtarget manifest不足を接続後に検出する",
+      "impact": 5,
+      "likelihood": 3,
+      "score": 84,
+      "priority": "P0",
+      "rationale": "未承認target、scope外操作、誤ったreal evidenceを生む",
+      "trace_to": ["TC-LAKDA-RC402-002"]
+    },
+    {
+      "id": "RISK-RC402-03",
+      "scenario": "LLMが提示外candidate、selector、URL、command、oracle verdictを生成し実行へ影響する",
+      "impact": 5,
+      "likelihood": 2,
+      "score": 75,
+      "priority": "P0",
+      "rationale": "Safety Policyと再現性の境界が崩れる",
+      "trace_to": ["TC-LAKDA-RC402-003"]
+    },
+    {
+      "id": "RISK-RC402-04",
+      "scenario": "改ざんrunまたは非互換graphを比較して回帰判断へ使用する",
+      "impact": 4,
+      "likelihood": 2,
+      "score": 60,
+      "priority": "P1",
+      "rationale": "誤った品質差分と証跡追跡を生む",
+      "trace_to": ["TC-LAKDA-RC402-004"]
+    },
+    {
+      "id": "RISK-RC402-05",
+      "scenario": "module分割またはexample配布で既存契約、secret、real-ready targetが漏れる",
+      "impact": 5,
+      "likelihood": 2,
+      "score": 70,
+      "priority": "P0",
+      "rationale": "後方互換破壊またはcredential/PII漏えいを招く",
+      "trace_to": ["TC-LAKDA-RC402-005"]
+    },
+    {
+      "id": "RISK-RC402-06",
+      "scenario": "RanD、Code-to-gate、HATE、manual-bb、QEGの欠落または非QEGのGo主張を見逃す",
+      "impact": 5,
+      "likelihood": 2,
+      "score": 72,
+      "priority": "P0",
+      "rationale": "独立Gateと最終権限の境界が崩れる",
+      "trace_to": ["TC-LAKDA-RC402-006"]
+    }
+  ]
+}

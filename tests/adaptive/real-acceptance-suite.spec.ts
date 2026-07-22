@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
@@ -34,7 +34,15 @@ function artifact(path: string, bytes: Buffer, kind: "report" | "log" = "report"
   };
 }
 
-async function createSuite(root: string, count: number): Promise<string> {
+type MutableAcceptanceReport = {
+  acceptanceId: string;
+  revision: string;
+  runnerRevision: string;
+  actual: { outcome: string; terminationReason: string; exitCode: number };
+  corpus: { corpusId: string; version: string; sha256: string; targetRevision: string; caseConfigDigest: string };
+};
+
+async function createSuite(root: string, count: number, mutateReport?: (report: MutableAcceptanceReport, index: number) => void): Promise<string> {
   const reports: Array<{ path: string; sha256: string }> = [];
   const fixedDigest = "sha256:" + "a".repeat(64);
   for (let index = 1; index <= count; index += 1) {
@@ -55,7 +63,7 @@ async function createSuite(root: string, count: number): Promise<string> {
       caseId,
       runId: "run-" + caseId,
       attempt: 1,
-      revision: "product-revision-" + index,
+      revision: "product-revision-1",
       runnerRevision: "abcdef0",
       executionMode: "real",
       environment: { label: "fixture-structure-only", origin: "https://staging.example.test", adapterId: "playwright" },
@@ -63,7 +71,7 @@ async function createSuite(root: string, count: number): Promise<string> {
       seed: index,
       configDigest: fixedDigest,
       targetManifest: { manifestId: "fixture-target", sha256: fixedDigest },
-      corpus: { corpusId: "corpus-" + index, version: "1", sha256: fixedDigest, targetRevision: "product-revision-" + index, caseConfigDigest: fixedDigest },
+      corpus: { corpusId: "fixed-corpus", version: "1", sha256: fixedDigest, targetRevision: "product-revision-1", caseConfigDigest: fixedDigest },
       expected: { outcome: "passed" },
       actual: { outcome: "passed", terminationReason: "completed", exitCode: 0 },
       oracleResultRefs: [oracleArtifact],
@@ -74,6 +82,7 @@ async function createSuite(root: string, count: number): Promise<string> {
       qegHandoff: { status: "pending_external", verdictGeneratedByLakda: false },
       generatedAt: "2026-07-15T00:00:00.000Z",
     };
+    mutateReport?.(report, index);
     const reportBytes = Buffer.from(JSON.stringify(report, null, 2) + "\n", "utf8");
     await writeFile(reportPath, reportBytes);
     const reportArtifact = artifact("adaptive/acceptance-case-" + caseId + ".json", reportBytes, "report");
@@ -107,7 +116,7 @@ test("P7 suite verifier rejects structurally valid but incomplete AC coverage", 
   try {
     const result = await run(await createSuite(directory, 1));
     expect(result.code).toBe(2);
-    expect(result.stderr).toContain("suite is missing acceptance IDs");
+    expect(result.stderr).toContain("exactly 16 case reports");
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -128,6 +137,76 @@ test("P7 suite verifier requires all 16 AC while keeping manual-bb and QEG exter
     expect(readiness.p7Status).toBe("pending_external");
     expect(readiness.acceptanceIds).toHaveLength(16);
     expect(readiness.qegHandoff.verdictGeneratedByLakda).toBe(false);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+
+test("P7 suite verifier rejects a hash-consistent report with an impossible outcome exit code", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "lakda-p7-suite-semantic-"));
+  try {
+    const indexPath = await createSuite(directory, 16, (report, index) => {
+      if (index === 1) report.actual.exitCode = 2;
+    });
+    const result = await run(indexPath);
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain('"status":"pending_external"');
+    expect(result.stderr).toContain("exit code does not match actual outcome");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("P7 suite verifier rejects hash-consistent reports from a mixed revision cohort", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "lakda-p7-suite-mixed-cohort-"));
+  try {
+    const indexPath = await createSuite(directory, 16, (report, index) => {
+      if (index === 1) {
+        report.revision = "other-product-revision";
+        report.runnerRevision = "fedcba0";
+        report.corpus = {
+          ...report.corpus,
+          corpusId: "other-corpus",
+          targetRevision: "other-product-revision",
+        };
+      }
+    });
+    const result = await run(indexPath);
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain("mixed corpus or runner revision cohort");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("P7 suite verifier rejects a duplicate acceptance ID even with 16 reports", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "lakda-p7-suite-duplicate-acceptance-"));
+  try {
+    const indexPath = await createSuite(directory, 16, (report, index) => {
+      if (index === 2) report.acceptanceId = "AC-AE-001";
+    });
+    const result = await run(indexPath);
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain("duplicate acceptance ID");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("P7 suite verifier rejects non-canonical traversal in a hash-valid report index", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "lakda-p7-suite-traversal-"));
+  try {
+    const indexPath = await createSuite(directory, 16);
+    const index = JSON.parse(await readFile(indexPath, "utf8"));
+    const original = index.reports[0].path;
+    const firstSegment = original.slice(0, original.indexOf("/"));
+    index.reports[0].path = firstSegment + "/../" + original;
+    await writeFile(indexPath, JSON.stringify(index, null, 2) + "\n", "utf8");
+    const result = await run(indexPath);
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain('"status":"pending_external"');
+    expect(result.stderr).toContain("non-portable path segment");
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

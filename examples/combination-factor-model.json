@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "lakda/combination-factor-model/v1",
+  "modelId": "safe-search-fixture",
+  "generatorPolicy": {
+    "generatorVersion": "lakda-ipog/v2",
+    "defaultStrength": 2,
+    "seed": 4219,
+    "caseBudget": 12
+  },
+  "factors": [
+    {
+      "factorId": "viewport",
+      "kind": "environment",
+      "values": ["desktop", "mobile"],
+      "source": "fixture-profile",
+      "riskWeight": 1
+    },
+    {
+      "factorId": "query-class",
+      "kind": "input",
+      "values": ["empty", "short", "boundary-64"],
+      "source": "generated-class",
+      "riskWeight": 2
+    },
+    {
+      "factorId": "search-action",
+      "kind": "action",
+      "values": ["submit", "clear"],
+      "source": "fixture-action",
+      "riskWeight": 1
+    }
+  ],
+  "constraints": []
+}

@@ -1,4 +1,4 @@
-import type { ActionCandidate, AdaptiveGeneratorStrategy, AdaptiveStopCondition, ExecutionResult, OracleResult, StateFingerprint } from "./contracts.js";
+import type { ActionCandidate, AdaptiveStopCondition, ExecutionResult, OracleResult, StateFingerprint } from "./contracts.js";
 
 export type CoverageMetric = { numerator: number; denominator: number; ratio: number };
 export type GraphNode = {
@@ -288,36 +288,6 @@ export class StateGraph {
 
   coverageTimeline(): CoveragePoint[] {
     return this.history.map(point => ({ actionIndex: point.actionIndex, graphRevision: point.graphRevision, coverage: { ...point.coverage } }));
-  }
-
-  choose(candidates: ActionCandidate[], strategy: AdaptiveGeneratorStrategy, random: () => number): ActionCandidate | undefined {
-    if (!candidates.length) return undefined;
-    const ordered = [...candidates].sort((left, right) => left.candidateId.localeCompare(right.candidateId));
-    if (strategy === "random" || strategy === "llm-select") return ordered[Math.floor(random() * ordered.length)];
-    if (strategy === "weighted-random") {
-      const weights = ordered.map(candidate => Number.isFinite(candidate.risk.weight) ? Math.max(0, candidate.risk.weight) : 0);
-      const total = weights.reduce((sum, weight) => sum + weight, 0);
-      if (total === 0) return ordered[Math.floor(random() * ordered.length)];
-      const draw = random() * total;
-      let cumulative = 0;
-      for (let index = 0; index < ordered.length; index += 1) {
-        cumulative += weights[index];
-        if (draw < cumulative) return ordered[index];
-      }
-      return ordered.at(-1);
-    }
-    const scored = ordered.map(candidate => {
-      const transitionVisits = this.transitionVisits(candidate.sourceFingerprint, candidate.candidateId);
-      const stateVisits = this.visits(candidate.sourceFingerprint);
-      const unseen = this.executedActions.has(actionKey(candidate.sourceFingerprint, candidate.candidateId)) ? 0 : 1;
-      const score = strategy === "least-visited-transition" ? -transitionVisits
-        : strategy === "shortest-to-uncovered" ? unseen * 10_000 - stateVisits * 10 - transitionVisits
-          : unseen * candidate.risk.weight * 100 - transitionVisits;
-      return { candidate, score };
-    });
-    const max = Math.max(...scored.map(value => value.score));
-    const tied = scored.filter(value => value.score === max);
-    return tied[Math.floor(random() * tied.length)].candidate;
   }
 
   stop(conditions: { any?: AdaptiveStopCondition[]; all?: AdaptiveStopCondition[] }, actionCount: number, elapsedMs: number): StopDecision {

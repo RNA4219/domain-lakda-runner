@@ -1,0 +1,11 @@
+{
+  "id": "docs/spec/maintainability/SPEC-03-EXTENSION-REGISTRY-LLM-SELECTION.md",
+  "role": "specification",
+  "public_api": [],
+  "summary": "docs/spec/maintainability/SPEC-03-EXTENSION-REGISTRY-LLM-SELECTION.md",
+  "deps_out": [],
+  "deps_in": [],
+  "risks": [],
+  "tests": [],
+  "generated_at": "00038"
+}

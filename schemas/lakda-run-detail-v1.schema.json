@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/lakda/run-detail/v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "run", "integrity"],
+  "properties": {
+    "schemaVersion": {"const": "lakda/run-detail/v1"},
+    "run": {"$ref": "#/$defs/runSummary"},
+    "integrity": {"$ref": "#/$defs/integrity"},
+    "graph": {"$ref": "#/$defs/graph"}
+  },
+  "$defs": {
+    "runSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runId", "runRef", "startedAt", "endedAt", "mode", "outcome", "terminationReason", "seed", "producerVersion", "commitSha"],
+      "properties": {
+        "runId": {"type": "string", "minLength": 1},
+        "runRef": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"},
+        "startedAt": {"type": "string", "minLength": 1},
+        "endedAt": {"type": "string", "minLength": 1},
+        "mode": {"type": "string", "minLength": 1},
+        "outcome": {"enum": ["passed", "failed", "partial", "error"]},
+        "terminationReason": {"type": "string", "minLength": 1},
+        "seed": {"type": "integer"},
+        "producerVersion": {"type": "string", "minLength": 1},
+        "commitSha": {"type": "string", "pattern": "^[A-Fa-f0-9]{7,64}$"}
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "manifestSha256", "artifactCount", "verifiedArtifactBytes"],
+      "properties": {
+        "status": {"const": "verified"},
+        "manifestSha256": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "artifactCount": {"type": "integer", "minimum": 1},
+        "verifiedArtifactBytes": {"type": "integer", "minimum": 0}
+      }
+    },
+    "coverageMetric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["numerator", "denominator", "ratio"],
+      "properties": {
+        "numerator": {"type": "integer", "minimum": 0},
+        "denominator": {"type": "integer", "minimum": 0},
+        "ratio": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "action", "transition", "transitionPair", "roundTrip", "obligation", "stateCoverage", "actionCoverage", "transitionCoverage", "transitionPairCoverage", "roundTripCoverage", "obligationCoverage"],
+      "properties": {
+        "state": {"$ref": "#/$defs/coverageMetric"},
+        "action": {"$ref": "#/$defs/coverageMetric"},
+        "transition": {"$ref": "#/$defs/coverageMetric"},
+        "transitionPair": {"$ref": "#/$defs/coverageMetric"},
+        "roundTrip": {"$ref": "#/$defs/coverageMetric"},
+        "obligation": {"$ref": "#/$defs/coverageMetric"},
+        "stateCoverage": {"type": "number", "minimum": 0, "maximum": 1},
+        "actionCoverage": {"type": "number", "minimum": 0, "maximum": 1},
+        "transitionCoverage": {"type": "number", "minimum": 0, "maximum": 1},
+        "transitionPairCoverage": {"type": "number", "minimum": 0, "maximum": 1},
+        "roundTripCoverage": {"type": "number", "minimum": 0, "maximum": 1},
+        "obligationCoverage": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "graph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "fingerprintAlgorithmVersion", "fingerprintCanonicalizationVersion", "revision", "stateCount", "transitionCount", "transitionPairCount", "roundTripCount", "coverage"],
+      "properties": {
+        "schemaVersion": {"const": "lakda/state-graph/v1"},
+        "fingerprintAlgorithmVersion": {"type": "string", "minLength": 1},
+        "fingerprintCanonicalizationVersion": {"type": "string", "minLength": 1},
+        "revision": {"type": "integer", "minimum": 0},
+        "stateCount": {"type": "integer", "minimum": 0},
+        "transitionCount": {"type": "integer", "minimum": 0},
+        "transitionPairCount": {"type": "integer", "minimum": 0},
+        "roundTripCount": {"type": "integer", "minimum": 0},
+        "coverage": {"$ref": "#/$defs/coverage"}
+      }
+    }
+  }
+}

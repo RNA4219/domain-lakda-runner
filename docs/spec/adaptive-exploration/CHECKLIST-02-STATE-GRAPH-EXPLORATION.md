@@ -2,7 +2,7 @@
 document_id: LAKDA-CHK-AE-002
 status: review-ready
 version: 0.1.0-draft
-last_updated: 2026-07-15
+last_updated: 2026-07-22
 specification: SPEC-02-STATE-GRAPH-EXPLORATION.md
 ---
 
@@ -17,7 +17,7 @@ specification: SPEC-02-STATE-GRAPH-EXPLORATION.md
 - [x] CHK-AE-002-S-001 — 一次所有41要件が仕様節へ割り当てられている。
 - [x] CHK-AE-002-S-002 — fingerprint canonicalization、volatile除外、衝突診断が定義されている。
 - [x] CHK-AE-002-S-003 — node、edge、非決定性、trace再構築契約が定義されている。
-- [x] CHK-AE-002-S-004 — GeneratorとStop Conditionの入出力、決定性、優先順位が定義されている。
+- [x] CHK-AE-002-S-004 — GeneratorとStop Conditionの入出力、決定性、優先順位、およびstrict llm-selectの提示済みID/stop限定とno-fallbackが定義されている。
 - [x] CHK-AE-002-S-005 — coverageの分子・分母・revision・open-world注記が定義されている。
 - [x] CHK-AE-002-S-006 — loop、backtrack、timeout、復旧不能時の扱いが定義されている。
 - [x] CHK-AE-002-S-007 — `AC-AE-002`〜`AC-AE-007`と評価仕様への参照がある。

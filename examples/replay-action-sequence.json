@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "lakda/action-plan/v1",
+  "mode": "regression-replay",
+  "seed": 4219,
+  "baseUrl": "https://example.invalid/",
+  "actions": [
+    {
+      "id": "navigate-docs-fixture",
+      "kind": "navigate",
+      "path": "/docs"
+    }
+  ]
+}

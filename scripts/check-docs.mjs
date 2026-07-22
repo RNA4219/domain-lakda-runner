@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { basename, dirname, extname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, URL } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const failures = [];
@@ -46,7 +46,7 @@ const requirements = readFileSync(resolve(root, "REQUIREMENTS.md"), "utf8");
 const specification = readFileSync(resolve(root, "SPECIFICATION.md"), "utf8");
 const evaluation = readFileSync(resolve(root, "EVALUATION.md"), "utf8");
 const packageJson = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
-if (packageJson.version !== "0.4.0-rc.1") failures.push("package.json: expected version 0.4.0-rc.1, got " + packageJson.version);
+if (!/^\d+\.\d+\.\d+-rc\.\d+$/.test(packageJson.version)) failures.push("package.json: version must be rc semver, got " + packageJson.version);
 for (const id of ids(requirements, /AC-\d{8}-\d{2}|AC-\d{3}/g)) {
   if (!specification.includes(id)) failures.push("SPECIFICATION.md: missing " + id);
   if (!evaluation.includes(id)) failures.push("EVALUATION.md: missing " + id);
@@ -142,18 +142,44 @@ const require = createRequire(import.meta.url);
 const hateSchema = JSON.parse(readFileSync(resolve(root, "vendor/hate/v1/artifact-manifest.schema.json"), "utf8"));
 const Ajv = require("ajv/dist/2020").default;
 const hateValidate = new Ajv({ allErrors: true, strict: false }).compile(hateSchema);
-for (const schemaPath of [
-  "schemas/real-llm-acceptance-report-v2.schema.json",
-  "schemas/manual-bb-release-record-v1.schema.json",
-  "schemas/adaptive-acceptance-corpus-v1.schema.json",
-  "schemas/adaptive-acceptance-case-v1.schema.json",
-  "schemas/adaptive-acceptance-suite-index-v1.schema.json",
-  "schemas/adaptive-acceptance-suite-readiness-v1.schema.json",
-]) {
+const schemaPaths = readdirSync(resolve(root, "schemas"))
+  .filter(name => name.endsWith(".schema.json"))
+  .sort()
+  .map(name => "schemas/" + name);
+const schemaAjv = new Ajv({ allErrors: true, strict: false, validateFormats: false });
+const loadedSchemas = [];
+try {
+  schemaAjv.addSchema(hateSchema);
+  for (const schemaPath of schemaPaths) {
+    const schema = JSON.parse(readFileSync(resolve(root, schemaPath), "utf8"));
+    schemaAjv.addSchema(schema, schemaPath);
+    loadedSchemas.push([schemaPath, schema]);
+  }
+} catch (error) {
+  failures.push(`schema registry: load failed: ${error instanceof Error ? error.message : String(error)}`);
+}
+function collectSchemaRefs(value, refs = []) {
+  if (Array.isArray(value)) for (const item of value) collectSchemaRefs(item, refs);
+  else if (value && typeof value === "object") {
+    if (typeof value.$ref === "string") refs.push(value.$ref);
+    for (const item of Object.values(value)) collectSchemaRefs(item, refs);
+  }
+  return refs;
+}
+for (const [, schema] of loadedSchemas) {
+  if (typeof schema.$id !== "string") continue;
+  for (const ref of collectSchemaRefs(schema)) {
+    if (!ref.endsWith(".schema.json")) continue;
+    const target = loadedSchemas.find(([schemaPath]) => schemaPath.endsWith("/" + ref));
+    if (!target || typeof target[1].$id !== "string") continue;
+    const aliasId = new URL(ref, schema.$id).href;
+    if (!schemaAjv.getSchema(aliasId)) schemaAjv.addSchema({ $id: aliasId, $ref: target[1].$id });
+  }
+}
+for (const [schemaPath, schema] of loadedSchemas) {
   try {
-    const schemaAjv = new Ajv({ allErrors: true, strict: false, validateFormats: false });
-    schemaAjv.addSchema(hateSchema);
-    schemaAjv.compile(JSON.parse(readFileSync(resolve(root, schemaPath), "utf8")));
+    const key = typeof schema.$id === "string" ? schema.$id : schemaPath;
+    if (!schemaAjv.getSchema(key)) throw new Error("schema did not compile");
   } catch (error) {
     failures.push(`${schemaPath}: schema compile failed: ${error instanceof Error ? error.message : String(error)}`);
   }
@@ -307,6 +333,150 @@ if (statSync(birdseyeIndexPath, { throwIfNoEntry: false })) {
       const capsuleRecord = JSON.parse(readFileSync(resolve(root, capsule), "utf8"));
       if (capsuleRecord.role !== role) failures.push(`Birdseye capsule: ${capsule} must have role ${role}`);
     }
+  }
+}
+
+
+const maintainabilityRequirementsPath = resolve(root, "REQUIREMENTS-MAINTAINABILITY.md");
+const maintainabilityDir = resolve(root, "docs/spec/maintainability");
+const maintainabilityIndexPath = resolve(maintainabilityDir, "README.md");
+const maintainabilityPlanPath = resolve(root, "docs/IMPLEMENTATION-PLAN-MAINTAINABILITY.md");
+for (const path of [maintainabilityRequirementsPath, maintainabilityDir, maintainabilityIndexPath, maintainabilityPlanPath]) {
+  if (!statSync(path, { throwIfNoEntry: false })) failures.push("missing maintainability artifact " + path.replace(root, ""));
+}
+if (statSync(maintainabilityRequirementsPath, { throwIfNoEntry: false }) && statSync(maintainabilityDir, { throwIfNoEntry: false })) {
+  const requirementText = readFileSync(maintainabilityRequirementsPath, "utf8");
+  const indexText = readFileSync(maintainabilityIndexPath, "utf8");
+  const entries = readdirSync(maintainabilityDir).filter(name => name.endsWith(".md")).sort();
+  const specNames = entries.filter(name => /^SPEC-\d{2}-.+\.md$/.test(name));
+  const checklistNames = entries.filter(name => /^CHECKLIST-\d{2}-.+\.md$/.test(name));
+  if (specNames.length !== 5) failures.push("maintainability specs: expected 5, got " + specNames.length);
+  if (checklistNames.length !== 5) failures.push("maintainability checklists: expected 5, got " + checklistNames.length);
+  const specs = new Map(specNames.map(name => [name, readFileSync(resolve(maintainabilityDir, name), "utf8")]));
+  const checklists = new Map(checklistNames.map(name => [name, readFileSync(resolve(maintainabilityDir, name), "utf8")]));
+  const requirementIds = ids(requirementText, /REQ-MNT-(?:GOV|ACC|EXT|RUN|MOD)-\d{3}/g);
+  const acceptanceIds = ids(requirementText, /AC-MNT-\d{3}/g);
+  if (requirementIds.length !== 34) failures.push("maintainability requirements: expected 34, got " + requirementIds.length);
+  if (acceptanceIds.length !== 10) failures.push("maintainability acceptance: expected 10, got " + acceptanceIds.length);
+  for (const id of requirementIds) {
+    const specOwners = [...specs].filter(([, text]) => text.includes(id)).map(([name]) => name);
+    const checklistOwners = [...checklists].filter(([, text]) => text.includes(id)).map(([name]) => name);
+    if (specOwners.length !== 1) failures.push("maintainability " + id + ": expected 1 spec, got " + (specOwners.join(",") || "none"));
+    if (checklistOwners.length !== 1) failures.push("maintainability " + id + ": expected 1 checklist, got " + (checklistOwners.join(",") || "none"));
+  }
+  for (const id of acceptanceIds) {
+    if (![...checklists.values()].some(text => text.includes(id))) failures.push("maintainability checklists: missing " + id);
+  }
+  for (const specName of specNames) {
+    const number = specName.match(/^SPEC-(\d{2})-/)[1];
+    const specText = specs.get(specName);
+    const specMeta = metadata(specText);
+    const checklistName = specName.replace(/^SPEC-/, "CHECKLIST-");
+    const expectedSpecId = "LAKDA-SPEC-MNT-" + String(Number(number)).padStart(3, "0");
+    if (specMeta.document_id !== expectedSpecId) failures.push(specName + ": expected " + expectedSpecId);
+    if (specMeta.checklist !== checklistName || !checklists.has(checklistName)) failures.push(specName + ": invalid checklist pair");
+    if (!indexText.includes(specName) || !indexText.includes(checklistName)) failures.push("maintainability README: missing pair " + specName);
+    if (checklists.has(checklistName)) {
+      const checklistText = checklists.get(checklistName);
+      const checklistMeta = metadata(checklistText);
+      const expectedChecklistId = "LAKDA-CHK-MNT-" + String(Number(number)).padStart(3, "0");
+      if (checklistMeta.document_id !== expectedChecklistId) failures.push(checklistName + ": expected " + expectedChecklistId);
+      if (checklistMeta.specification !== specName) failures.push(checklistName + ": invalid specification metadata");
+      if (!/\|\s*\u8a3c\u8de1\s*\|/.test(checklistText)) failures.push(checklistName + ": missing evidence column");
+      if (!specText.includes("](" + checklistName + ")") || !checklistText.includes("](" + specName + ")")) failures.push(specName + ": missing reciprocal link");
+    }
+  }
+}
+const maintainabilityTaskIds = Array.from({ length: 16 }, (_, index) => "TASK.20260722-" + (index + 43));
+if (statSync(maintainabilityPlanPath, { throwIfNoEntry: false })) {
+  const plan = readFileSync(maintainabilityPlanPath, "utf8");
+  for (const heading of ["## Plan", "## 監査Backlog", "## Patch", "## Tests", "## Commands", "## Notes"]) {
+    if (!plan.includes(heading)) failures.push("maintainability plan: missing " + heading);
+  }
+  for (const marker of ["P0", "P1", "P2", "release profile mutation negative", "Legacy P6", "pending_external"]) {
+    if (!plan.includes(marker)) failures.push("maintainability audit backlog: missing " + marker);
+  }
+  for (const taskId of maintainabilityTaskIds) {
+    const taskPath = resolve(root, "docs/tasks/" + taskId + ".md");
+    const expectedLink = "[" + taskId + "](tasks/" + taskId + ".md)";
+    if (!plan.includes(expectedLink) || !statSync(taskPath, { throwIfNoEntry: false })) {
+      failures.push("maintainability plan/task: missing individual link " + taskId);
+      continue;
+    }
+    const number = Number(taskId.slice(-2));
+    if (number < 46) continue;
+    const taskText = readFileSync(taskPath, "utf8");
+    const taskMeta = metadata(taskText);
+    const expectedStatus = number === 58 ? "in_progress" : "reviewing";
+    if (taskMeta.task_id !== taskId) failures.push(taskId + ": incorrect task_id");
+    if (taskMeta.intent_id !== "INT-LAKDA-MNT-001") failures.push(taskId + ": incorrect intent_id");
+    if (taskMeta.status !== expectedStatus) failures.push(taskId + ": status must be " + expectedStatus);
+    for (const heading of ["## Objective", "## Scope", "## Requirements", "## Plan", "## Patch", "## Tests", "## Commands", "## Notes", "## Evidence"]) {
+      if (!taskText.includes(heading)) failures.push(taskId + ": missing " + heading);
+    }
+    for (const marker of ["対象test:", "対象command:", "統合Gate記録待ち"]) {
+      if (!taskText.includes(marker)) failures.push(taskId + ": Evidence missing " + marker);
+    }
+  }
+}
+const extensionAliasPairs = new Map([
+  ["CHECKLIST-01-COMBINATION.md", "CHECKLIST-01-COMBINATION-TESTING.md"],
+  ["CHECKLIST-02-SCOUTING.md", "CHECKLIST-02-SIGNAL-LLM-SCOUTING.md"],
+  ["CHECKLIST-03-INVESTIGATION-EVIDENCE.md", "CHECKLIST-03-INVESTIGATE-EVIDENCE.md"],
+]);
+const extensionDir = resolve(root, "docs/spec/lakda-extension");
+for (const [aliasName, canonicalName] of extensionAliasPairs) {
+  const aliasPath = resolve(extensionDir, aliasName);
+  const canonicalPath = resolve(extensionDir, canonicalName);
+  if (!statSync(aliasPath, { throwIfNoEntry: false }) || !statSync(canonicalPath, { throwIfNoEntry: false })) {
+    failures.push("extension alias pair missing: " + aliasName + " / " + canonicalName);
+    continue;
+  }
+  const aliasText = readFileSync(aliasPath, "utf8");
+  const aliasMeta = metadata(aliasText);
+  if (aliasMeta.status !== "non-normative-alias") failures.push(aliasName + ": invalid alias status");
+  if (aliasMeta.alias_of !== canonicalName) failures.push(aliasName + ": invalid alias_of");
+  if (/\[(?: |x|X)\]/.test(aliasText)) failures.push(aliasName + ": alias has checkbox");
+  if (!aliasText.includes("](" + canonicalName + ")")) failures.push(aliasName + ": missing canonical backlink");
+}
+const profilePath = resolve(root, "release-profiles/current.json");
+const profileSchemaPath = resolve(root, "schemas/release-profile-v1.schema.json");
+if (!statSync(profilePath, { throwIfNoEntry: false }) || !statSync(profileSchemaPath, { throwIfNoEntry: false })) {
+  failures.push("current release profile/schema missing");
+} else {
+  const profile = JSON.parse(readFileSync(profilePath, "utf8"));
+  const profileSchema = JSON.parse(readFileSync(profileSchemaPath, "utf8"));
+  const validateProfile = new Ajv({ allErrors: true, strict: false, validateFormats: false }).compile(profileSchema);
+  if (!validateProfile(profile)) failures.push("current release profile: schema mismatch");
+  if (profile.releaseVersion !== packageJson.version) failures.push("current release profile: package version mismatch");
+  for (const ref of [profile.designInputs?.featureSpec, profile.designInputs?.riskRegister, profile.designInputs?.manualCaseSet, profile.randAudit?.preset, profile.randAudit?.evidence]) {
+    if (typeof ref !== "string" || !ref || /^[A-Za-z]:[\\/]|^[/\\]/.test(ref) || /(^|[\\/])\.\.([\\/]|$)/.test(ref) || !statSync(resolve(root, ref), { throwIfNoEntry: false })) failures.push("current release profile: invalid ref " + String(ref));
+  }
+}
+const liveWorkflow = readFileSync(resolve(root, ".github/workflows/release-evidence.yml"), "utf8");
+if (/rc5|v0\.3\.0-rc\.5/i.test(liveWorkflow)) failures.push("release-evidence workflow: legacy rc5 literal");
+for (const marker of ["release-profiles/current.json", "reference_target_manifest_path", "validate-release-profile.mjs", "requiredChecks"]) {
+  if (!liveWorkflow.includes(marker)) failures.push("release-evidence workflow: missing " + marker);
+}
+const p6WorkflowPath = resolve(root, ".github/workflows/release-p6-rc.yml");
+if (statSync(p6WorkflowPath, { throwIfNoEntry: false }) && !/^name:\s*Legacy\b/m.test(readFileSync(p6WorkflowPath, "utf8"))) failures.push("release-p6-rc workflow: name must begin with Legacy");
+for (const [indexPath, required] of new Map([
+  ["docs/README.md", ["spec/README.md", "tasks/README.md", "acceptance/README.md", "release-gate/README.md"]],
+  ["docs/spec/README.md", ["maintainability/README.md", "lakda-extension/README.md", "adaptive-exploration/README.md"]],
+  ["docs/tasks/README.md", maintainabilityTaskIds.map(taskId => taskId + ".md")],
+])) {
+  const text = readFileSync(resolve(root, indexPath), "utf8");
+  for (const entry of required) if (!text.includes(entry)) failures.push(indexPath + ": missing " + entry);
+}
+if (statSync(birdseyeIndexPath, { throwIfNoEntry: false })) {
+  const birdseye = JSON.parse(readFileSync(birdseyeIndexPath, "utf8"));
+  for (const [id, role] of new Map([
+    ["REQUIREMENTS-MAINTAINABILITY.md", "requirements"],
+    ["docs/IMPLEMENTATION-PLAN-MAINTAINABILITY.md", "plan"],
+    ...maintainabilityTaskIds.map(taskId => ["docs/tasks/" + taskId + ".md", "task"]),
+  ])) {
+    if (!birdseye.nodes?.[id]) failures.push("Birdseye index: missing " + id);
+    else if (birdseye.nodes[id].role !== role) failures.push("Birdseye index: " + id + " must have role " + role);
   }
 }
 
