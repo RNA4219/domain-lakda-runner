@@ -2,7 +2,28 @@
 
 ## Unreleased
 
-## 0.4.0-rc.2 - Unreleased
+## 0.4.0-rc.3 - Unreleased
+
+### Added
+
+- AuthorizationRecord v2、Ed25519署名付きtarget manifest v2、Security permit receiptを追加。
+- AC-AE-016向けsecurity audit付きadaptive acceptance case v2を追加。
+
+### Security
+
+- passive requestを含む全Security操作でauthorization、scope、kill switch、method、request template、runtime bindingをfail-closed検証。
+- loopback bridgeでcredential、query、fragment、redirect、非JSON、UTF-8不正、1MiB超payloadを拒否。
+- production環境ではactive mutationを禁止し、cleanup、stop contact、rate/concurrency budgetを証跡へ固定。
+
+### Changed
+
+- package、runtime producer、README、release profileを`0.4.0-rc.3`へ同期。
+
+### Release Status
+
+- ローカルpackage/fixture検証は候補版証跡とし、実target・実機・認可済みsecurity target・manual-bb・QEGは`pending_external`。
+
+## 0.4.0-rc.2 - Superseded candidate
 
 ### Added
 

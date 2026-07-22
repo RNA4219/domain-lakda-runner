@@ -1,0 +1,33 @@
+{
+  "feature_id": "LAKDA-RC-403",
+  "title": "domain-lakda-runner 0.4.0-rc.3 security adapter hardening release",
+  "summary": "AuthorizationRecord v2、署名済みtarget manifest、permit receipt、loopback transport制約をrevision-bound real acceptance証跡へ接続する。",
+  "actors": ["release_operator", "reference_staging_operator", "manual_bb_reviewer", "qeg_reviewer"],
+  "acceptance_criteria": [
+    "AC-RC403-001: current release profileとpackage versionが一致し、全local contract、fixture、adaptive、package、HATE検証が対象SHAで成功する",
+    "AC-RC403-002: Security adapterの署名、scope、method、template、binding、permit、loopback transportのfail-closed negativeを第三者が再検証できる",
+    "AC-RC403-003: real target、real Qwen、manual-bb、five-tool chainを対象SHAへ結び、QEG以外が最終Goを生成しない"
+  ],
+  "business_rules": [
+    "Lakdaはrun outcomeとHATE/v1証跡までを担当し、最終verdictは外部QEGだけが決定する",
+    "fixture、mock、simulated、sanitized exampleをreal-target execution evidenceへ昇格しない",
+    "認証値、raw prompt、storageState、絶対path、raw browser artifactをrelease evidenceへ含めない",
+    "freeze後にsource、release profile、target manifest、corpus、config digestが変化した場合はGateを最初から再実行する"
+  ],
+  "changed_areas": ["release profile", "security authorization", "signed target manifest", "permit receipt", "loopback bridge", "real acceptance", "replay audit"],
+  "devices": ["Windows Chromium", "self-hosted Windows Qwen runner"],
+  "source_refs": [
+    {"id": "AC-RC403-001", "kind": "ac", "excerpt": "profile-bound deterministic and contract evidence"},
+    {"id": "AC-RC403-002", "kind": "ac", "excerpt": "fail-closed acceptance and extension boundaries"},
+    {"id": "AC-RC403-003", "kind": "ac", "excerpt": "real evidence and external QEG authority"}
+  ],
+  "assumptions": [
+    {
+      "id": "ASM-RC403-01",
+      "text": "実target接続は承認済みreference stagingとimmutable target manifestのscope内だけに限定する。",
+      "severity": "high",
+      "impact_on_coverage": "別SaaS、実機、security targetは個別の承認とreal acceptanceがない限りpending_externalである。",
+      "resolution_status": "accepted"
+    }
+  ]
+}

@@ -75,7 +75,7 @@ export class ArtifactCollector {
     const metadata: RunMetadata = {
       schemaVersion: "lakda/run-metadata/v1", runId, attempt: 1, startedAt: now.toISOString(), mode,
       seed: config.seed, persona: config.persona, browser: "chromium", baseUrl: config.baseUrl ?? "", headed: config.headed,
-      producerVersion: "0.4.0-rc.2", commitSha: commitSha(), llmStatus: "not_requested", artifactPolicy: { classification: config.artifacts.classification, maxRunBytes: config.artifacts.maxRunBytes, expectations: { trace: false, screenshot: false, video: false, har: false, domSnapshots: 0 } }, workerIndex: context.workerIndex ?? 0,
+      producerVersion: "0.4.0-rc.3", commitSha: commitSha(), llmStatus: "not_requested", artifactPolicy: { classification: config.artifacts.classification, maxRunBytes: config.artifacts.maxRunBytes, expectations: { trace: false, screenshot: false, video: false, har: false, domSnapshots: 0 } }, workerIndex: context.workerIndex ?? 0,
       ...(context.batchId ? { batchId: context.batchId } : {}),
     };
     return new ArtifactCollector({ runDir, metadata: join(runDir, "run-metadata.json"), actionSequence: join(runDir, "action-sequence.json"), console: join(runDir, "console.jsonl"), failures: join(runDir, "failure-report.json"), trace: join(artifacts, "trace.zip"), screenshot: join(artifacts, "failure.png"), networkHar: join(artifacts, "network.har"), exports, manifest: join(exports, "artifact-manifest.json"), llm: join(artifacts, "llm-decisions.jsonl") }, metadata, config.artifacts.video, config.artifacts.har);
