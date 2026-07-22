@@ -36,13 +36,20 @@ export async function setupAdaptiveEnvironment(config: LakdaConfig, collector: A
     return { browser, context, page, adapter: adapterFromInstance(instance), activeTargets: () => instance.adapter.activeTargets() };
   }
   const bridge = await LoopbackJsonBridge.connect(config.adaptive.adapter.endpoint!, config.adaptive.adapter.id);
+  const runtimeBinding = bridge.binding();
+  if (config.adaptive.adapter.id === "security") {
+    const expected = config.adaptive.securityAuthorization?.binding;
+    if (!expected || expected.capabilityDigest !== runtimeBinding.capabilityDigest || expected.bridgeDigest !== runtimeBinding.bridgeDigest) {
+      throw new Error("security operator bridge binding mismatch");
+    }
+  }
   const instance = createBuiltInAdapter(config.adaptive.adapter.id, { kind: "loopback", bridge });
   if (instance.id !== config.adaptive.adapter.id) throw new Error("built-in adapter registry identity mismatch");
   const initialTarget = config.adaptive.adapter.initialTarget!;
   assertBuiltInAdapterCapabilities(instance, config.adaptive.safety.allowTargetKinds, initialTarget.kind);
   return {
     adapter: adapterFromInstance(instance),
-    ...(instance.id === "security" ? { securityController: new SecurityExecutionController(config, instance.adapter, killSwitch, collector.metadata.runId) } : {}),
+    ...(instance.id === "security" ? { securityController: new SecurityExecutionController(config, instance.adapter, killSwitch, collector.metadata.runId, runtimeBinding) } : {}),
     activeTargets: () => [initialTarget],
   };
 }

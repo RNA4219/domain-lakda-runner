@@ -1,9 +1,11 @@
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, generateKeyPairSync, sign } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
+import { targetManifestSigningPayload, type TargetManifest } from "../../src/acceptance/common.js";
 
 const verifier = resolve("scripts/verify-adaptive-real-acceptance.mjs");
 const sha256 = (bytes: string | Buffer): string => "sha256:" + createHash("sha256").update(bytes).digest("hex");
@@ -11,7 +13,12 @@ const sha256 = (bytes: string | Buffer): string => "sha256:" + createHash("sha25
 function run(indexPath?: string): Promise<{ code: number; stdout: string; stderr: string }> {
   const env = { ...process.env };
   delete env.LAKDA_ADAPTIVE_SUITE_INDEX;
-  if (indexPath) env.LAKDA_ADAPTIVE_SUITE_INDEX = indexPath;
+  delete env.LAKDA_ADAPTIVE_SECURITY_TARGET_MANIFEST;
+  if (indexPath) {
+    env.LAKDA_ADAPTIVE_SUITE_INDEX = indexPath;
+    const securityTarget = join(dirname(indexPath), "security-target.json");
+    if (existsSync(securityTarget)) env.LAKDA_ADAPTIVE_SECURITY_TARGET_MANIFEST = securityTarget;
+  }
   return new Promise(resolvePromise => execFile(process.execPath, [verifier], { cwd: process.cwd(), env }, (error, stdout, stderr) => {
     resolvePromise({ code: typeof error?.code === "number" ? error.code : 0, stdout, stderr });
   }));
@@ -42,9 +49,55 @@ type MutableAcceptanceReport = {
   corpus: { corpusId: string; version: string; sha256: string; targetRevision: string; caseConfigDigest: string };
 };
 
+async function createSecurityTarget(root: string, configDigest: string): Promise<{ path: string; sha256: string }> {
+  const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+  const target = {
+    schemaVersion: "lakda/target-manifest/v2",
+    manifestId: "fixture-security-target",
+    targetClass: "security-http",
+    status: "ready",
+    binding: { targetRevision: "product-revision-1", configDigest },
+    owner: "owner@example.test",
+    environment: { name: "staging", baseUrlOrigin: "https://staging.example.test" },
+    access: { approved: true, authSource: "local-auth-state", approvalEvidenceRef: "approval-ref" },
+    scope: { allowHosts: ["staging.example.test"], pathPrefixes: ["/api"] },
+    safety: { allowMutationKinds: ["parameter-mutation"], resetProcedureRef: "reset-ref", killSwitchRef: "kill-ref" },
+    privacy: { piiPolicyRef: "pii-ref", sensitiveValuesPersisted: false },
+    actionContracts: [{ actionId: "probe-api", mutationKind: "parameter-mutation" }],
+    settleProfile: { policyVersion: "consensus/v1", readiness: null, networkQuietExclusions: [] },
+    acceptance: { p0ActionIds: ["probe-api"], p1ActionIds: [] },
+    security: {
+      acceptanceMode: "authorized-active",
+      authorization: {
+        authorizationId: "authorization-1",
+        validFrom: "2026-07-01T00:00:00Z",
+        validUntil: "2027-07-01T00:00:00Z",
+        approvalEvidenceRef: "approval-ref",
+        signatureRef: "signature-1",
+        signedPayloadDigest: "sha256:" + "0".repeat(64),
+        signature: { algorithm: "ed25519", publicKeyPem: publicKey.export({ type: "spki", format: "pem" }).toString(), valueBase64: "AA==" },
+      },
+      requestScope: { methods: ["GET"], requestTemplateDigests: ["sha256:" + "1".repeat(64)] },
+      limits: { maxRatePerMinute: 1, maxConcurrency: 1 },
+      dataPolicyRef: "data-policy-ref",
+      stopContactRef: "stop-contact-ref",
+      securityProfile: { ref: "security-profile", digest: "sha256:" + "2".repeat(64) },
+      bridgeBinding: { capabilityDigest: "sha256:" + "3".repeat(64), bridgeDigest: "sha256:" + "4".repeat(64) },
+    },
+  } as unknown as TargetManifest;
+  const payload = targetManifestSigningPayload(target);
+  target.security!.authorization.signedPayloadDigest = sha256(payload);
+  target.security!.authorization.signature.valueBase64 = sign(null, Buffer.from(payload, "utf8"), privateKey).toString("base64");
+  const bytes = Buffer.from(JSON.stringify(target, null, 2) + "\n", "utf8");
+  const path = join(root, "security-target.json");
+  await writeFile(path, bytes);
+  return { path, sha256: sha256(bytes) };
+}
+
 async function createSuite(root: string, count: number, mutateReport?: (report: MutableAcceptanceReport, index: number) => void): Promise<string> {
   const reports: Array<{ path: string; sha256: string }> = [];
   const fixedDigest = "sha256:" + "a".repeat(64);
+  const securityTarget = count >= 16 ? await createSecurityTarget(root, fixedDigest) : undefined;
   for (let index = 1; index <= count; index += 1) {
     const acceptanceId = "AC-AE-" + String(index).padStart(3, "0");
     const caseId = "case-" + String(index).padStart(3, "0");
@@ -58,7 +111,7 @@ async function createSuite(root: string, count: number, mutateReport?: (report: 
     await writeFile(oraclePath, oracleBytes);
     const oracleArtifact = artifact("adaptive/oracle-results.jsonl", oracleBytes, "report");
     const report = {
-      schemaVersion: "lakda/adaptive-acceptance-case/v1",
+      schemaVersion: index === 16 ? "lakda/adaptive-acceptance-case/v2" : "lakda/adaptive-acceptance-case/v1",
       acceptanceId,
       caseId,
       runId: "run-" + caseId,
@@ -66,17 +119,41 @@ async function createSuite(root: string, count: number, mutateReport?: (report: 
       revision: "product-revision-1",
       runnerRevision: "abcdef0",
       executionMode: "real",
-      environment: { label: "fixture-structure-only", origin: "https://staging.example.test", adapterId: "playwright" },
+      environment: index === 16
+        ? { label: "staging", origin: "https://staging.example.test", adapterId: "security" }
+        : { label: "fixture-structure-only", origin: "https://staging.example.test", adapterId: "playwright" },
       runtime: { nodeVersion: process.version, platform: process.platform, arch: process.arch },
       seed: index,
       configDigest: fixedDigest,
-      targetManifest: { manifestId: "fixture-target", sha256: fixedDigest },
+      targetManifest: index === 16
+        ? { manifestId: "fixture-security-target", sha256: securityTarget!.sha256, schemaVersion: "lakda/target-manifest/v2" }
+        : { manifestId: "fixture-target", sha256: fixedDigest },
       corpus: { corpusId: "fixed-corpus", version: "1", sha256: fixedDigest, targetRevision: "product-revision-1", caseConfigDigest: fixedDigest },
       expected: { outcome: "passed" },
       actual: { outcome: "passed", terminationReason: "completed", exitCode: 0 },
       oracleResultRefs: [oracleArtifact],
       artifactRefs: [oracleArtifact],
       candidateAudit: { schemaVersion: "lakda/target-candidate-audit/v1", snapshotCount: 1, observedControls: 1, classifiedControls: 1, unclassifiedControls: 0, candidateCount: 1, coverageDebtCount: 0, debtByReason: {}, requiredActionIds: ["view-record"], observedActionIds: ["view-record"], debtActionIds: [], eligible: true, violations: [] },
+      ...(index === 16 ? {
+        securityAudit: {
+          schemaVersion: "lakda/security-acceptance-audit/v1",
+          acceptanceMode: "authorized-active",
+          authorizationRef: "approval-ref",
+          securityProfileRef: "security-profile",
+          bindingDigests: { securityProfileDigest: fixedDigest, capabilityDigest: fixedDigest, bridgeDigest: fixedDigest },
+          policyEvaluationCount: 1,
+          allowedPolicyCount: 1,
+          deniedPolicyCount: 0,
+          startedRequestCount: 1,
+          permitReceiptRefs: [fixedDigest],
+          cleanupRefs: ["cleanup-ref"],
+          cleanupAttempts: 1,
+          cleanupFailures: 0,
+          killSwitchChecks: 1,
+          eligible: true,
+          violations: [],
+        },
+      } : {}),
       verdict: "passed",
       ineligibilityReason: null,
       qegHandoff: { status: "pending_external", verdictGeneratedByLakda: false },
@@ -126,7 +203,7 @@ test("P7 suite verifier requires all 16 AC while keeping manual-bb and QEG exter
   const directory = await mkdtemp(join(tmpdir(), "lakda-p7-suite-complete-"));
   try {
     const result = await run(await createSuite(directory, 16));
-    expect(result.code).toBe(0);
+    expect(result.code, result.stderr).toBe(0);
     const readiness = JSON.parse(result.stdout) as {
       status: string;
       p7Status: string;

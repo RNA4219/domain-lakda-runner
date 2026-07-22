@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
+import { assertSecurityAuditInvariants } from "../../src/acceptance/common.js";
 
 type Validator = ((value: unknown) => boolean) & { errors?: unknown };
 type AjvInstance = { addSchema(schema: object): void; compile(schema: object): Validator };
@@ -74,4 +75,56 @@ test("P7 case report schema reuses HATE artifact refs and forbids a Lakda QEG ve
   };
   expect(validate(report)).toBe(true);
   expect(validate({ ...report, qegHandoff: { status: "go", verdictGeneratedByLakda: true } })).toBe(false);
+});
+
+test("AC-AE-016 case report v2 requires an eligible security audit without generating a QEG verdict", () => {
+  const validate = validator("schemas/adaptive-acceptance-case-v2.schema.json");
+  const securityAudit = {
+    schemaVersion: "lakda/security-acceptance-audit/v1",
+    acceptanceMode: "authorized-active" as const,
+    authorizationRef: "approval-ref",
+    securityProfileRef: "security-profile",
+    bindingDigests: { securityProfileDigest: digest, capabilityDigest: digest, bridgeDigest: digest },
+    policyEvaluationCount: 1,
+    allowedPolicyCount: 1,
+    deniedPolicyCount: 0,
+    startedRequestCount: 1,
+    permitReceiptRefs: [digest],
+    cleanupRefs: ["cleanup-ref"],
+    cleanupAttempts: 1,
+    cleanupFailures: 0,
+    killSwitchChecks: 1,
+    eligible: true,
+    violations: [],
+  };
+  const report = {
+    schemaVersion: "lakda/adaptive-acceptance-case/v2",
+    acceptanceId: "AC-AE-016",
+    caseId: "security-001",
+    runId: "run-1",
+    attempt: 1,
+    revision: "product-revision",
+    runnerRevision: "abcdef0",
+    executionMode: "real",
+    environment: { label: "staging", origin: "https://staging.example.test", adapterId: "security" },
+    runtime: { nodeVersion: "v24.0.0", platform: "win32", arch: "x64" },
+    seed: 123,
+    configDigest: digest,
+    targetManifest: { manifestId: "approved-target", sha256: digest, schemaVersion: "lakda/target-manifest/v2" },
+    corpus: { corpusId: "approved-corpus", version: "1.0.0", sha256: digest, targetRevision: "product-revision", caseConfigDigest: digest },
+    expected: { outcome: "passed" },
+    actual: { outcome: "passed", terminationReason: "completed", exitCode: 0 },
+    oracleResultRefs: [artifact],
+    artifactRefs: [artifact],
+    candidateAudit: { schemaVersion: "lakda/target-candidate-audit/v1", snapshotCount: 1, observedControls: 1, classifiedControls: 1, unclassifiedControls: 0, candidateCount: 1, coverageDebtCount: 0, debtByReason: {}, requiredActionIds: ["probe-api"], observedActionIds: ["probe-api"], debtActionIds: [], eligible: true, violations: [] },
+    securityAudit,
+    verdict: "passed",
+    ineligibilityReason: null,
+    qegHandoff: { status: "pending_external", verdictGeneratedByLakda: false },
+    generatedAt: "2026-07-22T00:00:00.000Z",
+  };
+  expect(validate(report), JSON.stringify(validate.errors)).toBe(true);
+  expect(() => assertSecurityAuditInvariants(securityAudit)).not.toThrow();
+  expect(() => assertSecurityAuditInvariants({ ...securityAudit, acceptanceMode: "deny-all", eligible: true })).toThrow(/eligibility/);
+  expect(validate({ ...report, securityAudit: undefined })).toBe(false);
 });

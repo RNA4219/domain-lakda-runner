@@ -5,8 +5,10 @@ import {
   assertAcceptanceReportSemantics,
   assertManifestIdentity,
   assertReportBound,
+  assertTargetManifestBinding,
   assertSchema,
   digest,
+  loadReadyTargetManifest,
   readJsonRecord,
   requiredEnvironment,
   resolveRunFile,
@@ -48,9 +50,28 @@ async function main() {
     if (reportPaths.has(canonicalReportPath)) throw new AcceptanceInputError("P7 suite index contains a duplicate report path");
     reportPaths.add(canonicalReportPath);
 
-    const reportRecord = await readJsonRecord(resolvedReport.path, "case report", "adaptive-acceptance-case-v1.schema.json", true);
+    const unvalidated = await readJsonRecord(resolvedReport.path, "case report");
+    const schemaName = unvalidated.value?.schemaVersion === "lakda/adaptive-acceptance-case/v1"
+      ? "adaptive-acceptance-case-v1.schema.json"
+      : unvalidated.value?.schemaVersion === "lakda/adaptive-acceptance-case/v2"
+        ? "adaptive-acceptance-case-v2.schema.json"
+        : undefined;
+    if (!schemaName) throw new AcceptanceInputError("adaptive case report version is unsupported");
+    const reportRecord = await readJsonRecord(resolvedReport.path, "case report", schemaName, true);
     if (reportRecord.sha256 !== entry.sha256) throw new AcceptanceInputError("case report digest mismatch: " + entry.path);
     const report = reportRecord.value;
+    const securityReport = report.acceptanceId === "AC-AE-016";
+    if (securityReport !== (report.schemaVersion === "lakda/adaptive-acceptance-case/v2")) {
+      throw new AcceptanceInputError("AC-AE-016 requires case report v2 and v2 is reserved for AC-AE-016");
+    }
+    if (securityReport) {
+      const targetPath = resolve(requiredEnvironment("LAKDA_ADAPTIVE_SECURITY_TARGET_MANIFEST"));
+      const target = await loadReadyTargetManifest(targetPath);
+      if (target.value.schemaVersion !== "lakda/target-manifest/v2" || target.value.manifestId !== report.targetManifest.manifestId || target.sha256 !== report.targetManifest.sha256 || report.targetManifest.schemaVersion !== target.value.schemaVersion) {
+        throw new AcceptanceInputError("security case target manifest identity mismatch");
+      }
+      assertTargetManifestBinding(target.value, report.revision, report.configDigest);
+    }
     if (caseIds.has(report.caseId)) throw new AcceptanceInputError("P7 suite contains a duplicate case ID: " + report.caseId);
     caseIds.add(report.caseId);
     if (acceptanceIds.has(report.acceptanceId)) throw new AcceptanceInputError("P7 suite contains a duplicate acceptance ID: " + report.acceptanceId);
@@ -61,7 +82,7 @@ async function main() {
     if (cohortKey === undefined) cohortKey = currentCohortKey;
     else if (cohortKey !== currentCohortKey) throw new AcceptanceInputError("P7 suite contains a mixed corpus or runner revision cohort");
     if (report.ineligibilityReason !== null) throw new AcceptanceInputError("P7 suite contains an ineligible case: " + report.caseId);
-    assertAcceptanceReportSemantics(report, { requireCandidateAudit: true });
+    assertAcceptanceReportSemantics(report, { requireCandidateAudit: true, requireSecurityAudit: securityReport });
 
     const runDir = dirname(dirname(reportRecord.path));
     const verified = await verifyHateArtifacts(resolve(runDir, "exports", "artifact-manifest.json"), {

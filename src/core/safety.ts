@@ -13,7 +13,8 @@ function withinPathPrefixes(pathname: string, prefixes: string[] | undefined): b
 
 export function assertLoopbackEndpoint(value: string): URL {
   const url = new URL(value);
-  if (url.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(url.hostname)) throw new Error("LLM endpoint は http のloopbackだけを許可します");
+  if (url.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(url.hostname)) throw new Error("外部bridge endpointはhttpのloopbackだけを許可します");
+  if (url.username || url.password || url.search || url.hash) throw new Error("外部bridge endpointにcredential、query、fragmentは指定できません");
   return url;
 }
 

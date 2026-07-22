@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, verify as verifySignature } from "node:crypto";
 import { createRequire } from "node:module";
 import { readFile, realpath, stat } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
@@ -44,10 +44,23 @@ export type CandidateAuditLike = {
   eligible: boolean;
   violations: string[];
 };
+export type SecurityAuditLike = {
+  acceptanceMode: "deny-all" | "authorized-active" | "passive";
+  policyEvaluationCount: number;
+  allowedPolicyCount: number;
+  deniedPolicyCount: number;
+  startedRequestCount: number;
+  permitReceiptRefs: string[];
+  cleanupAttempts: number;
+  cleanupFailures: number;
+  killSwitchChecks: number;
+  eligible: boolean;
+  violations: string[];
+};
 export type VerifyHateArtifactsOptions = { runDir?: string; expectedManifestPath?: string };
 
 export type TargetManifest = {
-  schemaVersion: "lakda/target-manifest/v1";
+  schemaVersion: "lakda/target-manifest/v1" | "lakda/target-manifest/v2";
   manifestId: string;
   status: "pending_external" | "ready";
   binding?: { targetRevision: string; configDigest: string };
@@ -58,6 +71,24 @@ export type TargetManifest = {
   actionContracts: Array<{ actionId: string; mutationKind: string }>;
   settleProfile: { policyVersion: string; readiness?: object | null; networkQuietExclusions: string[] };
   acceptance: { p0ActionIds: string[]; p1ActionIds: string[] };
+  security?: {
+    acceptanceMode: "deny-all" | "authorized-active" | "passive";
+    authorization: {
+      authorizationId: string;
+      validFrom: string;
+      validUntil: string;
+      approvalEvidenceRef: string;
+      signatureRef: string;
+      signedPayloadDigest: string;
+      signature: { algorithm: "ed25519"; publicKeyPem: string; valueBase64: string };
+    };
+    requestScope: { methods: string[]; requestTemplateDigests: string[] };
+    limits: { maxRatePerMinute: number; maxConcurrency: number };
+    dataPolicyRef: string;
+    stopContactRef: string;
+    securityProfile: { ref: string; digest: string };
+    bridgeBinding: { capabilityDigest: string; bridgeDigest: string };
+  };
 };
 
 export const digest = (bytes: Uint8Array | string): string => "sha256:" + createHash("sha256").update(bytes).digest("hex");
@@ -119,9 +150,42 @@ export function withinPathPrefix(pathname: string, prefix: string): boolean {
   return normalized === "/" || pathname === normalized || pathname.startsWith(normalized + "/");
 }
 
+export function targetManifestSigningPayload(target: TargetManifest): string {
+  const unsigned = structuredClone(target) as unknown as { security?: { authorization: Record<string, unknown> } };
+  if (!unsigned.security) throw new AcceptanceInputError("security target manifest is missing a security binding");
+  delete unsigned.security.authorization.signature;
+  delete unsigned.security.authorization.signedPayloadDigest;
+  return canonical(unsigned);
+}
+
+export function assertSecurityTargetManifestSignature(target: TargetManifest, now = new Date()): void {
+  if (target.schemaVersion !== "lakda/target-manifest/v2" || !target.security) throw new AcceptanceInputError("security acceptance requires target manifest v2");
+  const payload = targetManifestSigningPayload(target);
+  if (target.security.authorization.signedPayloadDigest !== digest(payload)) throw new AcceptanceInputError("target manifest signed payload digest mismatch");
+  const validFrom = new Date(target.security.authorization.validFrom);
+  const validUntil = new Date(target.security.authorization.validUntil);
+  if (Number.isNaN(validFrom.getTime()) || Number.isNaN(validUntil.getTime()) || now < validFrom || now > validUntil) throw new AcceptanceInputError("target manifest authorization is not currently valid");
+  if (target.security.authorization.approvalEvidenceRef !== target.access.approvalEvidenceRef) throw new AcceptanceInputError("target manifest approval evidence binding mismatch");
+  let verified: boolean;
+  try {
+    verified = verifySignature(null, Buffer.from(payload, "utf8"), target.security.authorization.signature.publicKeyPem, Buffer.from(target.security.authorization.signature.valueBase64, "base64"));
+  } catch {
+    verified = false;
+  }
+  if (!verified) throw new AcceptanceInputError("target manifest authorization signature is invalid");
+}
+
 export async function loadReadyTargetManifest(path: string): Promise<JsonRecord<TargetManifest>> {
-  const record = await readJsonRecord<TargetManifest>(path, "target manifest", "lakda-target-manifest-v1.schema.json", true);
+  const record = await readJsonRecord<TargetManifest>(path, "target manifest");
+  const schemaName = record.value?.schemaVersion === "lakda/target-manifest/v1"
+    ? "lakda-target-manifest-v1.schema.json"
+    : record.value?.schemaVersion === "lakda/target-manifest/v2"
+      ? "lakda-target-manifest-v2.schema.json"
+      : undefined;
+  if (!schemaName) throw new AcceptanceInputError("target manifest version is unsupported");
+  await assertSchema(record.value, schemaName, "target manifest", true);
   if (record.value.status !== "ready" || !record.value.access.approved) throw new AcceptanceInputError("target manifest remains pending_external");
+  if (record.value.schemaVersion === "lakda/target-manifest/v2") assertSecurityTargetManifestSignature(record.value);
   return record;
 }
 
@@ -145,6 +209,34 @@ export function applyTargetManifest(config: LakdaConfig, target: TargetManifest)
     if (!target.safety.allowMutationKinds.includes(kind)) throw new AcceptanceInputError("target manifest mutation allowlist does not cover config");
   }
   if (canonical(config.adaptive.actionContracts ?? []) !== canonical(target.actionContracts)) throw new AcceptanceInputError("target manifest action contracts do not match config");
+  if (target.schemaVersion === "lakda/target-manifest/v2") {
+    const security = target.security;
+    const authorization = config.adaptive.securityAuthorization;
+    if (!security || config.adaptive.adapter.id !== "security" || !authorization || config.adaptive.securityEnvironment !== target.environment.name) {
+      throw new AcceptanceInputError("target manifest security mode does not match config");
+    }
+    if (
+      authorization.authorizationId !== security.authorization.authorizationId ||
+      authorization.approvalEvidenceRef !== security.authorization.approvalEvidenceRef ||
+      authorization.validFrom !== security.authorization.validFrom ||
+      authorization.validUntil !== security.authorization.validUntil ||
+      authorization.signature.signedPayloadDigest !== security.authorization.signedPayloadDigest ||
+      authorization.signature.signatureRef !== security.authorization.signatureRef ||
+      authorization.targets.targetRevision !== target.binding?.targetRevision ||
+      canonical([...authorization.targets.methods].sort()) !== canonical([...security.requestScope.methods].sort()) ||
+      canonical([...authorization.targets.requestTemplateDigests].sort()) !== canonical([...security.requestScope.requestTemplateDigests].sort()) ||
+      authorization.maxRatePerMinute !== security.limits.maxRatePerMinute ||
+      authorization.maxConcurrency !== security.limits.maxConcurrency ||
+      authorization.dataPolicyRef !== security.dataPolicyRef ||
+      authorization.stopContactRef !== security.stopContactRef ||
+      config.adaptive.securityProfileRef !== security.securityProfile.ref ||
+      authorization.binding.securityProfileDigest !== security.securityProfile.digest ||
+      authorization.binding.capabilityDigest !== security.bridgeBinding.capabilityDigest ||
+      authorization.binding.bridgeDigest !== security.bridgeBinding.bridgeDigest
+    ) {
+      throw new AcceptanceInputError("target manifest security authorization binding does not match config");
+    }
+  }
   config.safety.allowHosts = [...target.scope.allowHosts];
   config.safety.pathPrefixes = [...target.scope.pathPrefixes];
   config.adaptive.settlePolicy.networkQuietExclusions = [...target.settleProfile.networkQuietExclusions];
@@ -309,6 +401,27 @@ export function assertCandidateAuditInvariants(audit: CandidateAuditLike, target
   if (audit.requiredActionIds.some(actionId => !observed.has(actionId))) throw new AcceptanceInputError("candidate audit omits a required observed action");
 }
 
+export function assertSecurityAuditInvariants(audit: SecurityAuditLike): void {
+  assertSortedUnique(audit.permitReceiptRefs, "security audit permitReceiptRefs");
+  assertSortedUnique(audit.violations, "security audit violations");
+  if (audit.policyEvaluationCount !== audit.allowedPolicyCount + audit.deniedPolicyCount) throw new AcceptanceInputError("security audit policy counts are inconsistent");
+  if (audit.startedRequestCount !== audit.permitReceiptRefs.length) throw new AcceptanceInputError("security audit request counter is inconsistent with permit receipts");
+  if (audit.cleanupFailures > audit.cleanupAttempts) throw new AcceptanceInputError("security audit cleanup counts are inconsistent");
+  const violations = [...audit.violations];
+  if (audit.policyEvaluationCount < 1) violations.push("policy_evaluation_missing");
+  if (audit.killSwitchChecks < 1) violations.push("kill_switch_check_missing");
+  if (audit.cleanupFailures > 0) violations.push("cleanup_failed");
+  if (audit.acceptanceMode === "deny-all") {
+    if (audit.allowedPolicyCount !== 0 || audit.startedRequestCount !== 0 || audit.cleanupAttempts !== 0) violations.push("deny_all_started_request");
+  } else if (audit.allowedPolicyCount < 1 || audit.startedRequestCount < 1 || audit.cleanupAttempts < 1) {
+    violations.push("authorized_execution_evidence_missing");
+  }
+  const normalized = [...new Set(violations)].sort();
+  if (canonical(normalized) !== canonical(audit.violations) || audit.eligible !== (normalized.length === 0)) {
+    throw new AcceptanceInputError("security audit eligibility is inconsistent with evidence");
+  }
+}
+
 export function assertAcceptanceReportSemantics(report: {
   revision: string;
   configDigest: string;
@@ -319,6 +432,7 @@ export function assertAcceptanceReportSemantics(report: {
   artifactRefs?: ArtifactReferenceLike[];
   hateArtifactRefs?: ArtifactReferenceLike[];
   candidateAudit?: CandidateAuditLike;
+  securityAudit?: SecurityAuditLike;
   verdict: string;
   environment?: { origin?: string };
 }, options: {
@@ -326,12 +440,15 @@ export function assertAcceptanceReportSemantics(report: {
   targetOrigin?: string | null;
   requireCandidateAudit?: boolean;
   requireEligibleHandoff?: boolean;
+  requireSecurityAudit?: boolean;
 } = {}): void {
   if (report.revision !== report.corpus.targetRevision) throw new AcceptanceInputError("report revision does not match corpus binding");
   if (report.configDigest !== report.corpus.caseConfigDigest) throw new AcceptanceInputError("report config digest does not match corpus binding");
   const requireEligibleHandoff = options.requireEligibleHandoff ?? true;
   const outcomeMatches = report.expected.outcome === report.actual.outcome;
-  const auditEligible = report.candidateAudit ? report.candidateAudit.eligible : !options.requireCandidateAudit;
+  const candidateAuditEligible = report.candidateAudit ? report.candidateAudit.eligible : !options.requireCandidateAudit;
+  const securityAuditEligible = report.securityAudit ? report.securityAudit.eligible : !options.requireSecurityAudit;
+  const auditEligible = candidateAuditEligible && securityAuditEligible;
   const expectedVerdict = outcomeMatches && auditEligible ? "passed" : "failed";
   if (requireEligibleHandoff) {
     if (report.verdict !== "passed" || expectedVerdict !== "passed") throw new AcceptanceInputError("report outcome is not eligible for external handoff");
@@ -354,6 +471,10 @@ export function assertAcceptanceReportSemantics(report: {
     if (requireEligibleHandoff || report.candidateAudit.eligible) {
       assertCandidateAuditInvariants(report.candidateAudit, options.targetAcceptance);
     }
+  }
+  if (options.requireSecurityAudit || report.securityAudit) {
+    if (!report.securityAudit) throw new AcceptanceInputError("security audit is required");
+    assertSecurityAuditInvariants(report.securityAudit);
   }
   if (options.targetOrigin !== undefined && report.environment?.origin !== options.targetOrigin) {
     throw new AcceptanceInputError("report origin does not match target manifest");

@@ -2,7 +2,7 @@
 document_id: LAKDA-CHK-AE-006
 status: review-ready
 version: 0.1.0-draft
-last_updated: 2026-07-14
+last_updated: 2026-07-22
 specification: SPEC-06-SECURITY-ADAPTER.md
 ---
 
@@ -28,6 +28,8 @@ specification: SPEC-06-SECURITY-ADAPTER.md
 ## B. 実装・受入チェック
 
 専用許可profile、negative fixture、real確認証跡が揃うまで未チェックとする。
+
+2026-07-22にlocal実装として、AuthorizationRecord v2、passiveを含む全candidateのfail-closed評価、method/template scope、capability/bridge digest、permit receipt、loopback redirect/JSON上限、署名済みtarget manifest v2、AC-AE-016 case report v2とsuite verifierを追加した。fixture回帰は実装証跡であり、下表とCのreal Gateを完了扱いにはしない。
 
 | 完了 | チェックID | 要件ID | 仕様節 | 検証方法 | 証跡 |
 |---|---|---|---|---|---|

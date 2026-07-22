@@ -1,0 +1,478 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lakda.dev/schemas/adaptive-acceptance-case-v2.schema.json",
+  "title": "Lakda adaptive security acceptance case v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "acceptanceId",
+    "caseId",
+    "runId",
+    "attempt",
+    "revision",
+    "runnerRevision",
+    "executionMode",
+    "environment",
+    "runtime",
+    "seed",
+    "configDigest",
+    "targetManifest",
+    "corpus",
+    "expected",
+    "actual",
+    "oracleResultRefs",
+    "artifactRefs",
+    "candidateAudit",
+    "securityAudit",
+    "verdict",
+    "ineligibilityReason",
+    "qegHandoff",
+    "generatedAt"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "lakda/adaptive-acceptance-case/v2"
+    },
+    "acceptanceId": {
+      "const": "AC-AE-016"
+    },
+    "caseId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "maxLength": 128
+    },
+    "runId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "revision": {
+      "type": "string",
+      "minLength": 1
+    },
+    "runnerRevision": {
+      "type": "string",
+      "pattern": "^[A-Fa-f0-9]{7,64}$"
+    },
+    "executionMode": {
+      "const": "real"
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "origin",
+        "adapterId"
+      ],
+      "properties": {
+        "label": {
+          "const": "staging"
+        },
+        "origin": {
+          "type": "string",
+          "minLength": 1
+        },
+        "adapterId": {
+          "const": "security"
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "nodeVersion",
+        "platform",
+        "arch"
+      ],
+      "properties": {
+        "nodeVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "platform": {
+          "type": "string",
+          "minLength": 1
+        },
+        "arch": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "configDigest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "targetManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "manifestId",
+        "sha256",
+        "schemaVersion"
+      ],
+      "properties": {
+        "manifestId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "schemaVersion": {
+          "const": "lakda/target-manifest/v2"
+        }
+      }
+    },
+    "corpus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "corpusId",
+        "version",
+        "sha256",
+        "targetRevision",
+        "caseConfigDigest"
+      ],
+      "properties": {
+        "corpusId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "targetRevision": {
+          "type": "string",
+          "minLength": 1
+        },
+        "caseConfigDigest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcome"
+      ],
+      "properties": {
+        "outcome": {
+          "enum": [
+            "passed",
+            "failed",
+            "partial",
+            "error"
+          ]
+        }
+      }
+    },
+    "actual": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcome",
+        "terminationReason",
+        "exitCode"
+      ],
+      "properties": {
+        "outcome": {
+          "enum": [
+            "passed",
+            "failed",
+            "partial",
+            "error"
+          ]
+        },
+        "terminationReason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "exitCode": {
+          "enum": [
+            0,
+            1,
+            2
+          ]
+        }
+      }
+    },
+    "oracleResultRefs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": {
+        "$ref": "https://quality-harness.dev/schemas/hate/v1/artifact-manifest.schema.json#/properties/artifacts/items"
+      }
+    },
+    "artifactRefs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "https://quality-harness.dev/schemas/hate/v1/artifact-manifest.schema.json#/properties/artifacts/items"
+      }
+    },
+    "candidateAudit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "snapshotCount",
+        "observedControls",
+        "classifiedControls",
+        "unclassifiedControls",
+        "candidateCount",
+        "coverageDebtCount",
+        "debtByReason",
+        "requiredActionIds",
+        "observedActionIds",
+        "debtActionIds",
+        "eligible",
+        "violations"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "lakda/target-candidate-audit/v1"
+        },
+        "snapshotCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "observedControls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "classifiedControls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unclassifiedControls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidateCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "coverageDebtCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "debtByReason": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "requiredActionIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "observedActionIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "debtActionIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "eligible": {
+          "type": "boolean"
+        },
+        "violations": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "securityAudit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "acceptanceMode",
+        "authorizationRef",
+        "securityProfileRef",
+        "bindingDigests",
+        "policyEvaluationCount",
+        "allowedPolicyCount",
+        "deniedPolicyCount",
+        "startedRequestCount",
+        "permitReceiptRefs",
+        "cleanupRefs",
+        "cleanupAttempts",
+        "cleanupFailures",
+        "killSwitchChecks",
+        "eligible",
+        "violations"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "lakda/security-acceptance-audit/v1"
+        },
+        "acceptanceMode": {
+          "enum": [
+            "deny-all",
+            "authorized-active",
+            "passive"
+          ]
+        },
+        "authorizationRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "securityProfileRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "bindingDigests": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "securityProfileDigest",
+            "capabilityDigest",
+            "bridgeDigest"
+          ],
+          "properties": {
+            "securityProfileDigest": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            },
+            "capabilityDigest": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            },
+            "bridgeDigest": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            }
+          }
+        },
+        "policyEvaluationCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "allowedPolicyCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "deniedPolicyCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "startedRequestCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "permitReceiptRefs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          }
+        },
+        "cleanupRefs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "cleanupAttempts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cleanupFailures": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "killSwitchChecks": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "eligible": {
+          "type": "boolean"
+        },
+        "violations": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "verdict": {
+      "enum": [
+        "passed",
+        "failed"
+      ]
+    },
+    "ineligibilityReason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
+    },
+    "qegHandoff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "verdictGeneratedByLakda"
+      ],
+      "properties": {
+        "status": {
+          "const": "pending_external"
+        },
+        "verdictGeneratedByLakda": {
+          "const": false
+        }
+      }
+    },
+    "generatedAt": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

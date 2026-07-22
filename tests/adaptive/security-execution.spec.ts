@@ -13,11 +13,16 @@ function config() {
       schemaVersion: "lakda/adaptive-config/v1",
       adapter: { id: "security", endpoint: "http://127.0.0.1:9100", initialTarget: target },
       securityProfileRef: "security-profile",
+      securityEnvironment: "staging",
       securityAuthorization: {
-        authorizationId: "auth-1", owner: "security", targets: { hosts: ["127.0.0.1"], pathPrefixes: ["/safe"] },
+        schemaVersion: "lakda/security-authorization/v2",
+        authorizationId: "auth-1", owner: "security", targets: { hosts: ["127.0.0.1"], pathPrefixes: ["/safe"], methods: ["GET"], requestTemplateDigests: ["sha256:" + "1".repeat(64)], targetRevision: "revision-1" },
         environment: "staging", validFrom: "2026-07-01T00:00:00Z", validUntil: "2026-08-01T00:00:00Z",
         allowedMutationKinds: ["parameter-mutation", "race"], maxRatePerMinute: 3, maxConcurrency: 2,
         cleanupRef: "cleanup-1", killSwitchRef: "kill-1", approvalEvidenceRef: "approval-1",
+        dataPolicyRef: "data-policy-1", stopContactRef: "stop-contact-1",
+        binding: { securityProfileDigest: "sha256:" + "2".repeat(64), capabilityDigest: "sha256:" + "3".repeat(64), bridgeDigest: "sha256:" + "4".repeat(64) },
+        signature: { algorithm: "ed25519", signedPayloadDigest: "sha256:" + "5".repeat(64), signatureRef: "signature-1" },
       },
       generator: { strategy: "least-visited-transition" }, stopWhen: { any: [{ type: "actionCoverage", atLeast: 1 }] },
       settlePolicy: { policyVersion: "settle/v1", maxWaitMs: 1_000, stableWindowMs: 20 },
@@ -33,7 +38,7 @@ function candidate(kind: "parameter-mutation" | "race"): ActionCandidate {
     sourceFingerprint: "state:security", actionKind: kind, locatorRecipe: { strategy: "request", value: "approved-request" },
     generatedBy: { ruleId: "fixture", observationId: "security-observation", reason: "authorized" },
     risk: { weight: 1 }, mutationKind: kind,
-    ...(kind === "race" ? { contract: { ensures: { raceParticipants: 3 } } } : {}),
+    contract: { ensures: { requestMethod: "GET", requestTemplateDigest: "sha256:" + "1".repeat(64), ...(kind === "race" ? { raceParticipants: 3 } : {}) } },
   };
 }
 function execution(candidateId: string): ExecutionResult {
@@ -100,4 +105,27 @@ test("adapter execution error still records cleanup before returning an infrastr
   expect(result.result.status).toBe("infrastructure_error");
   expect(result.result.failureSignature).toBe("security_execution_failed");
   expect(cleanupCalls).toBe(1);
+});
+
+test("passive security candidates still require authorization scope and kill-switch checks", async () => {
+  let controlChecks = 0;
+  let executions = 0;
+  const adapter: SecurityExecutionAdapter = {
+    checkKillSwitch: async () => { controlChecks += 1; return { triggered: false, evidenceRefs: [] }; },
+    execute: async action => { executions += 1; return execution(action.candidateId); },
+    cleanup: async () => ({ completed: true, evidenceRefs: [] }),
+  };
+  const controller = new SecurityExecutionController(config(), adapter, new KillSwitch(), "security-run");
+  const passive: ActionCandidate = {
+    ...candidate("parameter-mutation"),
+    candidateId: "passive-outside-scope",
+    mutationKind: "none",
+    targetRef: { ...target, origin: "http://127.0.0.1/outside" },
+  };
+
+  await expect(controller.denyReason(passive)).resolves.toBe("scope_denied");
+  const result = await controller.execute(passive, { runId: "security-run", timeoutMs: 1_000 });
+  expect(result.result.status).toBe("denied");
+  expect(executions).toBe(0);
+  expect(controlChecks).toBe(2);
 });

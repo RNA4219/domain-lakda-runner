@@ -84,6 +84,7 @@ export type AdaptiveConfig = {
   recovery: { maxBacktracks: number; maxAttemptsPerState: number };
   safety: { allowTargetKinds: TargetKind[]; denyActionIds: string[]; allowMutationKinds: MutationKind[] };
   securityProfileRef?: string;
+  securityEnvironment?: AuthorizationRecord["environment"];
   securityAuthorization?: AuthorizationRecord;
 };
 
