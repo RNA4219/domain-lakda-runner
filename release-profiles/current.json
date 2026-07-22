@@ -1,18 +1,18 @@
 {
   "schemaVersion": "lakda/release-profile/v1",
-  "profileId": "lakda-0-4-0-rc-2",
-  "releaseVersion": "0.4.0-rc.2",
-  "releaseScope": "0.4.0-rc.2 revision-bound release evidence",
-  "artifactPrefix": "lakda-0-4-0-rc-2",
-  "fiveToolNamespace": "lakda-0-4-0-rc-2",
+  "profileId": "lakda-0-4-0-rc-3",
+  "releaseVersion": "0.4.0-rc.3",
+  "releaseScope": "0.4.0-rc.3 revision-bound release evidence",
+  "artifactPrefix": "lakda-0-4-0-rc-3",
+  "fiveToolNamespace": "lakda-0-4-0-rc-3",
   "designInputs": {
-    "featureSpec": "release-profiles/0.4.0-rc.2/feature-spec.json",
-    "riskRegister": "release-profiles/0.4.0-rc.2/risk-register.json",
-    "manualCaseSet": "release-profiles/0.4.0-rc.2/manual-case-set.json"
+    "featureSpec": "release-profiles/0.4.0-rc.3/feature-spec.json",
+    "riskRegister": "release-profiles/0.4.0-rc.3/risk-register.json",
+    "manualCaseSet": "release-profiles/0.4.0-rc.3/manual-case-set.json"
   },
   "randAudit": {
-    "preset": "release-profiles/0.4.0-rc.2/rand-audit-preset.json",
-    "evidence": "release-profiles/0.4.0-rc.2/rand-audit-evidence.json",
+    "preset": "release-profiles/0.4.0-rc.3/rand-audit-preset.json",
+    "evidence": "release-profiles/0.4.0-rc.3/rand-audit-evidence.json",
     "runtimePresetName": "lakda_release_audit"
   },
   "requiredChecks": [
@@ -37,7 +37,7 @@
     "publishRelease": "publish_release"
   },
   "acceptanceIds": {
-    "full": "0.4.0-rc.2-full",
-    "workerSmoke": "0.4.0-rc.2-worker-smoke"
+    "full": "0.4.0-rc.3-full",
+    "workerSmoke": "0.4.0-rc.3-worker-smoke"
   }
 }
