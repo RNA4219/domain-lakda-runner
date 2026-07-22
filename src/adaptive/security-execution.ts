@@ -1,9 +1,10 @@
 import type { ExecuteContext } from "../adapters/types.js";
 import type { LakdaConfig } from "../core/types.js";
 import type { ActionCandidate, EvidenceArtifactRef, ExecutionResult } from "./contracts.js";
-import { evaluateSecurityAuthorization } from "./security-policy.js";
+import { evaluateSecurityAuthorization, securityPermitReceiptRef } from "./security-policy.js";
 import { KillSwitch } from "./safety.js";
 
+export type SecurityRuntimeBinding = { capabilityDigest: string; bridgeDigest: string };
 export type SecurityExecutionAdapter = {
   execute(candidate: ActionCandidate, context: ExecuteContext): Promise<ExecutionResult>;
   checkKillSwitch(request: { runId: string; killSwitchRef: string }): Promise<{ triggered: boolean; evidenceRefs: EvidenceArtifactRef[] }>;
@@ -15,6 +16,14 @@ function now(): string { return new Date().toISOString(); }
 function raceParticipants(candidate: ActionCandidate): number {
   const value = candidate.contract?.ensures?.raceParticipants;
   return typeof value === "number" && Number.isInteger(value) && value >= 2 ? value : 2;
+}
+function requestBinding(candidate: ActionCandidate): { method: string; requestTemplateDigest: string } {
+  const method = candidate.contract?.ensures?.requestMethod;
+  const requestTemplateDigest = candidate.contract?.ensures?.requestTemplateDigest;
+  return {
+    method: typeof method === "string" ? method.toUpperCase() : "",
+    requestTemplateDigest: typeof requestTemplateDigest === "string" ? requestTemplateDigest : "",
+  };
 }
 function denied(candidate: ActionCandidate, reason: string): ExecutionResult {
   const timestamp = now();
@@ -38,20 +47,58 @@ export class SecurityExecutionController {
   private activeRequests = 0;
   private startedRequests = 0;
 
-  constructor(private readonly config: LakdaConfig, private readonly adapter: SecurityExecutionAdapter, private readonly killSwitch: KillSwitch, private readonly runId: string) {}
+  constructor(
+    private readonly config: LakdaConfig,
+    private readonly adapter: SecurityExecutionAdapter,
+    private readonly killSwitch: KillSwitch,
+    private readonly runId: string,
+    private readonly runtimeBinding?: SecurityRuntimeBinding,
+  ) {}
 
-  private authorizationDenyReason(candidate: ActionCandidate, requestedParticipants = 1): string | undefined {
+  private authorizationDenyReason(candidate: ActionCandidate, trace: Array<Record<string, unknown>>, requestedParticipants = 1): string | undefined {
     const record = this.config.adaptive?.securityAuthorization;
     const origin = candidate.targetRef.origin ?? this.config.baseUrl;
     if (!origin) return "security_target_missing";
     try {
+      const target = new URL(origin);
+      const request = requestBinding(candidate);
       const decision = evaluateSecurityAuthorization(record, {
-        now: new Date(), target: new URL(origin), environment: record?.environment ?? "staging", mutationKind: candidate.mutationKind,
-        activeRequests: this.activeRequests, recentRequests: this.startedRequests,
+        now: new Date(),
+        target,
+        environment: this.config.adaptive?.securityEnvironment ?? "staging",
+        mutationKind: candidate.mutationKind,
+        method: request.method,
+        requestTemplateDigest: request.requestTemplateDigest,
+        activeRequests: this.activeRequests,
+        recentRequests: this.startedRequests,
+        capabilityDigest: this.runtimeBinding?.capabilityDigest,
+        bridgeDigest: this.runtimeBinding?.bridgeDigest,
       });
-      if (!decision.allowed) return decision.reason;
-      if (candidate.mutationKind === "race" && this.startedRequests + requestedParticipants > record!.maxRatePerMinute) return "security_budget";
-      return undefined;
+      let reason = decision.allowed ? undefined : decision.reason;
+      if (!reason && candidate.mutationKind === "race" && this.startedRequests + requestedParticipants > record!.maxRatePerMinute) reason = "security_budget";
+      trace.push({
+        type: "security-policy",
+        candidateId: candidate.candidateId,
+        authorizationId: record?.authorizationId ?? null,
+        authorizationRef: record?.approvalEvidenceRef ?? null,
+        securityProfileRef: this.config.adaptive?.securityProfileRef ?? null,
+        targetRevision: record?.targets.targetRevision ?? null,
+        targetOrigin: target.origin,
+        targetPath: target.pathname,
+        method: request.method,
+        requestTemplateDigest: request.requestTemplateDigest,
+        mutationKind: candidate.mutationKind,
+        decision: reason ? "denied" : "allowed",
+        ...(reason ? { reason } : {}),
+        requestCounters: {
+          active: this.activeRequests,
+          started: this.startedRequests,
+          requestedParticipants,
+          maxConcurrency: record?.maxConcurrency ?? 0,
+          maxRatePerMinute: record?.maxRatePerMinute ?? 0,
+        },
+      });
+      return reason;
     } catch {
       return "security_target_invalid";
     }
@@ -72,15 +119,13 @@ export class SecurityExecutionController {
   }
 
   private async preflight(candidate: ActionCandidate, trace: Array<Record<string, unknown>>, requestedParticipants = 1): Promise<string | undefined> {
-    if (candidate.mutationKind === "none") return undefined;
     if (this.killSwitch.triggered) return "kill_switch";
     await this.refreshKillSwitch(trace);
     if (this.killSwitch.triggered) return "kill_switch";
-    return this.authorizationDenyReason(candidate, requestedParticipants);
+    return this.authorizationDenyReason(candidate, trace, requestedParticipants);
   }
 
-  async denyReason(candidate: ActionCandidate): Promise<string | undefined> {
-    const trace: Array<Record<string, unknown>> = [];
+  async denyReason(candidate: ActionCandidate, trace: Array<Record<string, unknown>> = []): Promise<string | undefined> {
     return this.preflight(candidate, trace, candidate.mutationKind === "race" ? raceParticipants(candidate) : 1);
   }
 
@@ -89,12 +134,12 @@ export class SecurityExecutionController {
     if (!record) return { completed: false, evidenceRefs: [] };
     try {
       const cleanup = await this.adapter.cleanup({ runId: this.runId, cleanupRef: record.cleanupRef, candidateId: candidate.candidateId });
-      trace.push({ type: "security-cleanup", candidateId: candidate.candidateId, completed: cleanup.completed, evidenceRefs: cleanup.evidenceRefs });
+      trace.push({ type: "security-cleanup", candidateId: candidate.candidateId, cleanupRef: record.cleanupRef, completed: cleanup.completed, evidenceRefs: cleanup.evidenceRefs });
       if (!cleanup.completed) this.killSwitch.request("cleanup_failed");
       return cleanup;
     } catch {
       this.killSwitch.request("cleanup_failed");
-      trace.push({ type: "security-cleanup", candidateId: candidate.candidateId, completed: false, reason: "cleanup_failed" });
+      trace.push({ type: "security-cleanup", candidateId: candidate.candidateId, cleanupRef: record.cleanupRef, completed: false, reason: "cleanup_failed" });
       return { completed: false, evidenceRefs: [] };
     }
   }
@@ -105,11 +150,39 @@ export class SecurityExecutionController {
     return { ...result, status: "action_failed", failureSignature: "cleanup_failed", recoveryStatus: "not_recovered", evidenceRefs };
   }
 
+  private permit(candidate: ActionCandidate, trace: Array<Record<string, unknown>>): ExecuteContext["securityPermit"] | undefined {
+    const record = this.config.adaptive?.securityAuthorization;
+    const origin = candidate.targetRef.origin ?? this.config.baseUrl;
+    if (!record || !origin) return undefined;
+    const target = new URL(origin);
+    const request = requestBinding(candidate);
+    const permitReceiptRef = securityPermitReceiptRef(record, {
+      target,
+      method: request.method,
+      requestTemplateDigest: request.requestTemplateDigest,
+      mutationKind: candidate.mutationKind,
+      requestOrdinal: this.startedRequests + 1,
+    });
+    const permit = {
+      authorizationId: record.authorizationId,
+      permitReceiptRef,
+      requestOrdinal: this.startedRequests + 1,
+      targetRevision: record.targets.targetRevision,
+      securityProfileDigest: record.binding.securityProfileDigest,
+      capabilityDigest: record.binding.capabilityDigest,
+      bridgeDigest: record.binding.bridgeDigest,
+    };
+    trace.push({ type: "security-permit", candidateId: candidate.candidateId, ...permit });
+    return permit;
+  }
+
   private async executeSequential(candidate: ActionCandidate, context: ExecuteContext, trace: Array<Record<string, unknown>>): Promise<ExecutionResult> {
+    const securityPermit = this.permit(candidate, trace);
+    if (!securityPermit) return denied(candidate, "permit_missing");
     this.activeRequests += 1; this.startedRequests += 1;
     let result: ExecutionResult;
     try {
-      result = await this.adapter.execute(candidate, context);
+      result = await this.adapter.execute(candidate, { ...context, securityPermit });
     } catch {
       result = executionFailure(candidate);
       trace.push({ type: "security-execution-error", candidateId: candidate.candidateId, reason: "security_execution_failed" });
@@ -133,10 +206,16 @@ export class SecurityExecutionController {
           trace.push({ type: "race-participant-skipped", groupId, participantIndex, reason });
           return;
         }
+        const securityPermit = this.permit(candidate, trace);
+        if (!securityPermit) {
+          skipped = true;
+          trace.push({ type: "race-participant-skipped", groupId, participantIndex, reason: "permit_missing" });
+          return;
+        }
         this.activeRequests += 1; this.startedRequests += 1;
         let result: ExecutionResult;
         try {
-          result = await this.adapter.execute(candidate, { ...context, race: { groupId, participantIndex, participantCount: count } });
+          result = await this.adapter.execute(candidate, { ...context, securityPermit, race: { groupId, participantIndex, participantCount: count } });
         } catch {
           result = executionFailure(candidate);
           this.killSwitch.request("race_participant_failure");

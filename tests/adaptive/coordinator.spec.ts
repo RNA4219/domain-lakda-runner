@@ -6,6 +6,7 @@ import { loadConfig } from "../../src/core/config.js";
 import { runLakda } from "../../src/core/runner.js";
 import { startFixture } from "../fixtures/server.js";
 import { fingerprintObservation } from "../../src/adaptive/fingerprint.js";
+import { securityBindingDigest } from "../../src/adaptive/security-policy.js";
 import type { Observation } from "../../src/adaptive/contracts.js";
 
 test("adaptive-explore writes a state graph and deterministic replay trace from a real browser run", async () => {
@@ -261,11 +262,13 @@ test("Security bridge executes an authorized sequential parameter mutation only 
     schemaVersion: "lakda/adaptive-contracts/v1", candidateId: "parameter-mutation", adapterId: "security", targetRef: observation.targetRef, sourceFingerprint: fingerprint,
     actionKind: "parameter-mutation", locatorRecipe: { strategy: "request", value: "safe-request" }, generatedBy: { ruleId: "bridge", observationId: observation.observationId, reason: "authorized" },
     risk: { weight: 2 }, mutationKind: "parameter-mutation",
+    contract: { ensures: { requestMethod: "GET", requestTemplateDigest: "sha256:" + "1".repeat(64) } },
   };
+  const capabilities = { schemaVersion: "lakda/adaptive-contracts/v1" as const, adapterId: "security", revision: "1", targetKinds: ["http" as const], actionKinds: ["parameter-mutation"], observationCapabilities: ["http"], evidenceCapabilities: ["security-control", "cleanup"], recoveryStrategies: ["backtrack"] };
   let executeCalls = 0; let cleanupCalls = 0;
   const fixture = await startFixture((url, method) => {
     if (method !== "POST") return { status: 405, body: "POST required" };
-    if (url.pathname === "/capabilities") return { contentType: "application/json", body: JSON.stringify({ schemaVersion: "lakda/adaptive-contracts/v1", adapterId: "security", revision: "1", targetKinds: ["http"], actionKinds: ["parameter-mutation"], observationCapabilities: ["http"], evidenceCapabilities: ["security-control", "cleanup"], recoveryStrategies: ["backtrack"] }) };
+    if (url.pathname === "/capabilities") return { contentType: "application/json", body: JSON.stringify(capabilities) };
     if (url.pathname === "/observe") return { contentType: "application/json", body: JSON.stringify(observation) };
     if (url.pathname === "/generate-candidates") return { contentType: "application/json", body: JSON.stringify([candidate]) };
     if (url.pathname === "/security-control") return { contentType: "application/json", body: JSON.stringify({ triggered: false, evidenceRefs: [] }) };
@@ -282,7 +285,20 @@ test("Security bridge executes an authorized sequential parameter mutation only 
         schemaVersion: "lakda/adaptive-config/v1",
         adapter: { id: "security", endpoint: fixture.baseUrl, initialTarget: observation.targetRef },
         securityProfileRef: "security-profile",
-        securityAuthorization: { authorizationId: "auth-1", owner: "security", targets: { hosts: ["127.0.0.1"], pathPrefixes: ["/safe"] }, environment: "staging", validFrom: "2026-07-01T00:00:00Z", validUntil: "2026-08-01T00:00:00Z", allowedMutationKinds: ["parameter-mutation"], maxRatePerMinute: 1, maxConcurrency: 1, cleanupRef: "cleanup-1", killSwitchRef: "kill-1", approvalEvidenceRef: "approval-1" },
+        securityEnvironment: "staging",
+        securityAuthorization: {
+          schemaVersion: "lakda/security-authorization/v2", authorizationId: "auth-1", owner: "security",
+          targets: { hosts: ["127.0.0.1"], pathPrefixes: ["/safe"], methods: ["GET"], requestTemplateDigests: ["sha256:" + "1".repeat(64)], targetRevision: "revision-1" },
+          environment: "staging", validFrom: "2026-07-01T00:00:00Z", validUntil: "2026-08-01T00:00:00Z",
+          allowedMutationKinds: ["parameter-mutation"], maxRatePerMinute: 1, maxConcurrency: 1,
+          cleanupRef: "cleanup-1", killSwitchRef: "kill-1", approvalEvidenceRef: "approval-1", dataPolicyRef: "data-policy-1", stopContactRef: "stop-contact-1",
+          binding: {
+            securityProfileDigest: "sha256:" + "2".repeat(64),
+            capabilityDigest: securityBindingDigest(capabilities),
+            bridgeDigest: securityBindingDigest({ transport: "loopback-json/v1", endpoint: fixture.baseUrl + "/" }),
+          },
+          signature: { algorithm: "ed25519", signedPayloadDigest: "sha256:" + "5".repeat(64), signatureRef: "signature-1" },
+        },
         generator: { strategy: "least-visited-transition" }, stopWhen: { any: [{ type: "actionCoverage", atLeast: 1 }] },
         settlePolicy: { policyVersion: "settle/v1", maxWaitMs: 1_000, stableWindowMs: 20 },
         fingerprintPolicy: { algorithmVersion: "sha256/v1", canonicalizationVersion: "canonical/v1" },

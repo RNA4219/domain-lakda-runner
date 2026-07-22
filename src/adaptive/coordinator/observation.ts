@@ -108,7 +108,7 @@ export async function observeCandidateSet(input: {
         input.trace.push({ type: "candidate-denied", candidateId: candidate.candidateId, reason: safety.reason });
         continue;
       }
-      const securityReason = input.securityController ? await input.securityController.denyReason(candidate) : undefined;
+      const securityReason = input.securityController ? await input.securityController.denyReason(candidate, input.trace) : undefined;
       if (securityReason) {
         input.trace.push({ type: "candidate-denied", candidateId: candidate.candidateId, reason: securityReason });
         continue;

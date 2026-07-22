@@ -57,12 +57,17 @@ export function validateAdaptiveConfig(adaptive: AdaptiveConfig | undefined, con
     throw new Error("adaptive Safety Policyはtargetを明示し、破壊的mutationを既定denyにします");
   }
   if (adaptive.adapter.id === "security") {
-    const activeMutations = adaptive.safety.allowMutationKinds.filter(kind => kind !== "none");
-    if (activeMutations.length) {
-      const record = adaptive.securityAuthorization;
-      if (!adaptive.securityProfileRef || !record || !record.authorizationId || !record.owner || !record.cleanupRef || !record.killSwitchRef || !record.approvalEvidenceRef || !record.targets.hosts.length || !Number.isInteger(record.maxRatePerMinute) || record.maxRatePerMinute < 1 || !Number.isInteger(record.maxConcurrency) || record.maxConcurrency < 1 || !Array.isArray(record.allowedMutationKinds) || Number.isNaN(new Date(record.validFrom).getTime()) || Number.isNaN(new Date(record.validUntil).getTime())) throw new Error("securityAuthorization and securityProfileRef are required for active security mutations");
-      if (new Date(record.validFrom) > new Date(record.validUntil)) throw new Error("securityAuthorization validity window is invalid");
+    const record = adaptive.securityAuthorization;
+    const digest = /^sha256:[0-9a-f]{64}$/;
+    if (!adaptive.securityProfileRef || !adaptive.securityEnvironment || !record || record.schemaVersion !== "lakda/security-authorization/v2" || !record.authorizationId || !record.owner || !record.cleanupRef || !record.killSwitchRef || !record.approvalEvidenceRef || !record.dataPolicyRef || !record.stopContactRef || !record.targets.hosts.length || !record.targets.pathPrefixes.length || !record.targets.methods.length || !record.targets.requestTemplateDigests.length || !record.targets.targetRevision || !Number.isInteger(record.maxRatePerMinute) || record.maxRatePerMinute < 1 || !Number.isInteger(record.maxConcurrency) || record.maxConcurrency < 1 || !Array.isArray(record.allowedMutationKinds) || !digest.test(record.binding.securityProfileDigest) || !digest.test(record.binding.capabilityDigest) || !digest.test(record.binding.bridgeDigest) || record.signature.algorithm !== "ed25519" || !digest.test(record.signature.signedPayloadDigest) || !record.signature.signatureRef || Number.isNaN(new Date(record.validFrom).getTime()) || Number.isNaN(new Date(record.validUntil).getTime())) {
+      throw new Error("security adapter requires complete securityAuthorization/v2, securityEnvironment, securityProfileRef, scope, binding, and signature");
     }
+    if (new Date(record.validFrom) > new Date(record.validUntil)) throw new Error("securityAuthorization validity window is invalid");
+    if (adaptive.securityEnvironment !== record.environment) throw new Error("securityEnvironment does not match securityAuthorization");
+    if (record.targets.methods.some(method => !/^[A-Z]+$/.test(method))) throw new Error("securityAuthorization methods must be uppercase");
+    const activeMutations = adaptive.safety.allowMutationKinds.filter(kind => kind !== "none");
+    if (record.environment === "production" && activeMutations.length) throw new Error("production security profile is passive-only");
+    if (activeMutations.some(kind => !record.allowedMutationKinds.includes(kind))) throw new Error("securityAuthorization does not cover configured active mutations");
   }
   if (config.seed !== Math.trunc(config.seed)) throw new Error("adaptive seedはtop-level整数だけを使用します");
 }

@@ -144,7 +144,7 @@ export async function runAdaptiveExplore(
           artifactBytes: await runSizeBytes(collector.paths.runDir),
           killSwitch,
         });
-        const securityReason = safety.allowed ? (securityController ? await securityController.denyReason(candidate) : undefined) : safety.reason;
+        const securityReason = safety.allowed ? (securityController ? await securityController.denyReason(candidate, trace) : undefined) : safety.reason;
         if (!safety.allowed || securityReason) {
           trace.push({ type: "replay-divergence", candidateId: candidate.candidateId, reason: "scope-or-safety-violation" });
           outcome = "failed";

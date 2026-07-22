@@ -167,3 +167,16 @@ reference stagingのconfig、corpus、case、target revision、allowlist、kill 
 ## 6. 完了記録
 
 Task完了時は`docs/acceptance/AC-YYYYMMDD-xx.md`または`.json`へ対象commit SHA、CI URL、dataset/model attestation、profile/coverage、検証結果、bundle SHAを記録し、`docs/completion-record.md`とCHANGELOGへリンクする。過去JSONは改変せず、誤ったcoverage主張は後続訂正文書で訂正する。Birdseye/Codemapは`codemap.config.json`に従い`docs/acceptance/**/*.{md,json}`を発見し、`.lakda/**`を除外する。未変更capsuleのtimestampを維持したままworkflow-cookbookの`--repo-root`指定で更新する。
+
+### AC-AE-016 Security実受入
+
+Security実受入は既存の`acceptance:adaptive:real` runnerを使い、別runnerを増やさない。targetへ接続する前に次をすべて満たすこと。
+
+- `LAKDA_ADAPTIVE_TARGET_MANIFEST`は`lakda/target-manifest/v2`で、status=`ready`、staging origin、target revision/config digestを固定する。
+- authorizationのEd25519署名、期間、approval evidence refを検証できること。
+- configの`securityEnvironment`とauthorizationのenvironmentが一致し、production activeを含まないこと。
+- host/pathに加えてHTTP methodとrequest template SHA-256がscope内であること。
+- security profile、capability handshake、loopback bridge endpointの各digestがmanifest/config/runtimeで一致すること。
+- operator bridgeは各実行で`securityPermit`を受け取り、cleanupとkill switch endpointを提供すること。
+
+case reportは`lakda/adaptive-acceptance-case/v2`となり、policy評価数、開始request数、permit receipt、cleanup、kill switch、binding digestを`securityAudit`へ保存する。16 ACのsuite verifierでは`LAKDA_ADAPTIVE_SECURITY_TARGET_MANIFEST`を指定し、署名とreportのmanifest ID/SHA-256/revision/config bindingを再検証する。LakdaはHATE/v1への登録までを行い、manual-bb/QEG verdictは引き続き`pending_external`とする。
