@@ -330,20 +330,59 @@ test("Playwright adapter integrates generic browser failures into Observation", 
     const popupOpened = context.waitForEvent("page");
     await adapter.execute(offPageCandidate!, { runId: "event-test", timeoutMs: 2_000 });
     const offPage = await popupOpened;
-    await offPage.waitForTimeout(50);
+    await offPage.waitForLoadState("load");
     const popupTarget = adapter.activeTargets().find(target => target.kind === "page" && target.targetId !== adapter.primaryTarget().targetId);
     expect(popupTarget).toBeTruthy();
+    await expect.poll(async () => {
+      const observed = await adapter.observe(adapter.primaryTarget(), { runId: "event-test", scopeHosts: ["127.0.0.1"] });
+      const observedEvents = observed.ui.events as Array<Record<string, unknown>>;
+      return observedEvents
+        .filter(event => event.targetId === popupTarget!.targetId)
+        .map(event => event.kind);
+    }, { timeout: 2_000 }).toEqual(expect.arrayContaining(["console-error", "pageerror"]));
     const afterOffPage = await adapter.observe(adapter.primaryTarget(), { runId: "event-test", scopeHosts: ["127.0.0.1"] });
     const offPageEvents = afterOffPage.ui.events as Array<Record<string, unknown>>;
-    expect(offPageEvents).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: "console-error", targetId: popupTarget!.targetId }),
-      expect.objectContaining({ kind: "pageerror", targetId: popupTarget!.targetId }),
-    ]));
     expect(JSON.stringify(offPageEvents)).not.toContain("off-page-console");
     expect(JSON.stringify(offPageEvents)).not.toContain("off-page-error");
   } finally { await context.close(); await browser.close(); await fixture.close(); }
 });
 
+test("Playwright adapter binds an early same-URL popup console event to the triggering target only", async () => {
+  const fixture = await startFixture(() => ({
+    body: "<script>if (window.opener) setTimeout(() => console.error('same-url-popup-console'), 0);</script><a data-testid='same-url-popup' target='_blank' rel='opener' href='/'>Open same URL</a>",
+  }));
+  const browser = await chromium.launch();
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const adapter = new PlaywrightAdaptiveAdapter({ page, context, scopeHosts: ["127.0.0.1"], settlePolicy: { maxWaitMs: 2_000, stableWindowMs: 20 } });
+  try {
+    await page.goto(fixture.baseUrl);
+    const primaryTarget = adapter.primaryTarget();
+    const before = await adapter.observe(primaryTarget, { runId: "same-url-event-test", scopeHosts: ["127.0.0.1"] });
+    const candidate = (await adapter.generateCandidates(before)).find(value => value.locatorRecipe.value === "same-url-popup");
+    expect(candidate).toBeTruthy();
+    const popupOpened = context.waitForEvent("page");
+    expect((await adapter.execute(candidate!, { runId: "same-url-event-test", timeoutMs: 2_000 })).status).toBe("executed");
+    const popup = await popupOpened;
+    await popup.waitForLoadState("load");
+    const popupTarget = adapter.activeTargets().find(target => target.kind === "page" && target.targetId !== primaryTarget.targetId);
+    expect(popupTarget).toBeTruthy();
+    await expect.poll(async () => {
+      const observed = await adapter.observe(primaryTarget, { runId: "same-url-event-test", scopeHosts: ["127.0.0.1"] });
+      const consoleEvents = (observed.ui.events as Array<Record<string, unknown>>).filter(event => event.kind === "console-error");
+      return {
+        popupCount: consoleEvents.filter(event => event.targetId === popupTarget!.targetId).length,
+        primaryCount: consoleEvents.filter(event => event.targetId === primaryTarget.targetId).length,
+      };
+    }, { timeout: 2_000 }).toEqual({ popupCount: 1, primaryCount: 0 });
+    const observed = await adapter.observe(primaryTarget, { runId: "same-url-event-test", scopeHosts: ["127.0.0.1"] });
+    expect(JSON.stringify(observed.ui.events)).not.toContain("same-url-popup-console");
+  } finally {
+    await context.close();
+    await browser.close();
+    await fixture.close();
+  }
+});
 test("Playwright adapter backtracks after an execution failure without exposing runtime handles", async () => {
   const fixture = await startFixture(url => url.pathname === "/next"
     ? { body: "<h1>Next</h1>" }

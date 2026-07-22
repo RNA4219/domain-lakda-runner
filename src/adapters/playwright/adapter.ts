@@ -1,4 +1,4 @@
-import type { BrowserContext, Frame, Page } from "playwright";
+import type { BrowserContext, ConsoleMessage, Frame, Page } from "playwright";
 import { redact, sha256 } from "../../core/redaction.js";
 import { fingerprintObservation } from "../../adaptive/fingerprint.js";
 import type { ActionCandidate, AdapterCapabilities, CandidateDiscoveryResult, CoverageDebt, DialogHandling, EvidenceArtifactRef, ExecutionResult, LocatorRecipe, MutationKind, Observation, ProductActionContract, SettlePolicy, TargetRef } from "../../adaptive/contracts.js";
@@ -43,7 +43,6 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
   private readonly scopePathPrefixes: readonly string[] | undefined;
   private readonly actionContracts = new Map<string, MutationKind>();
   private readonly input?: InputValueProvider;
-  private readonly contextEvents: boolean;
   private readonly settle: SettlePolicy;
   private readonly dialogs: DialogEvent[] = [];
   private readonly network: Array<{ targetId: string; url: string; status: number; method: string }> = [];
@@ -51,6 +50,8 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
   private readonly networkChangedAt = new Map<string, number>();
   private readonly ignoredNetworkRequests = new WeakSet<object>();
   private readonly events: BrowserEvent[] = [];
+  private readonly pendingConsoleEvents: Array<{ message: ConsoleMessage; messageRef: string; queuedAt: number; triggerActionId?: string; url: string }> = [];
+  private readonly seenConsoleMessages = new WeakSet<object>();
   private readonly pendingPageTriggers = new Map<string, string>();
   private candidateInFlight?: ActionCandidate;
   private dialogInFlight?: DialogControl;
@@ -69,18 +70,9 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
       this.actionContracts.set(contract.actionId, contract.mutationKind);
     }
     this.input = options.inputValueProvider;
-    this.contextEvents = Boolean(options.context);
     this.settle = { ...DEFAULT_SETTLE_POLICY, ...options.settlePolicy };
-    options.context?.on("console", message => {
-      if (message.type() !== "error") return;
-      const page = message.page(); const targetId = page ? this.registerPage(page).targetId : this.primaryTarget().targetId;
-      this.recordBrowserEvent(targetId, "console-error", { messageRef: sha256(redact(message.text())) });
-    });
-    options.context?.on("weberror", webError => {
-      const page = webError.page(); const targetId = page ? this.registerPage(page).targetId : this.primaryTarget().targetId; const error = webError.error();
-      this.recordBrowserEvent(targetId, "pageerror", { messageRef: sha256(redact(`${error.name}:${error.message}`)) });
-    });
     this.registerPage(options.page);
+    options.context?.on("console", message => this.captureContextConsole(message));
     options.context?.on("page", page => this.registerPage(page, undefined, this.candidateInFlight?.candidateId));
   }
 
@@ -138,6 +130,43 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
     const frame = target as Frame;
     return typeof frame.page === "function" ? this.ids.get(frame.page()) : this.ids.get(target as Page);
   }
+  private recordConsoleMessage(targetId: string, message: ConsoleMessage): void {
+    if (message.type() !== "error" || this.seenConsoleMessages.has(message)) return;
+    const pendingIndex = this.pendingConsoleEvents.findIndex(event => event.message === message);
+    if (pendingIndex >= 0) this.pendingConsoleEvents.splice(pendingIndex, 1);
+    this.seenConsoleMessages.add(message);
+    this.recordBrowserEvent(targetId, "console-error", { messageRef: sha256(redact(message.text())) });
+  }
+  private captureContextConsole(message: ConsoleMessage): void {
+    if (
+      message.type() !== "error"
+      || this.seenConsoleMessages.has(message)
+      || this.pendingConsoleEvents.some(event => event.message === message)
+    ) return;
+    const page = message.page();
+    if (page) {
+      this.recordConsoleMessage(this.registerPage(page).targetId, message);
+      return;
+    }
+    const url = safeUrl(message.location().url);
+    if (!url) return;
+    this.pendingConsoleEvents.push({ message, messageRef: sha256(redact(message.text())), queuedAt: Date.now(), ...(this.candidateInFlight ? { triggerActionId: this.candidateInFlight.candidateId } : {}), url });
+    if (this.pendingConsoleEvents.length > 100) this.pendingConsoleEvents.splice(0, this.pendingConsoleEvents.length - 100);
+  }
+  private flushPendingConsoleEvents(targetId: string, url: string, triggerActionId?: string): void {
+    const now = Date.now();
+    const maxAgeMs = Math.max(this.settle.maxWaitMs, 5_000);
+    for (let index = this.pendingConsoleEvents.length - 1; index >= 0; index -= 1) {
+      const event = this.pendingConsoleEvents[index]!;
+      if (now - event.queuedAt > maxAgeMs) {
+        this.pendingConsoleEvents.splice(index, 1);
+        continue;
+      }
+      if (!triggerActionId || event.url !== url || event.triggerActionId !== triggerActionId) continue;
+      this.pendingConsoleEvents.splice(index, 1);
+      this.recordConsoleMessage(targetId, event.message);
+    }
+  }
   private recordBrowserEvent(targetId: string, kind: BrowserEvent["kind"], details: Omit<BrowserEvent, "eventId" | "kind" | "targetId"> = {}): void {
     this.events.push({ eventId: `browser-event-${++this.browserEvents}`, kind, targetId, ...details });
     if (this.events.length > 100) this.events.splice(0, this.events.length - 100);
@@ -151,11 +180,14 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
       if (parentTargetId) { entry.ref.parentTargetId ??= parentTargetId; entry.pageMetadata ??= {}; entry.pageMetadata.openerTargetId ??= parentTargetId; }
       if (inferredTriggerActionId) { entry.pageMetadata ??= {}; entry.pageMetadata.triggerActionId ??= inferredTriggerActionId; }
       if (parentTargetId && inferredTriggerActionId) this.pendingPageTriggers.delete(parentTargetId);
+      const currentUrl = safeUrl(page.url());
+      if (currentUrl) this.flushPendingConsoleEvents(entry.ref.targetId, currentUrl, entry.pageMetadata?.triggerActionId);
       return this.ref(entry);
     }
     const ref: TargetRef = { targetId: `page-${++this.pages}`, kind: "page", ...(parentTargetId ? { parentTargetId } : {}) };
     const initialUrl = safeUrl(page.url());
     this.ids.set(page, ref.targetId); this.targets.set(ref.targetId, { target: page, ref, pageMetadata: { ...(parentTargetId ? { openerTargetId: parentTargetId } : {}), ...(inferredTriggerActionId ? { triggerActionId: inferredTriggerActionId } : {}), ...(initialUrl ? { initialUrl } : {}) } });
+    if (initialUrl) this.flushPendingConsoleEvents(ref.targetId, initialUrl, inferredTriggerActionId);
     if (parentTargetId) this.topology.record({ eventKind: "target-open", targetId: ref.targetId, parentTargetId, reason: "popup" });
     if (parentTargetId && inferredTriggerActionId) this.pendingPageTriggers.delete(parentTargetId);
     page.on("close", () => {
@@ -171,17 +203,21 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
         this.topology.returnTo(ref.targetId, returnId, "closed-page-opener");
       }
     });
-    if (!this.contextEvents) {
-      page.on("console", message => { if (message.type() === "error") this.recordBrowserEvent(ref.targetId, "console-error", { messageRef: sha256(redact(message.text())) }); });
-      page.on("pageerror", error => this.recordBrowserEvent(ref.targetId, "pageerror", { messageRef: sha256(redact(`${error.name}:${error.message}`)) }));
-    }
+    page.on("console", message => this.recordConsoleMessage(ref.targetId, message));
+    page.on("pageerror", error => this.recordBrowserEvent(ref.targetId, "pageerror", { messageRef: sha256(redact(`${error.name}:${error.message}`)) }));
     page.on("crash", () => this.recordBrowserEvent(ref.targetId, "crash"));
     page.on("request", request => this.networkStarted(ref.targetId, request));
     page.on("requestfinished", request => this.networkFinished(ref.targetId, request));
     page.on("requestfailed", request => { this.networkFinished(ref.targetId, request); const url = safeUrl(request.url()); this.recordBrowserEvent(ref.targetId, "request-failed", { ...(url ? { url } : {}), method: request.method(), ...(request.failure()?.errorText ? { messageRef: sha256(redact(request.failure()!.errorText)) } : {}) }); });
     page.on("download", download => { const url = safeUrl(download.url()); this.recordBrowserEvent(ref.targetId, "download", { ...(url ? { url } : {}), messageRef: sha256(redact(download.suggestedFilename())) }); });
     page.on("popup", popup => this.registerPage(popup, ref.targetId, this.candidateInFlight?.candidateId));
-    page.on("framenavigated", frame => { if (frame === page.mainFrame()) { const entry = this.targets.get(ref.targetId); const firstUrl = safeUrl(frame.url()); if (entry?.pageMetadata && firstUrl) entry.pageMetadata.initialUrl ??= firstUrl; } });
+    page.on("framenavigated", frame => {
+      if (frame !== page.mainFrame()) return;
+      const entry = this.targets.get(ref.targetId);
+      const firstUrl = safeUrl(frame.url());
+      if (entry?.pageMetadata && firstUrl) entry.pageMetadata.initialUrl ??= firstUrl;
+      if (firstUrl) this.flushPendingConsoleEvents(ref.targetId, firstUrl, entry?.pageMetadata?.triggerActionId);
+    });
     page.on("dialog", dialog => {
       const targetRef: TargetRef = { targetId: "dialog-" + (++this.dialogEvents), kind: "dialog", parentTargetId: ref.targetId, lifecycle: "active" };
       const control = this.dialogInFlight && this.dialogInFlight.candidateId === this.candidateInFlight?.candidateId ? this.dialogInFlight : undefined;
