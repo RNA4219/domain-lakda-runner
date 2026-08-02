@@ -472,7 +472,7 @@ export async function buildSessionHateManifest(paths: ExplorationSessionPaths, s
       classification, redaction_status: redactionStatus, redaction_rule_version: "lakda-redact-v1",
       safe_for_summary: false, public_exposure: "none", retention: { class: "default", days: 14 },
       security_checks: { secrets_scan: secretsScan, pii_scan: piiScan },
-      lakda: { sessionId: session.sessionId, producerVersion: "0.4.0-rc.3", createdAt: session.updatedAt },
+      lakda: { sessionId: session.sessionId, producerVersion: "0.5.0-rc.1", createdAt: session.updatedAt },
     });
   }
   const manifest = { schema_version: "HATE/v1", run_id: session.sessionId, run_attempt: 1, commit_sha: repositoryCommitSha(), artifacts };

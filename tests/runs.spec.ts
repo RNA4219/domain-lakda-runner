@@ -81,7 +81,7 @@ async function writeRun(root: string, ref: string, options: RunOptions): Promise
     endedAt: options.endedAt ?? options.startedAt,
     mode: adaptive ? "adaptive-explore" : "smoke",
     seed: 4219,
-    producerVersion: "0.4.0-rc.3",
+    producerVersion: "0.5.0-rc.1",
     commitSha: "a".repeat(40),
     outcome: options.outcome ?? "passed",
     terminationReason: options.terminationReason ?? "completed",

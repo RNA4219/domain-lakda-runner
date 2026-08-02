@@ -120,7 +120,7 @@ jobs:
           $profile = Get-Content -Raw $profilePath | ConvertFrom-Json
           if ($profile.schemaVersion -ne 'lakda/release-profile/v1') { throw "unsupported release profile schema" }
           if ($profile.releaseVersion -ne $version) { throw "release profile version does not match package version" }
-          $allowedChecks = @('check', 'acceptance:fixture', 'acceptance:adaptive', 'pack:check', 'check:hate:upstream', 'test:contracts', 'test:examples')
+          $allowedChecks = @('check', 'acceptance:fixture', 'acceptance:adaptive', 'acceptance:exploration:fixture', 'pack:check', 'check:hate:upstream', 'test:contracts', 'test:examples')
           foreach ($check in @($profile.requiredChecks)) {
             if ($check -notin $allowedChecks) { throw "release profile contains an unsupported check: $check" }
           }
@@ -192,6 +192,7 @@ jobs:
             'check' = { npm run check }
             'acceptance:fixture' = { npm run acceptance:fixture }
             'acceptance:adaptive' = { npm run acceptance:adaptive }
+            'acceptance:exploration:fixture' = { npm run acceptance:exploration:fixture }
             'pack:check' = { npm run pack:check }
             'check:hate:upstream' = { $env:HATE_UPSTREAM_REPO = (Resolve-Path .tools/hate).Path; npm run check:hate:upstream | Set-Content -Encoding utf8 .lakda/rc/prepared/hate-upstream.json }
             'test:contracts' = { npm run test:contracts }

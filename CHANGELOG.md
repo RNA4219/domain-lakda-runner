@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.5.0-rc.1 - Unreleased
+
 ### Added
 
 - `artifacts.video="retain-on-non-pass"`を通常runの既定として追加し、deterministic／adaptive Playwright runでpassed時にWebMを破棄、non-pass時だけ保持できるようにした。
@@ -11,6 +13,8 @@
 
 ### Changed
 
+- package、runtime／exploration producer、README、release profileを`0.5.0-rc.1`へ同期した。
+- release profileの必須検証へ`acceptance:exploration:fixture`を追加した。
 - `regression-replay`、実LLM `full` 90-run profile、full fixture acceptanceは録画負荷を避けるため、設定値にかかわらず`video=false`とした。
 - Exploration Charterの旧`adaptive`任意上書きを廃止し、型付き`profile`とnative app／surface／deny zone scopeへ固定した。個別real reportはaggregator検証まで`pending_external`とする。
 - native reference bridgeのidentityは実機APIによる独立観測ではなくoperator宣言として扱い、real acceptanceで実機取得記録とmanual-bbを別途要求するよう明記した。
@@ -23,7 +27,11 @@
 - resumeが渡す`adaptiveExpectedFingerprint`とcoordinatorの参照名がずれてcurrent fingerprint検証が発火しない問題を修正した。
 - raw bridge capabilityとnormalized session capabilityのdigest混同、evidence path／SHA-256／symlink未検証、binary attestationのconfused-deputy、HATE security status上書きをfail-closed化した。
 
-## 0.4.0-rc.3 - Unreleased
+### Release Status
+
+- ローカルfixture／package／profile検証は候補版証跡とし、Windows／Android／iOS実機、認可済みsecurity target、manual-bb、QEGは`pending_external`。
+
+## 0.4.0-rc.3 - Superseded candidate
 
 ### Added
 

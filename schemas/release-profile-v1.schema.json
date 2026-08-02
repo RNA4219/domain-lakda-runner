@@ -52,6 +52,7 @@
           "check",
           "acceptance:fixture",
           "acceptance:adaptive",
+          "acceptance:exploration:fixture",
           "pack:check",
           "check:hate:upstream",
           "test:contracts",

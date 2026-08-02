@@ -1,0 +1,91 @@
+{
+  "items": [
+    {
+      "id": "lakda-current-001",
+      "kind": "audit_evidence",
+      "source_name": "lakda_release_profile",
+      "url": "fixture://lakda/current/profile-bound-gate",
+      "title": "current profileとcandidate revisionの固定",
+      "summary": "RC501-001: package version、runtime/exploration producer、source SHA、profile、design input、QEG入力を同じfreeze対象へ結び付ける。",
+      "claims": ["release tagはQEG goの対象SHAだけを指す", "profileまたはsource変更はGate再実行を要求する"],
+      "evidence": ["fixture primary: release-profiles/current.json"],
+      "tags": ["audit", "official", "ja-JP"],
+      "priority": 10,
+      "high_priority": true,
+      "metadata": {
+        "requirement_id": "AC-RC501-001",
+        "original_text": "current release profile、package、producer versionが一致し、全local checkを対象SHAへ固定する。",
+        "source_type": "official",
+        "source_tier": "primary",
+        "locale": "ja-JP",
+        "freshness_days": 1,
+        "kano_type": "must_be",
+        "confidence": 0.98,
+        "weight": 1.0,
+        "testability": "high",
+        "implementation_alignment": "high",
+        "risks": ["stale profile、旧producer version、過去revisionのGate結果を引用する"],
+        "issues": [],
+        "suggested_action": "SHA、package version、producer version、profile digest、evidence hashをGate前後で再照合する。"
+      }
+    },
+    {
+      "id": "lakda-current-002",
+      "kind": "audit_evidence",
+      "source_name": "lakda_autonomous_exploration_requirements",
+      "url": "fixture://lakda/current/cross-platform-fail-closed-contracts",
+      "title": "cross-platform探索とartifactのfail-closed境界",
+      "summary": "RC501-002/003: non-pass capture、no-video full lane、visual candidate、resume、Airtest/Poco、attestation、五lane集約を独立再検証する。",
+      "claims": ["fixture成功はreal targetまたは実機受入を代替しない", "未知scope、stale candidate、tamper、未attest binaryを拒否する"],
+      "evidence": ["fixture primary: docs/spec/autonomous-exploratory-testing/SPEC-01-AUTONOMOUS-CROSS-PLATFORM-EXPLORATION.md"],
+      "tags": ["audit", "official", "ja-JP"],
+      "priority": 10,
+      "high_priority": true,
+      "metadata": {
+        "requirement_id": "AC-RC501-003",
+        "original_text": "Web、mobile、Airtest/Poco探索と証跡集約のfail-closed negativeを再検証する。",
+        "source_type": "official",
+        "source_tier": "primary",
+        "locale": "ja-JP",
+        "freshness_days": 1,
+        "kano_type": "must_be",
+        "confidence": 0.97,
+        "weight": 1.0,
+        "testability": "high",
+        "implementation_alignment": "high",
+        "risks": ["operator宣言identityまたはfixture reportをreal evidenceへ昇格する"],
+        "issues": [],
+        "suggested_action": "操作0件、nonzero exit、tamper拒否、no-fallbackをfixtureとreal acceptanceで分離して固定する。"
+      }
+    },
+    {
+      "id": "lakda-current-003",
+      "kind": "audit_evidence",
+      "source_name": "lakda_release_policy",
+      "url": "fixture://lakda/current/five-tool-boundary",
+      "title": "five-tool chainと外部QEG最終権限",
+      "summary": "RC501-004: RanD、Code-to-gate、HATE、manual-bb、QEGを順に接続し、QEG以外は最終Goを生成しない。",
+      "claims": ["QEG go以外ではreleaseを作成しない", "実targetまたは実機未承認時はpending_externalを維持する"],
+      "evidence": ["fixture primary: release-profiles/0.5.0-rc.1/feature-spec.json"],
+      "tags": ["audit", "official", "ja-JP"],
+      "priority": 10,
+      "high_priority": true,
+      "metadata": {
+        "requirement_id": "AC-RC501-004",
+        "original_text": "real evidenceとfive-tool chainを対象SHAへ結び、QEG以外が最終Goを生成しない。",
+        "source_type": "official",
+        "source_tier": "primary",
+        "locale": "ja-JP",
+        "freshness_days": 1,
+        "kano_type": "must_be",
+        "confidence": 0.98,
+        "weight": 1.0,
+        "testability": "high",
+        "implementation_alignment": "high",
+        "risks": ["部分証跡または非QEG判断をfinal Gateへ昇格する"],
+        "issues": [],
+        "suggested_action": "five-tool manifestでrevision、artifact hash、QEG policy hash、verdictを再検証する。"
+      }
+    }
+  ]
+}
