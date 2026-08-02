@@ -34,7 +34,7 @@ Lakdaは、Web・ゲーム・認可済みセキュリティ探索を共通の状
 > Lakdaのrun outcomeは最終品質Gateではありません。LakdaはHATE/v1証跡までを生成し、Go／No-Goは外部のmanual-bbとQEGが判断します。
 
 > [!NOTE]
-> 現在の候補版は `0.4.0-rc.3` です。code revision `600a037efec8617d2090b1c8be408a1d1b9b1c5a` の公開・非破壊[reference staging](https://rna4219.github.io/domain-lakda-runner/)に対するQEG `go`は、履歴として保持しますが、現在のsource revisionを承認するものではありません。現在の候補版はfreeze SHAごとにdeterministic、adaptive、package、reference staging、実Qwen、RanD、Code-to-gate、HATE、manual-bb、QEGを再実行するまで`pending_external`です。任意の本番・実機・security targetへの包括承認も示しません。詳細は[品質証跡記録](docs/acceptance/AC-20260716-19.reference-staging-qeg-go.md)を参照してください。
+> 現在の候補版は `0.5.0-rc.1` です。code revision `600a037efec8617d2090b1c8be408a1d1b9b1c5a` の公開・非破壊[reference staging](https://rna4219.github.io/domain-lakda-runner/)に対するQEG `go`は、履歴として保持しますが、現在のsource revisionを承認するものではありません。現在の候補版はfreeze SHAごとにdeterministic、adaptive、exploration、package、reference staging、実Qwen、RanD、Code-to-gate、HATE、manual-bb、QEGを再実行するまで`pending_external`です。任意の本番・実機・security targetへの包括承認も示しません。詳細は[品質証跡記録](docs/acceptance/AC-20260716-19.reference-staging-qeg-go.md)を参照してください。
 
 ## 機能
 
@@ -69,7 +69,7 @@ Lakda単体の成功をリリース成功とは呼びません。要件から最
 | [manual-bb-test-harness](https://github.com/RNA4219/manual-bb-test-harness) | 人間が実targetを確認し、Go/No-Go briefを作る | fixtureでは代替できないoracleを担当 |
 | [QEG](https://github.com/RNA4219/quality-evidence-graph) | 全証跡をgraph化し、最終Gate verdictとrecordを生成する | Lakdaの外部にある最終判定者 |
 
-過去revision `600a037`の自己完結したQEG入力、`go` verdict、recordは[docs/release-gate/qeg-600a037/](docs/release-gate/qeg-600a037/gate-input.json)から辿れます。これはrc.3の承認ではありません。HATE export成功はQEG `go`と同義ではなく、QEG自身のschema-check、hash verify、Gate評価が必要です。
+過去revision `600a037`の自己完結したQEG入力、`go` verdict、recordは[docs/release-gate/qeg-600a037/](docs/release-gate/qeg-600a037/gate-input.json)から辿れます。これは0.5.0-rc.1の承認ではありません。HATE export成功はQEG `go`と同義ではなく、QEG自身のschema-check、hash verify、Gate評価が必要です。
 
 ## 実装済みの機能面
 
@@ -85,7 +85,7 @@ Lakda単体の成功をリリース成功とは呼びません。要件から最
 | P8 組合せ探索 | constraint-safeなpairwise／mixed-strength suiteを生成・検証 | `lakda combo gen` / `lakda combo verify` | 済み |
 | P9 scouting | timeout、oracle failure、coverage gapなどをSignal／Leadへ正規化 | `lakda scout` / `lakda report leads` | 済み |
 | P10 調査・昇格・縮約 | strict replay、reproduced-only promote、安全なfailure shrinking | `lakda investigate` / `lakda promote` | 済み |
-| P11 case受入 | 承認targetでcase単位のreal acceptanceを実行・検証 | `npm run acceptance:extension:real` | v2 runner/verifier実装済み。rc.3の実環境証跡は`pending_external` |
+| P11 case受入 | 承認targetでcase単位のreal acceptanceを実行・検証 | `npm run acceptance:extension:real` | v2 runner/verifier実装済み。0.5.0-rc.1の実環境証跡は`pending_external` |
 
 P8〜P11の契約は[拡張仕様書](docs/spec/lakda-extension/README.md)を正本とします。fixture成功を実環境受入へ昇格しません。reference stagingの実証も、実機や認可済みsecurity targetの代替にはしません。
 
@@ -97,6 +97,7 @@ npx playwright install chromium
 npm run check
 npm run acceptance:fixture
 npm run acceptance:adaptive
+npm run acceptance:exploration:fixture
 npm run release:validate-profile
 npm run test:contracts
 npm run test:examples
@@ -221,12 +222,12 @@ factor modelは安全なfixture値と専用constraint DSLだけを受け入れ�
 | 区分 | 状態 | 意味 |
 |---|---|---|
 | P8〜P10ローカル機能検証 | 実施済み | 決定性、coverage、fail-closed、replay、promotion、redactionをfixtureで検証 |
-| P11 rc.3 real acceptance | 未実施 | 承認target manifest、固定revision、case単位artifactが必要。現在は`pending_external` |
+| P11 0.5.0-rc.1 real acceptance | 未実施 | 承認target manifest、固定revision、case単位artifactが必要。現在は`pending_external` |
 | 実機・認可済みsecurity target・実ZAP | 未実施 | operator承認と外部環境が必要 |
 | P7 real 16 AC corpus | 未実施 | immutable corpus、実target、artifact再照合が必要 |
-| manual-bb / QEG final Gate | rc.3は未実施 | 過去revisionの結果は履歴のみ。rc.3の最終判定は`pending_external` |
+| manual-bb / QEG final Gate | 0.5.0-rc.1は未実施 | 過去revisionの結果は履歴のみ。0.5.0-rc.1の最終判定は`pending_external` |
 
-P7の環境変数、corpus、case report、suite verifierの証跡条件は[P7 Real Adaptive Acceptance Runbook](docs/acceptance/P7-REAL-ACCEPTANCE-RUNBOOK.md)に固定しています。`AC-AE-016`はEd25519署名を検証できる`lakda/target-manifest/v2`と、`lakda/adaptive-acceptance-case/v2`のSecurity audit（policy/request counter/permit/cleanup/kill switch）を必須とします。P11を含むrc.3のreal acceptanceには、readyな承認target manifestとrevision-bound evidenceが必要です。実target未設定時はrunnerがexit 2で`pending_external`を返し、targetへ接続しません。過去の範囲限定`go`と残留境界は[品質証跡記録](docs/acceptance/AC-20260716-19.reference-staging-qeg-go.md)、機械可読な履歴判定は[QEG gate verdict](docs/release-gate/qeg-600a037/gate-verdict.json)を参照してください。
+P7の環境変数、corpus、case report、suite verifierの証跡条件は[P7 Real Adaptive Acceptance Runbook](docs/acceptance/P7-REAL-ACCEPTANCE-RUNBOOK.md)に固定しています。`AC-AE-016`はEd25519署名を検証できる`lakda/target-manifest/v2`と、`lakda/adaptive-acceptance-case/v2`のSecurity audit（policy/request counter/permit/cleanup/kill switch）を必須とします。P11を含む0.5.0-rc.1のreal acceptanceには、readyな承認target manifestとrevision-bound evidenceが必要です。実target未設定時はrunnerがexit 2で`pending_external`を返し、targetへ接続しません。過去の範囲限定`go`と残留境界は[品質証跡記録](docs/acceptance/AC-20260716-19.reference-staging-qeg-go.md)、機械可読な履歴判定は[QEG gate verdict](docs/release-gate/qeg-600a037/gate-verdict.json)を参照してください。
 
 P7/P11のrunnerとrunbookは開発・評価用であり、npm packageには含めません。
 

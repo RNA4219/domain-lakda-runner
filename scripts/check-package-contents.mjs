@@ -24,7 +24,7 @@ for (const [label, version] of [
 ]) {
   if (version !== packageJson.version) throw new Error(`${label} version mismatch: expected ${packageJson.version}, got ${version}`);
 }
-for (const path of ["src/index.ts", "src/core/artifacts.ts", "src/core/hate.ts"]) {
+for (const path of ["src/index.ts", "src/core/artifacts.ts", "src/core/hate.ts", "src/exploration/session.ts"]) {
   const versions = new Set(readFileSync(resolve(root, path), "utf8").match(/\b\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\b/g) ?? []);
   if (versions.size !== 1 || !versions.has(packageJson.version)) {
     throw new Error(`${path} version mismatch: expected only ${packageJson.version}, got ${[...versions].join(", ") || "missing"}`);

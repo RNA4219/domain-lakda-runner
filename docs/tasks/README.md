@@ -1,12 +1,12 @@
 ---
 document_id: LAKDA-TASK-INDEX-001
 status: active
-last_updated: 2026-08-02
+last_updated: 2026-08-03
 ---
 
 # Task Seed索引
 
-## 現行 0.4.0-rc.3
+## 現行 0.5.0-rc.1
 
 - [TASK.20260722-43](TASK.20260722-43.md) — 保守要件・仕様・チェックリスト正本化
 - [TASK.20260722-44](TASK.20260722-44.md) — 文書索引・HUB・Birdseye・checker同期
