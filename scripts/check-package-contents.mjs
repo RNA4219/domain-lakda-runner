@@ -46,6 +46,10 @@ const requiredRuntimeFiles = [
   "dist/cli.js",
   "dist/core/hate.js",
   "schemas/lakda-config-v1.schema.json",
+  "tools/airtest-poco-bridge/README.md",
+  "tools/airtest-poco-bridge/requirements.top-level-attestation.txt",
+  "tools/airtest-poco-bridge/requirements.txt",
+  "tools/airtest-poco-bridge/server.py",
   "vendor/hate/v1/artifact-manifest.schema.json",
 ];
 for (const path of requiredRuntimeFiles) {

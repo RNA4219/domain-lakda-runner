@@ -156,3 +156,17 @@ test("auth state is stored below ignored .lakda/auth", async () => {
   const { authStatePath } = await import("../src/core/runner.js");
   expect(authStatePath("member").replace(/\\/g, "/")).toContain("/.lakda/auth/member.json");
 });
+test("config accepts retain-on-non-pass video and rejects unknown retention modes", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "lakda-video-schema-"));
+  const configPath = join(directory, "lakda.config.json");
+  try {
+    expect(loadConfig(undefined).artifacts.video).toBe("retain-on-non-pass");
+    expect(loadConfig(undefined, { mode: "regression-replay" }).artifacts.video).toBe(false);
+    expect(loadConfig(undefined, { mode: "regression-replay", artifacts: { video: "retain-on-non-pass" } }).artifacts.video).toBe(false);
+    await writeFile(configPath, JSON.stringify({ schemaVersion: "lakda/v1", artifacts: { video: "retain-on-non-pass" } }));
+    expect(loadConfig(configPath).artifacts.video).toBe("retain-on-non-pass");
+    await writeFile(configPath, JSON.stringify({ schemaVersion: "lakda/v1", artifacts: { video: "unknown" } }));
+    expect(() => loadConfig(configPath)).toThrow(/設定schema/);
+    expect(() => loadConfig(undefined, { artifacts: { video: "unknown" as never } })).toThrow(/artifacts.video/);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});

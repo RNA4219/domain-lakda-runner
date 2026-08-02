@@ -5,6 +5,7 @@ import type { ActionCandidate, ExecutionResult, Observation, OracleResult } from
 import { StateGraph } from "../graph.js";
 import { evaluateBuiltInOracles } from "../oracle-registry.js";
 import { executionDivergence, oracleDivergence, type ReplayStep } from "../replay.js";
+import { explorationOracleResults } from "../visual.js";
 
 export function attachGenericOracles(page: Page, context: BrowserContext, collector: ArtifactCollector, config: LakdaConfig): void {
   const attach = (target: Page) => {
@@ -27,6 +28,15 @@ export type OracleEvaluation = {
   failed: boolean;
 };
 
+function uniqueOracles(oracles: OracleResult[]): OracleResult[] {
+  const seen = new Set<string>();
+  return oracles.filter(oracle => {
+    if (seen.has(oracle.oracleId)) return false;
+    seen.add(oracle.oracleId);
+    return true;
+  });
+}
+
 export function evaluateAndRecordOracles(input: {
   graph: StateGraph;
   candidate: ActionCandidate;
@@ -37,6 +47,7 @@ export function evaluateAndRecordOracles(input: {
   oracleResults: OracleResult[];
   trace: Array<Record<string, unknown>>;
   replayStep?: ReplayStep;
+  exploration?: boolean;
 }): OracleEvaluation {
   const evaluated = evaluateBuiltInOracles({
     candidate: input.oracleCandidate,
@@ -44,10 +55,26 @@ export function evaluateAndRecordOracles(input: {
     after: input.after,
     execution: input.execution,
   });
-  const stepOracles = evaluated.results;
+  const rawStepOracles = [
+    ...evaluated.results,
+    ...(input.exploration ? explorationOracleResults({ candidate: input.oracleCandidate, before: input.before, ...(input.after ? { after: input.after } : {}), execution: input.execution }) : []),
+  ];
+  // Keep normal adaptive's historical oracle stream unchanged; exploration
+  // adds only its own deduped machine-oracle records.
+  const stepOracles = input.exploration ? uniqueOracles(rawStepOracles) : rawStepOracles;
   input.graph.recordOracleResults(input.candidate.sourceFingerprint, input.candidate.candidateId, input.execution.postFingerprint, stepOracles, input.execution.status);
-  input.oracleResults.push(...stepOracles);
-  stepOracles.forEach(oracle => input.trace.push({ type: "oracle", result: oracle }));
+  if (input.exploration) {
+    const recordedIds = new Set(input.oracleResults.map(oracle => oracle.oracleId));
+    for (const oracle of stepOracles) {
+      if (recordedIds.has(oracle.oracleId)) continue;
+      recordedIds.add(oracle.oracleId);
+      input.oracleResults.push(oracle);
+      input.trace.push({ type: "oracle", result: oracle });
+    }
+  } else {
+    input.oracleResults.push(...stepOracles);
+    stepOracles.forEach(oracle => input.trace.push({ type: "oracle", result: oracle }));
+  }
 
   const replayDivergenceReason = input.replayStep
     ? executionDivergence(input.replayStep.execution, input.execution) ?? oracleDivergence(input.replayStep.oracles, stepOracles)
@@ -70,6 +97,7 @@ export function evaluateAndRecordOracles(input: {
     productOracles: evaluated.product,
     ...(replayDivergenceReason ? { replayDivergenceReason } : {}),
     failed: evaluated.product.some(oracle => oracle.verdict === "fail")
-      || (evaluated.generic.verdict === "fail" && ["executed", "denied"].includes(input.execution.status)),
+      || (evaluated.generic.verdict === "fail" && ["executed", "denied"].includes(input.execution.status))
+      || stepOracles.some(oracle => oracle.oracleId.startsWith("exploration:") && oracle.verdict === "fail"),
   };
 }

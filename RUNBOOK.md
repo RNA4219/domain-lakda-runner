@@ -47,6 +47,26 @@ lakda run --base-url <base-url> --mode seeded-random --persona <persona> --seed 
 lakda replay --input .lakda/runs/<run-id>/action-sequence.json --base-url <base-url>
 ```
 
+### 失敗時の画面証跡
+
+通常runのbrowser起動後non-passでは、既定で最終画面の`artifacts/failure.png`、操作・画面snapshot・networkを時系列で確認できる`artifacts/trace.zip`、人間が再生できる`artifacts/video/0001.webm`を保持する。
+
+```powershell
+npx playwright show-trace .lakda/runs/<run-id>/artifacts/trace.zip
+```
+
+録画を明示的に無効化する場合は、`lakda.config.json`へ次を設定する。
+
+```json
+{
+  "artifacts": {
+    "video": false
+  }
+}
+```
+
+`false`は録画なし、`true`は通常runの全run保持、既定の`"retain-on-non-pass"`は実行中録画してpassed時に削除し、`failed / partial / error`だけ`artifacts/video/0001.webm`からの連番で保持する。`regression-replay`、実LLMの`full` profile、`acceptance:fixture`のfull corpusは設定値にかかわらず`false`とし、failure screenshot／traceは維持する。Playwrightの録画はcontext終了時に確定するため、このモードは直前N秒の循環bufferではなくnon-pass run全体を残す。画面証跡は認証情報やPIIを含み得るので、承認済みtargetと適切なclassificationでのみ有効化し、Gitやsanitized release bundleへ入れない。
+
 ### ヘッデッド回帰と任意の外部スモーク
 
 ローカルでブラウザ表示を伴う回帰確認を行う場合は、次を実行する。CIではこのテストをskipし、headlessの通常suiteを正本とする。
@@ -69,7 +89,7 @@ lakda run --base-url <base-url> --mode llm-explore --persona <persona> --seed <s
 
 LLMは安全検査済みcandidate IDの選択または停止だけを返す。一次オラクルは機械ruleであり、LLMはpass/failやGateを決めない。
 
-実GGUFの受入は、運用者が対象modelをloopbackの`8080`で起動し、期待model IDと実file SHA-256を明示した後にだけ実行する。`full`はworkers=1、通常20ケース×3回＋critical 10ケース×3回の90 child runsでAC-007/010の正本となる。`worker-smoke`はworkers=2、critical 10ケース×1回の20 child runsでAC-014の補助だけに使う。旧`--critical-only`等はcustom扱いでAC-007/010へ適格ではない。
+実GGUFの受入は、運用者が対象modelをloopbackの`8080`で起動し、期待model IDと実file SHA-256を明示した後にだけ実行する。`full`はworkers=1、通常20ケース×3回＋critical 10ケース×3回の90 child runsでAC-007/010の正本となり、90回分の録画負荷を避けるためprofile契約で`video=false`に固定する。`worker-smoke`はworkers=2、critical 10ケース×1回の20 child runsでAC-014の補助だけに使う。旧`--critical-only`等はcustom扱いでAC-007/010へ適格ではない。
 
 ```powershell
 $env:LAKDA_REAL_LLM_MODEL = "C:\models\release-model.gguf"
@@ -81,7 +101,7 @@ npm run acceptance:verify -- --report=.lakda/reports/full.json --bundle=.lakda/a
 npm run acceptance:verify -- --report=.lakda/reports/worker-smoke.json --bundle=.lakda/acceptance/worker-smoke --check-revision
 ```
 
-bundleにはdecision JSONL、action sequence、HATE manifest、bundle manifestだけを含める。DOM、trace、screenshot、auth state、raw prompt、絶対pathは含めず、Gitへcommitしない。report summary、検証結果、bundle SHAだけをGit文書へ記録する。
+bundleにはdecision JSONL、action sequence、HATE manifest、bundle manifestだけを含める。DOM、trace、screenshot、video、auth state、raw prompt、絶対pathは含めず、Gitへcommitしない。report summary、検証結果、bundle SHAだけをGit文書へ記録する。
 
 ### Historical / Legacy: v0.2.1 worker batch / artifact確認
 
@@ -100,6 +120,40 @@ npm run acceptance:adaptive
 Playwright adapterはin-processで動作する。Airtest/PocoとSecurity adapterはoperator管理のloopback JSON serviceへ接続し、Lakdaは外部processを起動しない。endpoint/capability/initialTargetが欠ける場合はfail-closedとする。Security active操作では認可record、scope、rate/concurrency、kill switch、cleanupを必須とし、scanner/LLMの結果はcandidateから自動昇格させない。
 
 P6 RCのローカル納品Gateは`npm run check`、`npm run acceptance:fixture`、`npm run acceptance:adaptive`、`npm run check:hate`、`npm run pack:check`である。これはpackageの再現性とfixture受入を示すが、Airtest/Poco実機、認可済みSecurity target、manual-bb/QEG final Gateを代替しない。
+
+### 自動・クロスプラットフォーム探索MVP
+
+探索はversioned Charterから開始する。PC WebはPlaywright、mobile Webは390×844 touch profile、Windows／Android／iOSはoperatorが先に起動した127.0.0.1 Airtest/Poco bridgeへ接続する。Lakdaはbridgeやdevice serviceを起動しない。
+
+```powershell
+lakda explore run --charter examples/exploration-charter.playwright.json
+lakda explore report --session .lakda/explorations/<session-id> --out .lakda/reports/exploration.json
+lakda explore pause --session .lakda/explorations/<session-id>
+lakda explore resume --session .lakda/explorations/<session-id>
+lakda explore kill --session .lakda/explorations/<session-id>
+lakda explore bookmark --session .lakda/explorations/<session-id>
+lakda explore fork --session .lakda/explorations/<session-id>
+lakda explore acceptance --index <exploration-acceptance-index-v1.json> --trust-store <operator-trust-store.json>
+```
+
+Airtest/Pocoの参照bridgeは、Python 3.10+を運用想定とするoperator管理venvへ依存を導入し、承認済み画像corpusを用意した端末接続済み環境で起動する。このPython／Airtest組合せは現在のローカルGateでは実行できておらず、実機Acceptance Recordでversionと動作結果を固定する。`--allowed-staging-root`はLakdaのrun artifact staging配下に限定し、外部processの自動起動やredirectは行わない。
+
+```powershell
+python -m pip install -r tools/airtest-poco-bridge/requirements.txt
+python tools/airtest-poco-bridge/server.py --platform android --port 8765 --target-revision approved-app-build --app-id com.example.approved --app-revision approved-app-build --device-uri Android:/// --templates .lakda/operator/airtest-templates.json --templates-root .lakda/operator/templates --allowed-staging-root .lakda/runs
+```
+
+同梱の`examples/airtest-templates.json`はformat確認用の非実行サンプルであり、`operatorReplacementRequired=true`のままbridgeへ渡すと起動を拒否する。承認済み画像を`--templates-root`配下へ配置し、manifest内の相対path、Pocoの`operatorApproved=true`、`mutationKind=none`をoperatorが明示する。完全なtransitive lockは同梱せず、`requirements.top-level-attestation.txt`は直接依存2件のsource attestationとしてのみ扱う。
+
+通常探索はcapture capabilityに応じてAndroid videoまたはWindows／iOSの`sampled-frames/v1`を開始し、finding／non-passだけを保持する。passかつfindingなしのcaptureは削除する。`regression-replay`と実LLM `full`は既存方針どおりvideo／連続frameを強制offする。pause／kill／bookmarkはcontrol request queueへatomic投入し、runnerがaction境界で受理したイベントだけをsessionへ反映する。resumeはcheckpointのaction timestamp、trace/replay-trace SHA-256、post-fingerprint、capabilityを再検証し、暗黙forkは行わない。session HATEはCharter、capability、events、checkpoint、findings、report、参照run manifestの実bytesを再照合する。五lane acceptance indexが揃うまで個別reportは`pending_external`であり、fixture／emulator成功で代替しない。
+
+real Charterでは署名済み`lakda/exploration-target-manifest/v1`、operator trust store、template corpus実bytes digest、bridge/capability bindingをtarget接続より前に検証する。Web revision probeまたはnative bridge報告revision・app／device digestの差分はexit 2で停止する。ただしreference bridgeのnative identity値はCLIで与えたoperator宣言であり、実機APIからの独立観測ではない。実機側の取得記録とmanual-bbを別証跡として残す。binary captureはtarget manifestの`artifactAttestorKeyIds`で許可した外部`lakda/binary-artifact-attestation/v1`のsource/output bytes、scan、tool policy、署名を検証してからHATEへ渡す。reference bridgeはattestationを生成しないため、外部scanner／attestorがfinalization前に署名済み記録を供給できないreal binary runはfail-closedとし、fixture成功で代替しない。
+
+```powershell
+npx playwright test tests/exploration.spec.ts --workers=1
+npm run acceptance:exploration:fixture
+node dist/cli.js explore acceptance --index <exploration-acceptance-index-v1.json> --trust-store <operator-trust-store.json>
+```
 
 ### P10 strict replay・調査・昇格
 
@@ -147,7 +201,7 @@ reference stagingのconfig、corpus、case、target revision、allowlist、kill 
 ## 4. Confirm
 
 - `.lakda/runs/<run-id>/` に `run-metadata.json`、`action-sequence.json`、`console.jsonl`、`failure-report.json`、`exports/artifact-manifest.json` が存在する。
-- browser起動済みの `failed` / `partial` / `error` ではtraceと最低1枚のscreenshotがある。browser未起動のrate_limit/config errorへcaptureを要求しない。
+- 通常runのbrowser起動済み`failed` / `partial` / `error`ではtrace、screenshot、連番WebMがあり、WebMはHATE manifestへ`kind=video`で登録される。passed、`regression-replay`、実LLM `full` profile、full fixture acceptanceにはvideo directoryがない。browser未起動のrate_limit/config errorへcaptureを要求しない。
 - outcomeと終了コードが一致する（0=passed、1=error、2=failed/partial）。
 - HATE/v1 schemaに適合し、再exportのmanifest bytesが一致し、LakdaがQEG record、Gate verdict、QEG用`lakda:` IDを出力していない。
 - LLM使用時はendpoint、model、model SHA、runtime/template/prompt/schema hash、sampling、TTFT、latency、retry、raw/redacted response hashが残る。

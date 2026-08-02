@@ -1,8 +1,8 @@
 ---
 document_id: LAKDA-SPEC-001
 status: normative
-version: 1.3.0-draft
-last_updated: 2026-07-14
+version: 1.4.0-draft
+last_updated: 2026-08-02
 requirements: REQUIREMENTS.md
 ---
 
@@ -75,7 +75,7 @@ Policyの確定順序は次で固定する。
 
 Action Budgetはbatch全体で共有する60秒sliding windowである。typed actionを実行する直前にattemptを計上し、上限到達時はLLM/Playwright操作を行わず対象workerを`partial/rate_limit`で終了する。clock、batch ID、派生seedはruntime contextとして注入できる。
 
-DOM snapshotの期待件数は実際に保存できたactionだけから導出する。保存後bytesの容量検査で上限を超える場合はsnapshotを作成せず、最終base artifactの確定後に上限を超えた場合はoptional snapshotを除去して`partial/artifact_limit`とする。browser未起動時はtrace/screenshot/video/HARをprofile必須として扱わない。artifact、fixture reset、executor、rate limitのfailureは固有termination reasonを保持する。
+DOM snapshotの期待件数は実際に保存できたactionだけから導出する。保存後bytesの容量検査で上限を超える場合はsnapshotを作成せず、最終base artifactの確定後に上限を超えた場合はoptional snapshotを除去して`partial/artifact_limit`とする。videoはcontext終了後にWebMを連番pathへ正規化し、`retain-on-non-pass`では最終execution outcomeがpassedのときだけ削除してからArtifact Policyを実行する。browser未起動時はtrace/screenshot/video/HARをprofile必須として扱わない。artifact、fixture reset、executor、rate limitのfailureは固有termination reasonを保持する。
 ## 3. 設定契約
 
 既定設定ファイルは repository root の `lakda.config.json` とし、[schemas/lakda-config-v1.schema.json](schemas/lakda-config-v1.schema.json) に適合しなければならない。CLI option は同名の設定値を上書きする。環境変数は secret と endpoint のみ許可し、一般設定の暗黙上書きには使用しない。
@@ -145,7 +145,7 @@ DOM snapshotの期待件数は実際に保存できたactionだけから導出�
     "classification": "internal",
     "trace": "retain-on-non-pass",
     "screenshot": "retain-on-non-pass",
-    "video": false,
+    "video": "retain-on-non-pass",
     "har": false,
     "domSnapshots": false,
     "maxRunBytes": 1073741824
@@ -171,6 +171,7 @@ DOM snapshotの期待件数は実際に保存できたactionだけから導出�
 - `fixtureResetConfigured` は `fixtureReset` の有無から導出し、明示値が異なる場合は設定エラーとする。
 - `llm.seed` はtop-level `seed` と一致させ、worker実行時は派生seedへ同時更新する。
 - `workers` はfinite integerの1〜4だけを許可する。
+- `artifacts.video`は`false`、`true`、`"retain-on-non-pass"`だけを許可する。省略時は通常runで`"retain-on-non-pass"`とする。`regression-replay`は明示値を上書きして`false`、実LLM `full` profileは`false`を注入する。通常runの`true`は全runのWebMを保持し、`"retain-on-non-pass"`はpassedで破棄、`failed / partial / error`で保持する。
 
 ## 4. CLI と公開型
 
@@ -198,6 +199,7 @@ type RunMode =
   | "llm-explore";
 
 type RunOutcome = "passed" | "failed" | "partial" | "error";
+type ArtifactVideoMode = boolean | "retain-on-non-pass";
 
 type RunOptions = {
   baseUrl: string;
@@ -388,7 +390,7 @@ retry対象はconnection resetとHTTP 500/502/503/504だけに限る。generatio
 
 report schemaは`lakda/real-llm-acceptance/v2`とし、`profile`、`subjectRevision`、期待/実績件数、`coverage.ac007/ac010/ac014Supplement`、全child runのcase/repetition/worker/seed/run ID/outcome/termination/LLM status/decision、decision・action sequence・HATE manifestのSHA-256を持つ。`runs[]`は`caseId/repetition/workerIndex`順とし、UTF-8、LF、stable-key JSONからaggregate SHA-256を再計算できること。
 
-sanitized bundleは`.lakda/acceptance/<acceptance-id>/`に生成し、decision JSONL、action sequence、HATE manifest、bundle manifestだけを含める。DOM、trace、screenshot、認証状態、raw prompt、絶対pathを含めない。verifierはschema、payload hash、各file hash、aggregate hash、HATE/v1、profile件数、対象revisionを検査し、改ざん、欠落、順序変更、件数不足を不合格とする。bundleはGitへcommitせず、security scan後のRC artifact/release attachmentとして保存する。
+sanitized bundleは`.lakda/acceptance/<acceptance-id>/`に生成し、decision JSONL、action sequence、HATE manifest、bundle manifestだけを含める。DOM、trace、screenshot、video、認証状態、raw prompt、絶対pathを含めない。verifierはschema、payload hash、各file hash、aggregate hash、HATE/v1、profile件数、対象revisionを検査し、改ざん、欠落、順序変更、件数不足を不合格とする。bundleはGitへcommitせず、security scan後のRC artifact/release attachmentとして保存する。
 
 ## 7. failure、outcome、終了コード
 
@@ -432,8 +434,9 @@ HTTP errorはresponse statusで判定し、network transport failureとは分離
 | `failure-report.json` | 常時。failureなしでも空配列を保存 |
 | `artifact-manifest.json` | 完了した全run |
 | `trace.zip` | browser起動済みの `failed / partial / error` で必須 |
-| `screenshot/*.png` | browser起動済みの `failed / partial / error` で最低1枚必須 |
-| video / HAR | config明示時のみ。HARは一時captureをredactionしてから `artifacts/network.har` へ保存 |
+| `artifacts/failure.png` | browser起動済みの `failed / partial / error` で必須 |
+| `artifacts/video/0001.webm` | 通常runは既定でbrowser起動済みnon-passだけ保持。`video=true`では全run、`regression-replay`と実LLM `full` profileは既定で保持しない。複数pageは連番化 |
+| HAR | config明示時のみ。一時captureをredactionしてから`artifacts/network.har`へ保存 |
 | `artifacts/dom/*.html` | `domSnapshots=true` の成功action後。redacted HTMLのみ。保存できた件数をmetadataへ記録 |
 
 ```text
@@ -447,7 +450,7 @@ HTTP errorはresponse statusで判定し、network transport failureとは分離
     artifact-manifest.json
 ```
 
-artifactは保存前にredactionし、その後にSHA-256を計算する。hash対象は保存されたbytesとする。HATE exportはpolicy検査済みのVerifiedArtifact bytesを再確認し、変更があれば出力を拒否する。metadata/failure reportはatomic writeで更新する。
+artifactは保存前にredactionし、その後にSHA-256を計算する。hash対象は保存されたbytesとする。HATE exportはpolicy検査済みのVerifiedArtifact bytesを再確認し、変更があれば出力を拒否する。metadata/failure reportはatomic writeで更新する。Playwrightの一時WebM名はメールアドレス誤検知や非portable pathを避けるためcontext終了後に`0001.webm`からの連番へrenameする。`retain-on-non-pass`は直前N秒の循環bufferではなく、失敗run全体を保持する。
 `domSnapshots=true`のsnapshotはbrowser内でDOMをcloneしてscript本文、form値、password/token/secret要素、`data-lakda-sensitive`要素の内容と全属性を除去し、ホスト側redaction後に保存する。raw DOMはディスクへ書かない。snapshotが残りの`maxRunBytes`へ収まらない場合は保存せず`artifact_limit/partial`、sanitizationまたは保存失敗は`artifact_failure/error`とする。HATE manifestでは`kind=static`、`redaction_status=redacted`とする。
 
 Artifact Storeの公開関数はCollectorとHATE Exporterの両方から利用するが、CollectorとHATE Exporterは相互importしない。HATE audit recordはLakdaが生成せず、HATE側がartifact検証後に生成する。
@@ -492,6 +495,7 @@ Lakdaが生成するHATE recordはartifact manifestだけである。`audit-reco
 Artifact PolicyとOutcome Policyの結果は次の状態遷移で確定する。
 
 ```text
+browser context close -> WebM path normalization -> video retention policy
 base artifacts -> security scan -> outcome decision -> atomic final metadata/failure
               -> final-byte rescan -> HATE/v1 manifest -> schema validation
 ```

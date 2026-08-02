@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/lakda/exploration-acceptance/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "sessionId", "platform", "executionMode", "targetRevision", "reportPath", "reportSha256", "hateManifestPath", "hateManifestSha256", "signature"],
+  "properties": {
+    "schemaVersion": { "const": "lakda/exploration-acceptance/v1" },
+    "sessionId": { "type": "string", "minLength": 1 },
+    "platform": { "enum": ["pc-web", "mobile-web", "windows", "android", "ios"] },
+    "executionMode": { "const": "real", "description": "単一laneの受入証跡もreal evidenceに限定する。fixture/emulator/mockの結果は統合Gateへ昇格できない。" },
+    "targetRevision": { "type": "string", "minLength": 1 },
+    "reportPath": { "type": "string", "minLength": 1 },
+    "reportSha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "hateManifestPath": { "type": "string", "minLength": 1 },
+    "hateManifestSha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "signature": { "type": "object", "additionalProperties": false, "required": ["algorithm", "keyId", "signedPayloadDigest", "valueBase64"], "properties": { "algorithm": { "const": "ed25519" }, "keyId": { "type": "string", "minLength": 1 }, "signedPayloadDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }, "valueBase64": { "type": "string", "pattern": "^[A-Za-z0-9+/]+={0,2}$" } } }
+  }
+}

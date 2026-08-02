@@ -2,15 +2,15 @@
 intent_id: INT-LAKDA-001
 owner: RNA4219
 status: draft
-last_reviewed_at: 2026-07-14
-next_review_due: 2026-08-13
+last_reviewed_at: 2026-08-02
+next_review_due: 2026-09-01
 source_requirements: ../REQUIREMENTS-ADAPTIVE-EXPLORATION.md
 source_specs: spec/adaptive-exploration/README.md
 ---
 
 # Lakda 適応型探索 実装計画
 
-本計画は[追加要件](../REQUIREMENTS-ADAPTIVE-EXPLORATION.md)と[6仕様書・チェックリスト](spec/adaptive-exploration/README.md)を、Workflow-cookbookのBlueprint、Task Seed、Acceptance、Runbook、Evidenceへ投影する。現行v1の`SPECIFICATION.md`と既存modeは維持する。
+本計画は[追加要件](../REQUIREMENTS-ADAPTIVE-EXPLORATION.md)、[6一次所有仕様書・チェックリスト](spec/adaptive-exploration/README.md)、[自動・クロスプラットフォーム統合仕様](spec/autonomous-exploratory-testing/README.md)を、Workflow-cookbookのBlueprint、Task Seed、Acceptance、Runbook、Evidenceへ投影する。現行v1の`SPECIFICATION.md`と既存modeは維持する。
 
 ## Plan
 
@@ -31,19 +31,19 @@ Lakda側は`docs/birdseye/index.json`のrequirements、specification、blueprint
 
 ### 2. Objective
 
-`adaptive-explore`を既存modeから分離して追加し、Playwrightを最初のadapterとして、操作ごとの再観測、状態地図、coverage誘導、strict replay、oracle、証跡を決定的かつ安全に実装する。その受入後にAirtest/Pocoと認証済みSecurity adapterを接続する。
+`adaptive-explore`を既存modeから分離して追加し、操作ごとの再観測、状態地図、coverage誘導、strict replay、oracle、証跡を決定的かつ安全に実装する。Playwrightを実装依存の最初のadapterとしつつ、同一MVPにPC Web、mobile Web、Windows、Android、iOSを含め、Airtest/Poco visual-device laneを統合Gateから除外しない。
 
 ### 3. Scope
 
-- In: 7共通DTO、adapter SPI、Playwright観測、fingerprint、candidate、graph、Generator/Stop、coverage、recovery、InputGenerator、strict replay、shrinking、oracle、HATE/v1投影、game/security adapter、16 AC。
-- Out: 既存`seeded-random`と`lakda/action-plan/v1`の意味変更、操作engine再実装、外部process自動起動、未許可active security、LakdaによるQEG Gate確定。
+- In: 7共通DTO、adapter SPI、Playwright観測、fingerprint、candidate、graph、Generator/Stop、coverage、recovery、InputGenerator、strict replay、shrinking、oracle、HATE/v1投影、Exploration Charter／Session／Finding、Windows／Android／iOS visual-device adapter、security adapter、16 AC-AEと10 AC-AX。
+- Out: 既存`seeded-random`と`lakda/action-plan/v1`の意味変更、操作engine再実装、外部process自動起動、未知画面へのrandom／LLM座標tap、未許可active security、LakdaによるQEG Gate確定。
 
 ### 4. 固定設計
 
 1. `RunMode`へ`adaptive-explore`を加えるが、既存4 modeのplan/runner経路は変えない。
 2. `lakda/v1` configへoptional `adaptive`を後方互換で追加し、adaptive modeだけ必須とする。
 3. 動的traceは新規`lakda/adaptive-trace/v1`とし、`action-plan/v1`を拡張しない。
-4. Playwrightはin-process。Airtest/PocoとZAPはoperator管理のloopback JSON serviceへ接続し、Lakdaは起動しない。
+4. Playwrightはin-process。Airtest/PocoとZAPはoperator管理のloopback JSON serviceへ接続し、Lakdaは起動しない。AirtestはWindows、Android、iOSを別lane／capabilityとして扱う。
 5. `src/core/runner.ts`はdispatchだけを追加し、新規ロジックは`src/adaptive/`と`src/adapters/`へ分離する。
 6. Task Seedは原則0.5 engineer-day、source 2ファイルまたは100行以内。超過時は着手前に再分割する。
 7. tests-first、Acceptance Record必須、対応仕様checklistのB/Cは実証跡取得後だけ更新する。
@@ -119,13 +119,14 @@ flowchart LR
 | P4 | `TASK.20260714-26` | versioned InputGenerator | `adaptive/input-generator.ts`, generator test | 08,11 | `AC-AE-009` |
 | P4 | `TASK.20260714-27` | Web formとInputCase接続 | `playwright/forms.ts`, form test | 15,26 | `AC-AE-009` |
 | P4 | `TASK.20260714-28` | immutable failure shrinker | `adaptive/shrinker.ts`, shrinker test | 18,25,27 | `AC-AE-011` |
-| P5 | `TASK.20260714-29` | loopback game protocol/fake bridge | `game/client.ts`, game schema/contract test | 10,20 | `AC-AE-015` |
-| P5 | `TASK.20260714-30` | Airtest/Poco provenance/game oracle | `game/adapter.ts`, opt-in test | 19,29 | `AC-AE-015` |
+| P5 | `TASK.20260714-29` | loopback visual-device protocol/fake bridge | `game/client.ts`, visual-device schema/contract test | 10,20 | `AC-AE-015` |
+| P5 | `TASK.20260714-30` | Airtest/Poco provenance/visual oracle | `game/adapter.ts`, Windows／Android／iOS opt-in test | 19,29 | `AC-AE-015` |
 | P6 | `TASK.20260714-31` | authorization、role差分、逐次mutation | `security/authorization.ts`, `mutations.ts`, auth test | 11,19 | `AC-AE-016` |
 | P6 | `TASK.20260714-32` | 専用race scheduler/cleanup | `security/race.ts`, race test | 25,31 | `AC-AE-016` |
 | P6 | `TASK.20260714-33` | loopback ZAP/confirmation flow | `security/zap.ts`, ZAP contract test | 20,31 | `AC-AE-016` |
 | P7 | `TASK.20260714-34` | AC001-014 corpus/runner/report schema | adaptive fixtures、acceptance script/schema | 15,18,20,23,25,28 | `AC-AE-001`〜`AC-AE-014` |
 | P7 | `TASK.20260714-35` | AC015/016 realとHATE/QEG接続 | real acceptance script、RUNBOOK、acceptance | 30,32,33,34 | `AC-AE-015`, `AC-AE-016` |
+| AX-SPEC | `TASK.20260802-60` | 自動・クロスプラットフォーム探索仕様正本化 | integration spec、Airtest spec、evaluation、checklist | 29,30 | `AC-AX-001`〜`AC-AX-010` |
 
 推定は28 Task Seed × 0.5日 = 14 engineer-days。review、実機・認証済み環境準備、QEG待機を含めない。
 
@@ -138,24 +139,24 @@ flowchart LR
 | P2 | graph再構築、strict replay、oracle/HATE投影pass |
 | P3 | AC004/005/006、hard cap超過0件 |
 | P4 | AC007/009/011、未許可mutation 0件 |
-| P5 | AC015 opt-in real approved |
+| P5 | AC015のWindows／Android／iOS lane、capability不足の暗黙成功とrandom／LLM座標tap 0件 |
 | P6 | AC016、未許可active操作0件 |
-| P7 | 16 AC、HATE/v1、manual確認、QEG側Gate入力完了 |
+| P7 | 16 AC-AEと10 AC-AX、HATE/v1、manual確認、QEG側Gate入力完了。real device不足は`pending_external` |
 
 ## Patch
 
 - core変更はconfig、dispatch、Safety/HATE接続の薄い差分だけにする。
 - Taskごとにtest→implementation→Acceptance Recordを同一PRへ含める。
-- P5/P6はoptional capabilityとし、backend不在をpass/fallbackで隠さない。
-- rolloutはfixture-only→明示adaptive mode→opt-in game→authorized securityの順。
+- P5/P6は明示capabilityとし、backend不在をpass/fallbackで隠さない。P5の3 real laneが欠ければ統合MVPを完了しない。
+- rolloutはfixture-only→PC／mobile Web→Windows／Android／iOS visual-device→authorized securityの依存順とするが、同一MVP Gateで判定する。
 - rollbackはTask commitの`git revert`。artifactを削除せず、schema downgrade変換をしない。
 
 ## Tests
 
 - Unit: canonicalization、stable ID、RNG、Generator、Stop、coverage、InputGenerator、oracle、Safety。
-- Contract: JSON Schema、unknown version拒否、fake Playwright/game/ZAP、lossless error。
+- Contract: JSON Schema、unknown version拒否、fake Playwright/visual-device/ZAP、lossless error。
 - Integration: Chromium DOM/frame/popup/dialog/form/timeout/replay、trace→graph、artifact→HATE。
-- Opt-in real: AC015は実機、AC016は認証済み許可環境だけを本証跡とする。
+- Opt-in real: AC015／AC-AXはWindows application、Android実機、iOS実機を別laneで取得し、AC016は認証済み許可環境だけを本証跡とする。
 - Regression: 現行55 tests、既存action-plan bytes、RunResult、HATE manifest。
 
 各Task完了時は`docs/acceptance/AC-YYYYMMDD-xx.md`を作成し、Scope、Acceptance Criteria、Evidence、Verification Resultを必須とする。

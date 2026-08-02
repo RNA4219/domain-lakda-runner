@@ -25,7 +25,7 @@ export type LocatorScope = {
   keySource: "test-id" | "heading" | "identifier-hash";
 };
 export type LocatorRecipe = { strategy: "test-id" | "role" | "scoped-role" | "label" | "text" | "image" | "request"; value: string; name?: string; scope?: LocatorScope; framePath?: string[] };
-export type CoverageDebtReason = "ambiguous-locator" | "sensitive-locator" | "missing-accessible-name" | "missing-input-profile" | "out-of-scope-link" | "disabled-control" | "unsupported-control";
+export type CoverageDebtReason = "ambiguous-locator" | "sensitive-locator" | "missing-accessible-name" | "missing-input-profile" | "out-of-scope-link" | "disabled-control" | "unsupported-control" | "unknown-screen";
 export type CoverageDebt = {
   schemaVersion: "lakda-coverage-debt/v1";
   debtId: string;
@@ -56,6 +56,7 @@ export type ActionCandidate = {
   schemaVersion: AdaptiveSchemaVersion; candidateId: string; adapterId: string; targetRef: TargetRef; sourceFingerprint: string; actionKind: string;
   locatorRecipe: LocatorRecipe; inputProfileRef?: string; generatedBy: { ruleId: string; observationId: string; reason: string };
   risk: { weight: number; businessPriority?: "P0" | "P1" | "P2" | "P3"; mutationCost?: number }; mutationKind: MutationKind; mutationClassification?: MutationClassification; contract?: ActionContract;
+  visual?: { source: "airtest-template" | "poco" | "visual-provider"; confidence: number; region: { x: number; y: number; width: number; height: number }; requiredCapabilities: string[]; identity: { resolution: string; orientation: "portrait" | "landscape" | "unknown"; surface: string } };
 };
 export type SettleReadiness = { testId?: string; role?: string; name?: string; state?: "visible" | "hidden" };
 export type SettlePolicy = { policyVersion: string; maxWaitMs: number; stableWindowMs: number; readiness?: SettleReadiness; networkQuietExclusions?: string[] };
@@ -66,9 +67,9 @@ export type ExecutionResult = {
   recoveryStatus: "not_required" | "recovered" | "not_recovered" | "not_attempted"; targetChanges: Array<Record<string, unknown>>; settleResult: SettleResult; evidenceRefs: EvidenceArtifactRef[];
 };
 export type OracleResult = { schemaVersion: AdaptiveSchemaVersion; oracleId: string; oracleClass: "generic" | "product" | "security"; verdict: "pass" | "fail" | "inconclusive" | "candidate" | "confirmed"; severity: "info" | "warning" | "major" | "critical"; sourceRefs: string[]; requirementRefs: string[]; evidenceRefs: EvidenceArtifactRef[]; message: string };
-export type AdapterCapabilities = { schemaVersion: AdaptiveSchemaVersion; adapterId: string; revision: string; targetKinds: TargetKind[]; actionKinds: string[]; observationCapabilities: string[]; evidenceCapabilities: string[]; recoveryStrategies: string[] };
+export type AdapterCapabilities = { schemaVersion: AdaptiveSchemaVersion; adapterId: string; revision: string; targetRevision?: string; platform?: "windows" | "android" | "ios"; targetKinds: TargetKind[]; actionKinds: string[]; observationCapabilities: string[]; evidenceCapabilities: string[]; recoveryStrategies: string[]; liveness?: { connected: boolean; responsive: boolean }; runtime?: Record<string, string>; device?: { appId?: string; appRevision?: string; serialDigest?: string; deviceAliasDigest?: string; modelClass?: string; platformVersion?: string }; display?: { width?: number; height?: number; orientation?: "portrait" | "landscape" | "unknown"; surface?: string }; templateCorpusDigest?: string };
 export type AdapterError = { schemaVersion: AdaptiveSchemaVersion; adapterId: string; category: "unsupported" | "denied" | "timeout" | "target_lost" | "action_failed" | "infrastructure_error"; messageRef: string; originalErrorRef?: string; retryable: boolean };
-export type AdaptiveGeneratorStrategy = "random" | "weighted-random" | "least-visited-transition" | "shortest-to-uncovered" | "risk-weighted-uncovered" | "llm-select";
+export type AdaptiveGeneratorStrategy = "random" | "weighted-random" | "least-visited-transition" | "shortest-to-uncovered" | "risk-weighted-uncovered" | "autonomous-uncovered" | "llm-select";
 export type AdaptiveStopCondition =
   | { type: "stateCoverage" | "actionCoverage" | "transitionCoverage" | "obligationCoverage"; atLeast: number }
   | { type: "noveltyPlateau"; windowActions: number; minActions: number }

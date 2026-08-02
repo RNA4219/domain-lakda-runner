@@ -10,7 +10,7 @@ test("CLI facade preserves the dispatcher binding and help contract", async () =
   expect(usage).toBe(`lakda ${LAKDA_VERSION}
 
 Commands:
-  lakda run --base-url <url> --mode <smoke|seeded-random|llm-explore|adaptive-explore> [--seed <int>] [--headed]
+  lakda run --base-url <url> --mode <smoke|seeded-random|regression-replay|llm-explore|adaptive-explore> [--seed <int>] [--headed]
   lakda replay --input <action-sequence-or-adaptive-replay.json> --base-url <url>
   lakda export hate --run-dir <run-dir> --out <artifact-manifest.json>
   lakda doctor [--config <path>]
@@ -22,6 +22,14 @@ Commands:
   lakda report leads --run-dir <run-dir> --format json|html
   lakda investigate --lead <lead.json> --trace <adaptive-trace.json> --config <lakda.config.json> --reviewer <ref> --out <investigation.json>
   lakda promote --investigation <investigation.json> --kind trace|suite --out <promotion.json>
+  lakda explore run --charter <charter.json>
+  lakda explore resume --session <session-dir-or-session.json>
+  lakda explore report --session <session-dir-or-session.json> --out <report.json>
+  lakda explore pause --session <session-dir-or-session.json>
+  lakda explore kill --session <session-dir-or-session.json>
+  lakda explore bookmark --session <session-dir-or-session.json>
+  lakda explore fork --session <session-dir-or-session.json>
+  lakda explore acceptance --index <acceptance-index.json> --trust-store <trust-store.json> [--out <aggregate.json>]
   lakda runs list --output-dir <runs-dir>
   lakda runs show --run-dir <run-dir>
   lakda runs compare --base-run-dir <run-dir> --head-run-dir <run-dir> [--out <comparison.json>]

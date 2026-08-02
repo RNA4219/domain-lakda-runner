@@ -16,8 +16,8 @@ const Ajv = createRequire(import.meta.url)("ajv/dist/2020").default;
 const validateSchema = new Ajv({ allErrors: true, strict: false }).compile(schema);
 
 export const PROFILE_CONTRACTS = {
-  full: { workers: 1, repetitions: 3, includeNormal: true, expected: { total: 90, normal: 60, critical: 30 }, releaseEligible: true },
-  "worker-smoke": { workers: 2, repetitions: 1, includeNormal: false, expected: { total: 20, normal: 0, critical: 20 }, releaseEligible: true },
+  full: { workers: 1, repetitions: 3, includeNormal: true, expected: { total: 90, normal: 60, critical: 30 }, releaseEligible: true, video: false },
+  "worker-smoke": { workers: 2, repetitions: 1, includeNormal: false, expected: { total: 20, normal: 0, critical: 20 }, releaseEligible: true, video: "retain-on-non-pass" },
 };
 
 export function sha256(value) {
@@ -61,6 +61,7 @@ export function resolveAcceptanceProfile(argv, corpusRepetitions) {
     includeNormal: !criticalOnly,
     expected: undefined,
     releaseEligible: false,
+    video: "retain-on-non-pass",
   };
 }
 

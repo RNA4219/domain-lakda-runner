@@ -77,6 +77,7 @@ Lakda単体の成功をリリース成功とは呼びません。要件から最
 |---|---|---|---|
 | 決定的実行とreplay | `smoke`、`seeded-random`、回帰replayをseed付きで再現 | `lakda run` / `lakda replay` | 済み |
 | 適応型探索 | 表示・操作可能要素からcandidateを生成し、各操作後にDOMを再観測 | `lakda run --mode adaptive-explore` | 済み |
+| 自動・クロスプラットフォーム探索MVP | PC Web、mobile Web、Windows、Android、iOSを自動探索し、Airtest画像、finding、captureを統合 | [統合仕様](docs/spec/autonomous-exploratory-testing/README.md) | fixture runtime実装済み。Windows／Android実機／iOS実機real acceptanceは`pending_external` |
 | 状態graphとcoverage | fingerprint、遷移、未探索優先、plateau停止、backtrackを記録 | adaptive run artifact | 済み |
 | 拡張registryとLLM選択 | Adapter／Generator／Oracleを内部registryで解決し、`llm-select`は提示candidateまたは停止だけをstrict検証 | `lakda.config.json` | 済み |
 | Run catalogと比較 | HATE/v1を再検証してrunを読取り専用で列挙・表示し、graph／coverage／outcome差分を決定的JSON化 | `lakda runs list/show/compare` | 済み |
@@ -130,7 +131,19 @@ lakda doctor
 lakda run --base-url http://127.0.0.1:3000 --mode smoke --seed 1
 ```
 
-実行結果は`.lakda/runs/<run-id>/`に保存されます。action sequence、console、failure report、必要に応じてtrace／screenshot、HATE/v1 manifestを確認できます。
+実行結果は`.lakda/runs/<run-id>/`に保存されます。通常runではbrowser起動中の録画も既定で有効になり、non-passでは`artifacts/failure.png`、`artifacts/trace.zip`、`artifacts/video/0001.webm`をaction sequence、console、failure report、HATE/v1 manifestと合わせて確認できます。traceは`npx playwright show-trace .lakda/runs/<run-id>/artifacts/trace.zip`で開けます。
+
+録画を明示的に無効化する場合は、設定へ次を追加します。
+
+```json
+{
+  "artifacts": {
+    "video": false
+  }
+}
+```
+
+既定の`"retain-on-non-pass"`はPlaywright contextを実行中録画し、passedでは削除、`failed / partial / error`では`artifacts/video/0001.webm`として保持します。`regression-replay`、実LLMの`full` 90-run profile、`acceptance:fixture`のfull corpusは速度・容量を優先し、設定値にかかわらず`video: false`です。必要なfailure screenshot／traceは維持します。通常runでの`video: true`は全runを保持します。これは直前N秒だけを残す循環録画ではなく、non-pass run全体の録画です。
 
 ### 適応型探索
 
@@ -141,6 +154,25 @@ lakda run --base-url <approved-base-url> --mode adaptive-explore --persona <pers
 ```
 
 設定例、adapter capability、recovery、artifact確認は[RUNBOOK.md](RUNBOOK.md)と[適応型探索仕様](docs/spec/adaptive-exploration/README.md)を参照してください。
+
+### 自動・クロスプラットフォーム探索
+
+探索Charterを入口に、PC Web／mobile WebはPlaywright、Windows／Android／iOSはoperator管理のAirtest/Poco loopback bridgeで自動探索します。Lakdaはbridgeを起動せず、未知画面では座標を推測せず`unknown-screen`のcoverage debtを残します。
+
+```powershell
+lakda explore run --charter examples/exploration-charter.playwright.json
+lakda explore resume --session .lakda/explorations/<session-id>
+lakda explore report --session .lakda/explorations/<session-id> --out .lakda/reports/exploration.json
+lakda explore pause --session .lakda/explorations/<session-id>
+lakda explore kill --session .lakda/explorations/<session-id>
+lakda explore bookmark --session .lakda/explorations/<session-id>
+lakda explore fork --session .lakda/explorations/<session-id>
+lakda explore acceptance --index <exploration-acceptance-index-v1.json> --trust-store <operator-trust-store.json>
+```
+
+Airtest/Poco bridgeの起動例は[tools/airtest-poco-bridge/README.md](tools/airtest-poco-bridge/README.md)にあります。通常探索は録画を開始し、finding／non-passだけ保持します。回帰replay、実LLM `full` profile、full fixture acceptanceは録画を強制offします。各sessionは`exports/artifact-manifest.json`（HATE/v1）へCharter、capability、events、checkpoint、findings、report、参照run manifestを登録します。個別のfixture／real reportはlaneの技術結果であり、五laneの署名・SHA-256・HATEを`lakda explore acceptance`で集約するまで実機受入へ昇格しません。
+
+real Charterでは、署名済み`lakda/exploration-target-manifest/v1`とoperator trust storeをtarget接続前に検証します。Webはmanifest指定のrevision probe、nativeはbridgeが返したapp／target revision・device alias digest・serial digestを照合し、差分時はexit 2で操作0件とします。Airtest/Pocoのtemplate corpus実bytes、capability、bridge binding、revisionが一致しない場合も操作しません。ただし同梱reference bridgeのdevice identity値はCLIで与えるoperator宣言であり、実機APIによる独立観測ではありません。real acceptanceでは実機側の取得記録とmanual-bbを別途必要とし、reference bridgeだけで実観測済みとは扱いません。real artifactのbinaryは、target manifestで許可したattestorによる`lakda/binary-artifact-attestation/v1`のsource/output SHA-256、scan結果、署名が揃うまでHATEへ登録しません。reference bridge自身はこのattestationを生成しないため、外部scanner／attestorがないreal binary runはfail-closedです。`resume`はtrace／replay-trace／checkpoint／rate budgetを再検証し、分岐が必要な場合だけ明示的な`fork`を使います。
 
 ### Run catalogと比較
 
@@ -178,9 +210,10 @@ factor modelは安全なfixture値と専用constraint DSLだけを受け入れ�
 ## 安全性と証跡
 
 - 操作はallow host、deny操作、mutation種別、操作予算、kill switchの検査後にだけ実行します。
+- screenshot、trace、videoは画面上の情報を含み得るため、承認済みtargetでartifact classificationとretentionを設定し、sanitized release bundleやGitへ含めません。
 - Airtest/PocoとSecurity bridgeは、Lakdaが外部processを起動せず、operator管理のloopback endpointにだけ接続します。bridgeはredirectを追跡せず、JSON content typeと1 MiBのrequest/response上限を検査します。
 - Security機能は認可済み環境の補助です。passive候補を含む全candidateで独立したenvironment、host/path、HTTP method、request template digest、capability/bridge digestを照合し、実行時はpermit receiptをbridgeへ渡します。本番への攻撃的scan、無承認mutation、LLMだけによる脆弱性認定は行いません。
-- artifactはredaction、secret/PII scan、容量判定、SHA-256、HATE/v1 exportを通します。raw prompt、認証情報、storageState、実入力値を公開証跡へ含めません。
+- text artifactはredaction、secret/PII scan、容量判定、SHA-256、HATE/v1 exportを通します。screenshot／trace／videoはtext scan済みと偽らず、通常runでは`redaction_status=pending`、scanは`not_applicable`として保持します。real探索でbinaryをHATEへ登録するには、target manifestで許可した外部attestorの署名付きscan結果が必須です。raw prompt、認証情報、storageState、実入力値を公開証跡へ含めません。
 - mock、fixture、状態注入は補助証跡です。実サーバー・実機の受入証跡とは区別します。
 
 ## 受入とリリースの状態
@@ -203,7 +236,7 @@ P7/P11のrunnerとrunbookは開発・評価用であり、npm packageには含�
 |---|---|
 | 実行方法、環境、artifact確認、失敗時復旧 | [RUNBOOK.md](RUNBOOK.md) |
 | 現行v1の要件・仕様 | [REQUIREMENTS.md](REQUIREMENTS.md) / [SPECIFICATION.md](SPECIFICATION.md) |
-| 適応型探索の要件・評価 | [追加要件](REQUIREMENTS-ADAPTIVE-EXPLORATION.md) / [仕様・評価](docs/spec/adaptive-exploration/README.md) |
+| 適応型探索の要件・評価 | [追加要件](REQUIREMENTS-ADAPTIVE-EXPLORATION.md) / [一次所有仕様・評価](docs/spec/adaptive-exploration/README.md) / [自動探索統合仕様](docs/spec/autonomous-exploratory-testing/README.md) |
 | P8〜P11の要件・仕様・チェックリスト | [拡張要件](docs/spec/Lakda拡張要件定義書.md) / [拡張仕様書](docs/spec/lakda-extension/README.md) |
 | 設計・安全方針 | [BLUEPRINT.md](BLUEPRINT.md) / [GUARDRAILS.md](GUARDRAILS.md) |
 | 受入証跡 | [docs/acceptance/](docs/acceptance/) |

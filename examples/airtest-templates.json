@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "lakda/airtest-template-corpus/v1",
+  "baseDir": "manifest-parent",
+  "operatorReplacementRequired": true,
+  "templates": [
+    {
+      "id": "start-button",
+      "path": "REPLACE_WITH_OPERATOR_TEMPLATES/start-button.png",
+      "actionKind": "tap",
+      "mutationKind": "none",
+      "confidence": 0.9
+    },
+    {
+      "id": "back-button",
+      "path": "REPLACE_WITH_OPERATOR_TEMPLATES/back-button.png",
+      "actionKind": "back",
+      "mutationKind": "none",
+      "confidence": 0.9
+    }
+  ],
+  "poco": [
+    {
+      "id": "operator-approved-button",
+      "actionKind": "poco-tap",
+      "mutationKind": "none",
+      "operatorApproved": true,
+      "comment": "operator must replace this semantic id with an approved target element"
+    }
+  ]
+}

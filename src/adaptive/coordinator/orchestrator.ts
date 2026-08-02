@@ -5,7 +5,7 @@ import { sha256 } from "../../core/redaction.js";
 import { LocalLlmClient } from "../../core/llm.js";
 import type { LakdaConfig, LlmStatus, RunOutcome, TerminationReason } from "../../core/types.js";
 import type { ExecutionResult, Observation, OracleResult } from "../contracts.js";
-import { writeAdaptiveEvidence } from "../evidence.js";
+import { verifyEvidenceArtifactRefs, writeAdaptiveEvidence } from "../evidence.js";
 import { StateGraph } from "../graph.js";
 import { matchesRecordedInputCase, recordInputCase, type GeneratedInput } from "../input.js";
 import { evaluateActionGuard } from "../oracles.js";
@@ -29,12 +29,19 @@ import {
 } from "./runtime.js";
 import { preflightLlmSelection, seededRandom, selectNextCandidate } from "./selection.js";
 import { shrinkAdaptiveFailure, type ShrinkStep } from "./shrinking.js";
+import { existsSync, readFileSync, readdirSync, statSync, unlinkSync } from "node:fs";
+import { join } from "node:path";
+
+export async function verifyBookmarkEvidenceRefs(refs: Array<{ path: string; sha256: string; size: number; redactionStatus: string; securityStatus: string }>, runDir: string, requireVerifiedScreenshot: boolean): Promise<void> {
+  await verifyEvidenceArtifactRefs(refs as import("../contracts.js").EvidenceArtifactRef[], runDir, { requireScreenshot: true, requireVerifiedScreenshot });
+}
 
 export async function runAdaptiveExplore(
   config: LakdaConfig,
   collector: ArtifactCollector,
   runtime: AdaptiveRuntime = {},
   replay?: AdaptiveReplayTrace,
+  replayPrefixActions?: number,
 ): Promise<AdaptiveRunResult> {
   if (!config.adaptive) throw new Error("adaptive-explore requires adaptive configuration");
   const started = (runtime.clock ?? Date.now)();
@@ -67,15 +74,51 @@ export async function runAdaptiveExplore(
       return { outcome, terminationReason, llmStatus };
     }
     llmClient = preflight.client;
-    environment = await setupAdaptiveEnvironment(config, collector, generatedInputs, killSwitch);
-    await startAdaptiveEnvironment(config, environment);
+    environment = await setupAdaptiveEnvironment(config, collector, generatedInputs, killSwitch, runtime);
+    await startAdaptiveEnvironment(config, environment, runtime.explorationTargetRevisionProbe);
     const { adapter, activeTargets, securityController } = environment;
 
     if (replay && replay.seed !== config.seed) throw new Error("adaptive replayのseedが設定と一致しません");
     const replaySteps = buildReplaySteps(replay);
+    const replayPrefix = replay ? Math.max(0, Math.min(replayPrefixActions ?? replaySteps.length, replaySteps.length)) : 0;
     const random = seededRandom(config.seed);
 
     while (true) {
+      if (runtime.controlFile && existsSync(runtime.controlFile)) {
+        try {
+          const controlPath = statSync(runtime.controlFile).isDirectory()
+            ? readdirSync(runtime.controlFile).filter(name => name.endsWith(".json")).sort().map(name => join(runtime.controlFile!, name))[0]
+            : runtime.controlFile;
+          if (controlPath) {
+            const control = JSON.parse(readFileSync(controlPath, "utf8")) as { command?: string; reason?: string; requestId?: string };
+            if (statSync(runtime.controlFile).isDirectory()) unlinkSync(controlPath);
+            if (control.command === "pause" || control.command === "kill") {
+              killSwitch.request(control.reason ?? control.command);
+              trace.push({ type: "operator-control", command: control.command, requestId: control.requestId, reason: killSwitch.reason, actionCount: actions });
+              outcome = "partial";
+              terminationReason = control.command === "kill" ? "machine_failure" : "hold";
+              break;
+            }
+            if (control.command === "bookmark") {
+              collector.markFinding();
+              try {
+                const refs = await adapter.captureEvidence({ runId: collector.metadata.runId, kinds: ["screenshot", "trace"], stagingDir: collector.paths.runDir });
+                await verifyBookmarkEvidenceRefs(refs, collector.paths.runDir, adapter.capabilities().adapterId === "playwright");
+                trace.push({ type: "operator-bookmark", requestId: control.requestId, evidenceRefs: refs.map(ref => ref.artifactId), actionCount: actions });
+              } catch (error) {
+                collector.markArtifactFailure();
+                collector.addFailure("UI-008", error instanceof Error ? `bookmark evidence capture failed: ${error.message}` : "bookmark evidence capture failed");
+                trace.push({ type: "operator-bookmark-error", requestId: control.requestId, actionCount: actions, reason: "artifact-failure" });
+              }
+            }
+          }
+        } catch {
+          trace.push({ type: "operator-control-error", reason: "invalid-control-file" });
+          outcome = "error";
+          terminationReason = "executor_error";
+          break;
+        }
+      }
       const elapsed = (runtime.clock ?? Date.now)() - started;
       if (elapsed >= config.durationMs) {
         outcome = "partial";
@@ -97,6 +140,7 @@ export async function runAdaptiveExplore(
         }
       }
 
+      const replayActive = Boolean(replay && actions < replayPrefix);
       const observed = await observeCandidateSet({
         config,
         collector,
@@ -113,9 +157,15 @@ export async function runAdaptiveExplore(
         ...(securityController ? { securityController } : {}),
         timeoutQuarantine,
         actions,
-        replay: Boolean(replay),
+        replay: replayActive,
       });
-      const replayStep = replay ? replaySteps[actions] : undefined;
+      if (runtime.adaptiveExpectedFingerprint && actions === replayPrefix && observed.firstFingerprint !== runtime.adaptiveExpectedFingerprint) {
+        trace.push({ type: "replay-divergence", reason: "checkpoint-fingerprint-mismatch", expectedFingerprint: runtime.adaptiveExpectedFingerprint, actualFingerprint: observed.firstFingerprint });
+        outcome = "failed";
+        terminationReason = "machine_failure";
+        break;
+      }
+      const replayStep = replayActive ? replaySteps[actions] : undefined;
       const selection = await selectNextCandidate({
         config,
         collector,
@@ -124,7 +174,7 @@ export async function runAdaptiveExplore(
         safeCandidates: observed.safeCandidates,
         replayCandidates: observed.replayCandidates,
         ...(replayStep ? { replayStep } : {}),
-        replay: Boolean(replay),
+        replay: replayActive,
         actions,
         random,
         ...(llmClient ? { llmClient } : {}),
@@ -138,7 +188,7 @@ export async function runAdaptiveExplore(
       const candidate = selection.kind === "candidate" ? selection.candidate : undefined;
       const replayCandidateReason = selection.kind === "candidate" ? selection.replayCandidateReason : undefined;
 
-      if (candidate && replay) {
+      if (candidate && replayActive) {
         const safety = evaluateAdaptiveSafety(candidate, config, {
           actionCount: actions,
           artifactBytes: await runSizeBytes(collector.paths.runDir),
@@ -166,28 +216,28 @@ export async function runAdaptiveExplore(
         terminationReason = "machine_failure";
         break;
       }
-      const guardCandidate = replay ? replayStep?.candidate ?? candidate : candidate;
+      const guardCandidate = replayActive ? replayStep?.candidate ?? candidate : candidate;
       const guard = evaluateActionGuard(guardCandidate, preObservation);
       if (!guard.allowed) {
         if (guard.result) oracleResults.push(guard.result);
         trace.push({ type: "candidate-denied", candidateId: candidate.candidateId, reason: guard.result?.message ?? "guard-not-satisfied", ...(guard.result ? { oracleResult: guard.result } : {}) });
-        if (replay) trace.push({ type: "replay-divergence", candidateId: candidate.candidateId, reason: guard.result?.message ?? "guard-not-satisfied" });
-        outcome = replay ? "failed" : "partial";
-        terminationReason = replay ? "machine_failure" : "completed";
+        if (replayActive) trace.push({ type: "replay-divergence", candidateId: candidate.candidateId, reason: guard.result?.message ?? "guard-not-satisfied" });
+        outcome = replayActive ? "failed" : "partial";
+        terminationReason = replayActive ? "machine_failure" : "completed";
         break;
       }
 
       const inputFieldId = candidate.inputProfileRef?.startsWith("input-field:") ? candidate.inputProfileRef.slice("input-field:".length) : undefined;
       const candidateInputs = inputFieldId ? generatedInputs.filter(input => input.fieldId === inputFieldId) : [];
       const generatedInput = candidate.inputProfileRef && candidateInputs.length ? candidateInputs[actions % candidateInputs.length] : undefined;
-      const inputCase = replay ? replayStep?.inputCase : generatedInput ? recordInputCase(generatedInput) : undefined;
+      const inputCase = replayActive ? replayStep?.inputCase : generatedInput ? recordInputCase(generatedInput) : undefined;
       if (candidate.inputProfileRef && !inputCase) {
         trace.push({ type: "replay-divergence", candidateId: candidate.candidateId, reason: "missing-input-case" });
         outcome = "failed";
         terminationReason = "machine_failure";
         break;
       }
-      if (replay && inputCase) {
+      if (replayActive && inputCase) {
         const regenerated = generatedInputs.find(value => value.caseId === inputCase.caseId);
         if (!regenerated || !matchesRecordedInputCase(inputCase, regenerated)) {
           trace.push({ type: "replay-divergence", candidateId: candidate.candidateId, reason: "input-case-mismatch", expectedInputCase: inputCase, actualInputCase: regenerated });
@@ -214,10 +264,12 @@ export async function runAdaptiveExplore(
         ? await securityController.execute(candidate, executionContext)
         : undefined;
       let result = securityExecution?.result ?? await adapter.execute(candidate, executionContext);
+      if (result.evidenceRefs.length) await verifyEvidenceArtifactRefs(result.evidenceRefs, collector.paths.runDir);
       if (securityExecution) trace.push(...securityExecution.trace);
       if (result.status === "timeout") {
         try {
-          const captureRefs = await adapter.captureEvidence({ runId: collector.metadata.runId, kinds: ["screenshot", "trace", "network"] });
+          const captureRefs = await adapter.captureEvidence({ runId: collector.metadata.runId, kinds: ["screenshot", "trace", "network"], stagingDir: collector.paths.runDir });
+          await verifyEvidenceArtifactRefs(captureRefs, collector.paths.runDir);
           if (captureRefs.length) result = { ...result, evidenceRefs: [...result.evidenceRefs, ...captureRefs] };
         } catch {
           trace.push({ type: "timeout-evidence-unavailable", candidateId: candidate.candidateId, reason: "capture-failed" });
@@ -227,7 +279,7 @@ export async function runAdaptiveExplore(
       actions += 1;
       const shrinkStep: ShrinkStep = { id: "step-" + actions, candidate, expectedStatus: result.status as Exclude<ExecutionResult["status"], "executed"> };
       shrinkSteps.push(shrinkStep);
-      if (!replay && result.status !== "executed") failureStep ??= shrinkStep;
+      if (!replayActive && result.status !== "executed") failureStep ??= shrinkStep;
       graph.recordTransition(candidate.sourceFingerprint, candidate, result, result.postFingerprint, actions);
       if (result.postFingerprint) graph.recordFingerprint(result.postFingerprint, {}, actions);
       trace.push({
@@ -278,7 +330,7 @@ export async function runAdaptiveExplore(
         });
       }
 
-      const oracleCandidate = replay ? replayStep?.candidate ?? candidate : candidate;
+      const oracleCandidate = replayActive ? replayStep?.candidate ?? candidate : candidate;
       const oracleEvaluation = evaluateAndRecordOracles({
         graph,
         candidate,
@@ -289,13 +341,18 @@ export async function runAdaptiveExplore(
         oracleResults,
         trace,
         ...(replayStep ? { replayStep } : {}),
+        exploration: config.mode === "adaptive-explore" && Boolean(config.explorationPlatform),
       });
+      // Any exploration oracle is an exploratory finding signal, including a
+      // future/pass observation. It must retain exploration capture, but it
+      // never becomes a defect-evidence or changes the machine outcome by itself.
+      if (oracleEvaluation.stepOracles.some(oracle => oracle.oracleId.startsWith("exploration:"))) collector.markFinding();
       if (oracleEvaluation.replayDivergenceReason) {
         outcome = "failed";
         terminationReason = "machine_failure";
         break;
       }
-      if (replay && replayCandidateReason) {
+      if (replayActive && replayCandidateReason) {
         trace.push({ type: "replay-divergence", candidateId: candidate.candidateId, reason: replayCandidateReason, expectedCandidate: replayStep?.candidate, actualCandidate: candidate });
         outcome = "failed";
         terminationReason = "machine_failure";
@@ -308,7 +365,7 @@ export async function runAdaptiveExplore(
       }
       if (result.status === "executed") continue;
       if (result.status === "denied") {
-        if (replay) {
+        if (replayActive) {
           trace.push({ type: "replay-divergence", candidateId: candidate.candidateId, expectedFingerprint: candidate.sourceFingerprint, actualFingerprint: result.preFingerprint });
           outcome = "failed";
           terminationReason = "machine_failure";
@@ -352,7 +409,7 @@ export async function runAdaptiveExplore(
     outcome = "error";
     terminationReason = "executor_error";
   } finally {
-    await closeAdaptiveEnvironment(environment, outcome, collector);
+    await closeAdaptiveEnvironment(config, environment, outcome, collector);
     await writeAdaptiveEvidence(collector.paths.runDir, {
       seed: config.seed,
       actions,

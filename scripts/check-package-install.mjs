@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, resolve, sep } from "node:path";
 import { fileURLToPath, URL } from "node:url";
@@ -48,6 +48,13 @@ try {
 
   const packageJson = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
   const cli = join(consumer, "node_modules", "domain-lakda-runner", "dist", "cli.js");
+  const bridgeRoot = join(consumer, "node_modules", "domain-lakda-runner", "tools", "airtest-poco-bridge");
+  await Promise.all([
+    access(join(bridgeRoot, "README.md")),
+    access(join(bridgeRoot, "requirements.top-level-attestation.txt")),
+    access(join(bridgeRoot, "requirements.txt")),
+    access(join(bridgeRoot, "server.py")),
+  ]);
   const help = execFileSync(process.execPath, [cli, "--help"], { cwd: consumer, encoding: "utf8" });
   if (!help.includes("lakda") || !help.includes("runs list") || !help.includes("runs compare")) {
     throw new Error("installed package CLI help is incomplete");
@@ -66,6 +73,7 @@ try {
     isolatedInstall: true,
     cliHelp: true,
     packageImport: true,
+    airtestBridge: true,
   }));
 } finally {
   if (resolvedTemp.startsWith(resolve(tmpdir()) + sep) && basename(resolvedTemp).startsWith("lakda-package-install-")) {

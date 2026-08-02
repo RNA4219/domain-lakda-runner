@@ -13,12 +13,23 @@ export class KillSwitch {
 
 const destructive = new Set<MutationKind>(["delete", "purchase", "publish", "external-message", "credential-change"]);
 
+function overlapsDenyZone(candidate: ActionCandidate, config: LakdaConfig): boolean {
+  const region = candidate.visual?.region;
+  const zones = config.safety.explorationDenyZones ?? [];
+  if (!region || zones.length === 0) return false;
+  const surface = candidate.visual?.identity.surface;
+  return zones.some(zone => (!zone.surface || zone.surface === surface)
+    && region.x < zone.x + zone.width && region.x + region.width > zone.x
+    && region.y < zone.y + zone.height && region.y + region.height > zone.y);
+}
+
 export function evaluateAdaptiveSafety(candidate: ActionCandidate, config: LakdaConfig, context: AdaptiveSafetyContext): AdaptiveSafetyDecision {
   const adaptive = config.adaptive;
   if (!adaptive) return { allowed: false, reason: "adaptive_config_missing" };
   if (context.killSwitch?.triggered) return { allowed: false, reason: "kill_switch" };
   if (context.actionCount >= config.maxActions) return { allowed: false, reason: "max_actions" };
   if (context.artifactBytes >= config.artifacts.maxRunBytes) return { allowed: false, reason: "artifact_budget" };
+  if (overlapsDenyZone(candidate, config)) return { allowed: false, reason: "native_deny_zone" };
   if (!adaptive.safety.allowTargetKinds.includes(candidate.targetRef.kind as TargetKind)) return { allowed: false, reason: "target_kind_denied" };
   if (adaptive.safety.denyActionIds.includes(candidate.candidateId) || config.safety.denyActionKinds.some(value => candidate.actionKind.toLowerCase().includes(value.toLowerCase()))) return { allowed: false, reason: "deny_action" };
   if (destructive.has(candidate.mutationKind) || !adaptive.safety.allowMutationKinds.includes(candidate.mutationKind)) return { allowed: false, reason: "mutation_denied" };

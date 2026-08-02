@@ -1,5 +1,8 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 import type { BrowserContext, ConsoleMessage, Frame, Page } from "playwright";
 import { redact, sha256 } from "../../core/redaction.js";
+import { fileDigest, portablePath } from "../../core/artifact-store.js";
 import { fingerprintObservation } from "../../adaptive/fingerprint.js";
 import type { ActionCandidate, AdapterCapabilities, CandidateDiscoveryResult, CoverageDebt, DialogHandling, EvidenceArtifactRef, ExecutionResult, LocatorRecipe, MutationKind, Observation, ProductActionContract, SettlePolicy, TargetRef } from "../../adaptive/contracts.js";
 import type { AdaptiveAdapter, AdapterFailure, EvidenceRequest, ExecuteContext, ObserveContext, RecoverContext, RecoveryResult } from "../types.js";
@@ -35,6 +38,7 @@ type InputValueProvider = (candidate: ActionCandidate, context: ExecuteContext) 
 export type PlaywrightAdaptiveAdapterOptions = { page: Page; context?: BrowserContext; scopeHosts: string[]; scopePathPrefixes?: string[]; adapterId?: string; inputValueProvider?: InputValueProvider; actionContracts?: ProductActionContract[]; settlePolicy?: Partial<SettlePolicy> };
 
 const version = "lakda/adaptive-contracts/v1" as const;
+const screenshotMaskStyle = '[data-lakda-sensitive], input[type="password"], input[name*="token" i], input[name*="secret" i] { color: transparent !important; text-shadow: 0 0 12px #000 !important; background: #000 !important; }';
 export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
   readonly adapterId: string;
   private readonly targets = new Map<string, Entry>();
@@ -43,6 +47,8 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
   private readonly scopePathPrefixes: readonly string[] | undefined;
   private readonly actionContracts = new Map<string, MutationKind>();
   private readonly input?: InputValueProvider;
+  private readonly context?: BrowserContext;
+  private readonly initialPage: Page;
   private readonly settle: SettlePolicy;
   private readonly dialogs: DialogEvent[] = [];
   private readonly network: Array<{ targetId: string; url: string; status: number; method: string }> = [];
@@ -60,9 +66,12 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
   private frames = 0;
   private dialogEvents = 0;
   private browserEvents = 0;
+  private bookmarkSequence = 0;
 
   constructor(options: PlaywrightAdaptiveAdapterOptions) {
     this.adapterId = options.adapterId ?? "playwright";
+    this.context = options.context;
+    this.initialPage = options.page;
     this.scopeHosts = new Set(options.scopeHosts);
     this.scopePathPrefixes = options.scopePathPrefixes;
     for (const contract of options.actionContracts ?? []) {
@@ -320,11 +329,11 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
     return { ...common, topology, completeness: "complete", ui: { primaryElements, domModals: displays.filter(display => display.role === "dialog"), events }, forms: await collectForms(entry.target) };
   }
 
-  async discoverCandidates(observation: Observation): Promise<CandidateDiscoveryResult> {
+  async discoverCandidates(observation: Observation, sourceFingerprint?: string): Promise<CandidateDiscoveryResult> {
     if (observation.provenance.adapterId !== this.adapterId || observation.completeness !== "complete") return { candidates: [], coverageDebt: [], classification: { observedControls: 0, classifiedControls: 0, unclassifiedControls: 0 } };
     const target = this.entry(observation.targetRef).target;
     const controls = await collectControls(target);
-    const sourceFingerprint = fingerprintObservation(observation).value;
+    const resolvedSourceFingerprint = sourceFingerprint ?? fingerprintObservation(observation).value;
     const fieldIds = new Set(observation.forms.flatMap(form => Array.isArray(form.fields) ? form.fields.flatMap(field => field && typeof field === "object" && typeof (field as Record<string, unknown>).fieldId === "string" ? [(field as Record<string, string>).fieldId] : []) : []));
     const candidates: ActionCandidate[] = [];
     const coverageDebt: CoverageDebt[] = [];
@@ -333,7 +342,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
       const publicName = publicLocator(name) ? publicText(name) : undefined;
       coverageDebt.push({
         schemaVersion: "lakda-coverage-debt/v1",
-        debtId: `debt-${sha256(`${sourceFingerprint}:${control.ordinal}:${reason}:${control.role ?? ""}:${name ?? ""}`).slice(0, 20)}`,
+        debtId: `debt-${sha256(`${resolvedSourceFingerprint}:${control.ordinal}:${reason}:${control.role ?? ""}:${name ?? ""}`).slice(0, 20)}`,
         reason,
         actionKind: control.actionKind,
         ...(control.actionId ? { actionId: control.actionId } : {}),
@@ -342,7 +351,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
         ...(!publicName && name ? { nameDigest: `sha256:${sha256(name)}` } : {}),
         ...(matchedCount !== undefined ? { matchedCount } : {}),
         scope,
-        targetFingerprint: sourceFingerprint,
+        targetFingerprint: resolvedSourceFingerprint,
       });
     };
 
@@ -354,7 +363,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
 
       const testId = control.testId?.trim();
       if (testId && publicLocator(testId) && await target.getByTestId(testId).count() === 1) {
-        candidates.push(createCandidate(this.adapterId, this.actionContracts, observation, control, sourceFingerprint, { strategy: "test-id", value: testId }));
+        candidates.push(createCandidate(this.adapterId, this.actionContracts, observation, control, resolvedSourceFingerprint, { strategy: "test-id", value: testId }));
         continue;
       }
       const name = control.name?.trim();
@@ -364,7 +373,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
       const global = target.getByRole(role as never, { name, exact: true });
       const globalCount = await global.count();
       if (globalCount === 1) {
-        candidates.push(createCandidate(this.adapterId, this.actionContracts, observation, control, sourceFingerprint, { strategy: "role", value: role, name }));
+        candidates.push(createCandidate(this.adapterId, this.actionContracts, observation, control, resolvedSourceFingerprint, { strategy: "role", value: role, name }));
         continue;
       }
 
@@ -380,7 +389,7 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
           break;
         }
       }
-      if (resolved) candidates.push(createCandidate(this.adapterId, this.actionContracts, observation, control, sourceFingerprint, resolved));
+      if (resolved) candidates.push(createCandidate(this.adapterId, this.actionContracts, observation, control, resolvedSourceFingerprint, resolved));
       else recordDebt(control, "ambiguous-locator", scopeState, globalCount);
     }
     const classifiedControls = candidates.length + coverageDebt.length;
@@ -462,5 +471,71 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
     const target = this.targets.get((failure.targetRef ?? this.primaryTarget()).targetId);
     return recoverPlaywrightTarget(target?.target, target?.ref.kind, context, target ? () => this.ref(target) : undefined);
   }
-  async captureEvidence(request: EvidenceRequest): Promise<EvidenceArtifactRef[]> { void request; return []; }
+
+  private evidencePage(): Page {
+    const activeId = this.topology.activeTargetId;
+    if (activeId) {
+      const active = this.targets.get(activeId);
+      if (!active) throw new Error("bookmark screenshot active target is unavailable");
+      const page = active.ref.kind === "frame" ? (active.target as Frame).page() : active.target as Page;
+      if (page.isClosed()) throw new Error("bookmark screenshot active target is closed");
+      return page;
+    }
+    const contextPage = this.context?.pages().filter(page => !page.isClosed()).at(-1);
+    if (contextPage) return contextPage;
+    if (!this.initialPage.isClosed()) return this.initialPage;
+    throw new Error("bookmark screenshot target is unavailable");
+  }
+
+  async captureEvidence(request: EvidenceRequest): Promise<EvidenceArtifactRef[]> {
+    if (!request.kinds.map(kind => kind.toLowerCase()).includes("screenshot")) return [];
+    if (!request.stagingDir?.trim()) throw new Error("bookmark screenshot stagingDir is required");
+    const stagingRoot = resolve(request.stagingDir);
+    const safeRunId = request.runId.replace(/[^A-Za-z0-9._-]/g, "-") || "run";
+    const sequence = String(++this.bookmarkSequence).padStart(4, "0");
+    const absolutePath = resolve(stagingRoot, "artifacts", "bookmarks", `${safeRunId}-${sequence}.png`);
+    const relativePath = portablePath(stagingRoot, absolutePath);
+    if (!relativePath || relativePath === ".." || relativePath.startsWith("../") || relativePath.startsWith("/")) throw new Error("bookmark screenshot path escaped run staging");
+    const page = this.evidencePage();
+    let maskStyle: Awaited<ReturnType<Page["addStyleTag"]>>;
+    try {
+      maskStyle = await page.addStyleTag({ content: screenshotMaskStyle });
+    } catch (error) {
+      throw new Error(`bookmark screenshot masking failed: ${error instanceof Error ? error.message : "unknown"}`, { cause: error });
+    }
+    let captureFailure: unknown;
+    let refs: EvidenceArtifactRef[] | undefined;
+    try {
+      const bytes = await page.screenshot({ fullPage: true });
+      if (bytes.byteLength === 0) throw new Error("bookmark screenshot is empty");
+      await mkdir(dirname(absolutePath), { recursive: true });
+      await writeFile(absolutePath, bytes, { flag: "wx" });
+      const digest = await fileDigest(absolutePath);
+      if (digest.size === 0) throw new Error("bookmark screenshot artifact is empty");
+      refs = [{
+        schemaVersion: version,
+        artifactId: `lakda:artifact-bookmark-${digest.sha256}`,
+        path: relativePath,
+        sha256: digest.sha256,
+        size: digest.size,
+        classification: "internal",
+        redactionStatus: "redacted",
+        securityStatus: "pass",
+      }];
+    } catch (error) {
+      captureFailure = error;
+    }
+    let cleanupFailure: unknown;
+    try {
+      await maskStyle.evaluate(element => (element as Element).remove());
+    } catch (error) {
+      cleanupFailure = error;
+    }
+    if (captureFailure || cleanupFailure) {
+      const detail = [captureFailure, cleanupFailure].filter(Boolean).map(error => error instanceof Error ? error.message : "unknown").join("; ");
+      throw new Error(`bookmark screenshot capture failed: ${detail}`, { cause: captureFailure ?? cleanupFailure });
+    }
+    if (!refs) throw new Error("bookmark screenshot capture produced no ref");
+    return refs;
+  }
 }

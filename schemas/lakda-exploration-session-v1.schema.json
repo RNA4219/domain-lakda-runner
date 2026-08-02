@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/lakda/exploration-session/v1",
+  "title": "Lakda exploration session v1",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "sessionId", "charterDigest", "configDigest", "platform", "lane", "status", "createdAt", "updatedAt", "eventCount", "actionCount", "runIds", "findingIds"],
+  "properties": {
+    "schemaVersion": { "const": "lakda/exploration-session/v1" }, "sessionId": { "type": "string", "minLength": 1 },
+    "charterDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }, "configDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "platform": { "enum": ["pc-web", "mobile-web", "windows", "android", "ios"] }, "lane": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["draft", "running", "paused", "completed", "aborted"] }, "createdAt": { "type": "string", "minLength": 1 }, "updatedAt": { "type": "string", "minLength": 1 },
+    "charterPath": { "type": "string" }, "capabilitySnapshotPath": { "type": "string" }, "checkpointPath": { "type": "string" },
+    "eventCount": { "type": "integer", "minimum": 0 }, "actionCount": { "type": "integer", "minimum": 0 },
+    "runIds": { "type": "array", "items": { "type": "string" } }, "findingIds": { "type": "array", "items": { "type": "string" } }, "capabilityDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "lastFingerprint": { "type": "string" }, "lastRunDir": { "type": "string" }, "blockers": { "type": "array", "items": { "type": "string" } },
+    "eventHeadDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }, "parentSessionId": { "type": "string", "minLength": 1 }, "activeDurationMs": { "type": "number", "minimum": 0 }, "targetManifestDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }, "technicalOutcome": { "enum": ["passed", "failed", "partial", "error"] }, "terminationReason": { "type": "string", "minLength": 1 },
+    "hateManifestPath": { "type": "string", "minLength": 1, "pattern": "^(?!/)(?![A-Za-z]:)[^\\\\]+(?:/[^\\\\]+)*$" },
+    "runManifestRefs": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["runId", "path", "sha256", "size"], "properties": { "runId": { "type": "string", "minLength": 1 }, "path": { "type": "string", "minLength": 1, "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.?(?:/|$))" }, "sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }, "size": { "type": "integer", "minimum": 0 } } } }
+  }
+}

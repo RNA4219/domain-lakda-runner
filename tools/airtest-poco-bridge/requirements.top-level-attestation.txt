@@ -1,0 +1,10 @@
+# Operator-managed top-level source attestation (not a pip-installable lock).
+# Lakda never installs or starts this bridge.  The hashes below attest only
+# these two direct distributions; pip hash-checking mode would require every
+# transitive distribution to be listed and hashed, which this reference file
+# intentionally does not claim to provide.  Resolve and review transitive
+# dependencies in the operator's separately managed venv.
+airtest==1.3.5 \
+    --hash=sha256:96a08f36800721c9bd0e118e865b2afc4d757f35e11f2ce49ea98bbb88cbeee8
+pocoui==1.0.94 \
+    --hash=sha256:fddca24dcf8938e16f041ec8af93d42acd032c25d1d87bd53f62daaf2a4928ce

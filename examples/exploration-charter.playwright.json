@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "lakda/exploration-charter/v1",
+  "charterId": "sample-playwright-exploration",
+  "targetRevision": "fixture-local",
+  "platform": "pc-web",
+  "executionMode": "fixture",
+  "adapter": { "id": "playwright" },
+  "baseUrl": "http://127.0.0.1:3000",
+  "persona": "guest",
+  "scope": { "allowHosts": ["127.0.0.1", "localhost"], "pathPrefixes": ["/"] },
+  "budget": { "durationMs": 30000, "maxActions": 20, "maxActionsPerMinute": 60 },
+  "stopWhen": { "any": [{ "type": "noveltyPlateau", "windowActions": 4, "minActions": 1 }] },
+  "generator": { "strategy": "autonomous-uncovered", "version": "autonomous-uncovered/v1" },
+  "capture": { "video": "retain-on-finding-or-non-pass", "screenshot": "finding-non-pass-bookmark", "sampledFrames": { "enabled": false, "intervalMs": 1000, "maxFrames": 1, "maxBytes": 1000000, "source": "playwright", "stopTimeoutMs": 5000 } },
+  "templateCorpusVersion": "none",
+  "seed": 4219
+}

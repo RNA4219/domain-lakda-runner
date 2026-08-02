@@ -29,6 +29,27 @@ test("all built-in generators are deterministic for an equal graph and seed", as
     expect(await run(), strategy).toBe(await run());
   }
 });
+test("autonomous-uncovered produces a byte-identical offered-only sequence across 100 runs", async () => {
+  const offered = [candidate("c"), candidate("a"), candidate("b")];
+  const run = async () => {
+    const graph = new StateGraph();
+    graph.recordFingerprint("state:one", {}, 0);
+    graph.recordOffered(offered, 0);
+    const random = seeded(4219);
+    const sequence: string[] = [];
+    for (let index = 0; index < 32; index += 1) {
+      const selected = await selectAdaptiveGenerator("autonomous-uncovered", { candidates: offered, graph, random });
+      expect(selected.kind).toBe("candidate");
+      if (selected.kind !== "candidate") throw new Error("autonomous-uncovered did not select an offered candidate");
+      expect(offered.some(value => value.candidateId === selected.candidate.candidateId)).toBe(true);
+      sequence.push(selected.candidate.candidateId);
+    }
+    return JSON.stringify(sequence);
+  };
+  const expected = await run();
+  const sequences = await Promise.all(Array.from({ length: 99 }, run));
+  expect(sequences.every(sequence => sequence === expected)).toBe(true);
+});
 test("llm-select sees only sorted IDs and redacted graph data, supports stop, and rejects substitutions", async () => {
   const graph = new StateGraph(); const candidates = [candidate("b"), candidate("a")]; graph.recordFingerprint("state:one", {}, 0); graph.recordOffered(candidates, 0); let summary = "";
   const stop: AdaptiveLlmSelector = { selectAdaptiveCandidate: async (ids, value) => {

@@ -1,8 +1,8 @@
 ---
 document_id: LAKDA-REQ-002
 status: normative-draft
-version: 0.1.0-draft
-last_updated: 2026-07-14
+version: 0.2.0-draft
+last_updated: 2026-08-02
 parent: REQUIREMENTS.md
 target: post-v1
 ---
@@ -49,7 +49,7 @@ Lakdaは操作技術そのものを再実装しない。Playwright、Airtest/Poc
 - seed付き選択、strict replay、failure shrinking
 - HATE/v1へ渡せる証跡の生成
 
-adapter追加は、共通コア契約とPlaywright adapterの受入完了後に段階実施する。
+adapter追加は同一のcross-platform MVPへ含める。実装依存は共通コア契約とPlaywright adapterの受入を先行させるが、Windows、Android、iOSのAirtest laneをMVP完了条件から除外しない。
 現行 `seeded-random` は実行前にplanを確定するdeterministic modeとして維持し、
 動的再観測を伴う探索は新しい `adaptive-explore` modeとして分離する。
 
@@ -63,12 +63,13 @@ adapter追加は、共通コア契約とPlaywright adapterの受入完了後に�
 - console、HTTP、page error、timeout、表示状態異常の検知
 - product固有のguard、postcondition、invariant、obligationの評価
 
-### 3.2 ゲーム
+### 3.2 Visual-device application / game
 
-- Airtestによる実機・ゲーム画面の取得、画像認識、入力
+- AirtestによるWindows application／desktop、Android実機・emulator、iOS実機の画面取得、画像認識、入力
 - Pocoによる利用可能な場合のUI階層取得とUI要素操作
 - tap、swipe、key、text等のadapter操作
 - 未知画面の登録、状態識別、クラッシュ、フリーズ、視覚異常の観測
+- platform lane別capability、executionMode、real acceptanceの分離
 
 PocoのUI階層は常に利用可能とはみなさない。adapterは画像認識、UI階層、
 実機入力等のcapabilityを実行前に宣言し、利用不能なcapabilityへ暗黙fallbackしない。
@@ -124,7 +125,7 @@ Lakdaは「完全自動ペンテスト」を称さず、人間のペンテスト
 | REQ-OBS-003 | Must | Web観測は正規化URL、主要表示要素、role/name、enabled/visible状態、form構造、modal/dialog、page/frame topology、主要通信結果、persona、obligation状態を取得できること。 |
 | REQ-OBS-004 | Must | adapterは観測対象を`targetRef`で識別し、browser context、page/tab、popup、frame、device、game surfaceを区別できること。 |
 | REQ-OBS-005 | Must | 観測の失敗、部分取得、capability不足を成功観測として扱わず、`complete / partial / unavailable`を明示すること。 |
-| REQ-OBS-006 | Should | 画像主体adapterはperceptual digestと主要領域の識別結果を構造化Observationへ含めること。 |
+| REQ-OBS-006 | Must | 画像主体adapterはscreenshot artifact ref、perceptual digest、resolution、orientation、mask revision、主要領域の識別結果を構造化Observationへ含めること。 |
 
 ### 5.2 fingerprint
 
@@ -317,14 +318,14 @@ Lakdaは「完全自動ペンテスト」を称さず、人間のペンテスト
 | REQ-PW-002 | Must | locatorはuser-facing role/name、test ID、label等の宣言型recipeを優先し、element handleをreplay契約に保存しないこと。 |
 | REQ-PW-003 | Must | DOM、URL、page/frame、console、request/response、dialog、download、popup lifecycleのうち有効な観測をObservationへ統合すること。 |
 
-### 16.3 Airtest / Poco adapter
+### 16.3 Airtest / Poco visual-device adapter
 
 | ID | 強度 | 要件 |
 |---|---|---|
-| REQ-GAME-001 | Should | CoreとPlaywright adapterの受入後、Airtest/Pocoを外部操作基盤として接続すること。 |
-| REQ-GAME-002 | Should | Airtestの画像認識結果とPocoのUI階層結果を別provenanceでObservationへ記録すること。 |
-| REQ-GAME-003 | Should | Poco SDK未接続またはUI階層取得不能を画像認識成功で隠さず、capability不足として記録すること。 |
-| REQ-GAME-004 | Should | crash、freeze、画面無変化、未知画面、視覚異常を別oracle resultとして扱うこと。 |
+| REQ-GAME-001 | Must | 同一cross-platform MVPでAirtest/Pocoをoperator管理のloopback外部操作基盤として接続し、Windows application／desktop、Android実機・emulator、iOS実機を別platform laneとして扱うこと。Lakdaから外部processを起動しないこと。 |
+| REQ-GAME-002 | Must | Airtest screenshot／template、Poco UI hierarchy、device状態、Core派生値を別provenanceで記録し、region／座標をresolutionとorientationへ正規化すること。visual candidateは検査済みtemplate、semantic node、versioned providerだけから生成すること。 |
+| REQ-GAME-003 | Must | Poco SDK、UI hierarchy、video等のcapability不足を別機能の成功で隠さず、暗黙fallbackしないこと。video非対応laneで使用するsampled framesは明示設定し、videoと区別すること。 |
+| REQ-GAME-004 | Must | crash、freeze、画面無変化、未知画面、視覚異常を別oracle resultとして扱い、安全なcandidateがない未知画面ではrandom／LLM座標tapを行わずcoverage debtを保存すること。finding／non-pass captureはArtifact Policyを通し、自動defect昇格を行わないこと。 |
 
 ### 16.4 Security adapter
 
@@ -368,7 +369,7 @@ Lakdaは「完全自動ペンテスト」を称さず、人間のペンテスト
 | AC-AE-012 | REQ-ORC-001〜007 | generic、product、security oracle resultが分離され、requirement未接続異常がdefectへ、scanner/LLM単独結果がconfirmed vulnerabilityへ昇格した件数0であること。 |
 | AC-AE-013 | REQ-EVD-001〜008 | real/mock/simulatedを識別し、mockだけのrunがreal必須受入を満たした件数0、全追加artifactがHATE/v1 manifestで検証可能、LakdaによるQEG verdict生成0件であること。 |
 | AC-AE-014 | REQ-ADP-001〜004、REQ-PW-001〜003 | Playwright adapterが共通契約だけでCoreへ接続され、adapter objectのschema漏出、暗黙fallback、lossy error変換が0件であること。 |
-| AC-AE-015 | REQ-GAME-001〜004 | opt-in実機corpusでAirtest/Poco capability、provenance、未知画面、freeze/crash観測を検証し、Poco不能を成功扱いした件数0であること。 |
+| AC-AE-015 | REQ-GAME-001〜004 | Windows real application、Android実機、iOS実機を別laneで受入し、capability、provenance、normalized region、未知画面、freeze/crash、captureを検証すること。Poco不能の成功扱い、lane間証跡流用、random／LLM座標tap、自動defect昇格が各0件であること。emulator/mockだけでreal Gateを満たさないこと。 |
 | AC-AE-016 | REQ-SECX-001〜008、REQ-SAFE-001〜005 | authorization欠落、scope外、production active、deny action、budget超過、kill switch後のactive操作が0件で、候補/確認済み脆弱性が分離されること。 |
 
 ## 19. 実装優先順位
@@ -381,7 +382,7 @@ Lakdaは「完全自動ペンテスト」を称さず、人間のペンテスト
 | 4 | 探索評価 | Generator/Stop分離、plateau、discovered-model coverage、least-visited |
 | 5 | 誘導と復旧 | shortest-to-uncovered、risk-weighted、backtrack、timeout recovery |
 | 6 | 入力と縮約 | InputGenerator、form探索、failure shrinking |
-| 7 | ゲーム | Airtest/Poco adapter、実機capability、game oracle |
+| 7 | visual-device | Airtest/Poco adapter、Windows／Android／iOS lane、画像candidate、visual oracle、capture |
 | 8 | セキュリティ | 認可差分、手順変異、専用race scheduler、security confirmation flow |
 | 9 | 外部連携 | ZAP adapter、追加artifactのHATE/QEG投影、release evidence |
 
@@ -393,6 +394,8 @@ security negative testを[適応型探索評価仕様](docs/spec/adaptive-explor
 | 強度 | 項目 |
 |---|---|
 | Out | Airtest、Poco、Playwright、ZAPの操作・scan engineそのものの再実装 |
+| Out | macOS／Linux native desktop applicationとiOS simulatorをAirtest real acceptance対象にすること |
+| Out | 未知画面へのrandom tapまたはLLM生成座標の実行 |
 | Out | 人間による完全な状態遷移図の事前作成を必須にすること |
 | Out | 全path網羅を達成可能または絶対的正解として扱うこと |
 | Out | 生成された自然言語テストケースを主要成果物にすること |

@@ -28,7 +28,7 @@
     "classification": "internal",
     "trace": "retain-on-non-pass",
     "screenshot": "retain-on-non-pass",
-    "video": false,
+    "video": "retain-on-non-pass",
     "har": false,
     "domSnapshots": false,
     "maxRunBytes": 10485760

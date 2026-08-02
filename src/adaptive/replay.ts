@@ -204,6 +204,7 @@ function stableCandidate(candidate: ActionCandidate): Record<string, unknown> {
     sourceFingerprint: candidate.sourceFingerprint,
     actionKind: candidate.actionKind,
     locatorRecipe: candidate.locatorRecipe,
+    ...(candidate.visual ? { visual: candidate.visual } : {}),
     ...(candidate.inputProfileRef ? { inputProfileRef: candidate.inputProfileRef } : {}),
     mutationKind: candidate.mutationKind,
     ...(candidate.contract ? { contract: candidate.contract } : {}),

@@ -65,9 +65,11 @@ try {
   execFileSync(process.execPath, [join(repoRoot, "node_modules", "playwright", "cli.js"), "test", "tests/v02.spec.ts"], { cwd: repoRoot, stdio: "pipe" });
   hardeningSuitePassed = true;
 } catch { /* acceptance below records the failed hardening gate */ }
-const metric = { deterministicMatched: 0, deterministicTotal: 0, knownDetected: 0, normalFalsePositives: 0, replaySucceeded: 0, replayTotal: 0, llmConformant: 0, llmTotal: 0, criticalSucceeded: 0, criticalTotal: 0, artifactRequired: 0, artifactMissing: 0, manifestValid: 0, manifestTotal: 0, unsafeExecutions: 0, fallbackCount: 0, secretPlaintextFound: 0, unpresentedCandidateRejected: false, modelMismatchRejected: false };
+const metric = { deterministicMatched: 0, deterministicTotal: 0, knownDetected: 0, normalFalsePositives: 0, replaySucceeded: 0, replayTotal: 0, llmConformant: 0, llmTotal: 0, llmFailures: [], criticalSucceeded: 0, criticalTotal: 0, artifactRequired: 0, artifactMissing: 0, manifestValid: 0, manifestTotal: 0, unsafeExecutions: 0, fallbackCount: 0, secretPlaintextFound: 0, unpresentedCandidateRejected: false, modelMismatchRejected: false };
 
-function config(overrides = {}) { return loadConfig(undefined, { baseUrl, outputDir, mode: "smoke", ...overrides }); }
+// This is the full fixture acceptance corpus. Keep failure screenshots/traces,
+// but do not pay the continuous-video cost across every corpus run.
+function config(overrides = {}) { return loadConfig(undefined, { baseUrl, outputDir, mode: "smoke", artifacts: { video: false }, ...overrides }); }
 function llmConfig(overrides = {}) { return config({ mode: "llm-explore", llm: { enabled: true, baseUrl: `${baseUrl}/v1`, expectedModelId: "fixture-model", modelPath, modelSha256 }, ...overrides }); }
 async function audit(result) {
   const runDir = join(outputDir, result.runId.replace(/[^A-Za-z0-9._-]/g, "-"));
@@ -104,11 +106,14 @@ try {
       const replay = await runLakda(config({ mode: "regression-replay" }), initial.actionSequencePath); await audit(replay); metric.replayTotal += 1; if (replay.outcome === "passed") metric.replaySucceeded += 1;
     }
   }
-  for (const llmCaseId of corpus.llmDecisionCases) { void llmCaseId;
+  for (const llmCaseId of corpus.llmDecisionCases) {
     for (let repetition = 0; repetition < corpus.repetitions; repetition += 1) {
       const result = await runLakda(llmConfig({ candidates: [{ id: "navigate-root", kind: "navigate", path: "/" }] }));
       const runDir = await audit(result); const evidence = await readFile(join(runDir, "artifacts", "llm-decisions.jsonl"), "utf8");
-      metric.llmTotal += 1; if (result.outcome === "passed" && evidence.includes('"validation":"accepted"')) metric.llmConformant += 1;
+      const accepted = evidence.includes('"validation":"accepted"');
+      metric.llmTotal += 1;
+      if (result.outcome === "passed" && accepted) metric.llmConformant += 1;
+      else metric.llmFailures.push({ llmCaseId, repetition, outcome: result.outcome, terminationReason: result.terminationReason, llmStatus: result.llmStatus, accepted, failureRuleIds: result.failures.map(failure => failure.ruleId) });
       if (result.llmStatus === "mismatch") metric.fallbackCount += 1;
     }
   }
@@ -139,6 +144,7 @@ try {
   const unavailable = await runLakda(config({ llm: { enabled: true, baseUrl: "http://127.0.0.1:1/v1" } })); await audit(unavailable);
   const before = execFileSync("git", ["status", "--porcelain"], { cwd: repoRoot, encoding: "utf8" }); const doctorCode = await runCli(["doctor"]); const after = execFileSync("git", ["status", "--porcelain"], { cwd: repoRoot, encoding: "utf8" });
   const metrics = { deterministicPlanRate: metric.deterministicMatched / metric.deterministicTotal, knownDefectDetectionRate: metric.knownDetected / corpus.knownDefects.length, falsePositiveRate: metric.normalFalsePositives / corpus.normalCases.length, replaySuccessRate: metric.replaySucceeded / metric.replayTotal, mandatoryArtifactMissingRate: metric.artifactMissing / metric.artifactRequired, strictJsonConformanceRate: metric.llmConformant / metric.llmTotal, unsafeExecutions: metric.unsafeExecutions, unpresentedCandidateRejected: metric.unpresentedCandidateRejected, fallbackCount: metric.fallbackCount, modelMismatchRejected: metric.modelMismatchRejected, secretPlaintextFound: metric.secretPlaintextFound, promptLeakedSecret, criticalGolden: `${metric.criticalSucceeded}/${metric.criticalTotal}`, manifestValid: `${metric.manifestValid}/${metric.manifestTotal}` };
+  if (metric.llmFailures.length) console.error(JSON.stringify({ strictJsonFailures: metric.llmFailures }, null, 2));
   const acceptance = { "AC-014": hardeningSuitePassed, "AC-015": hardeningSuitePassed, "AC-016": hardeningSuitePassed, "AC-017": hardeningSuitePassed, "AC-018": hardeningSuitePassed, "AC-001": metrics.deterministicPlanRate === 1, "AC-002": metrics.knownDefectDetectionRate >= 0.7, "AC-003": metrics.falsePositiveRate <= 0.15, "AC-004": metrics.replaySuccessRate >= 0.85, "AC-005": metrics.mandatoryArtifactMissingRate <= 0.01, "AC-006": metric.manifestValid === metric.manifestTotal, "AC-007": metrics.strictJsonConformanceRate === 1, "AC-008": metric.unsafeExecutions === 0 && metric.unpresentedCandidateRejected, "AC-009": metric.fallbackCount === 0 && metric.modelMismatchRejected, "AC-010": metric.criticalSucceeded === metric.criticalTotal, "AC-011": unavailable.outcome === "passed" && unavailable.llmStatus === "unavailable", "AC-012": doctorCode === 0 && before === after, "AC-013": metric.secretPlaintextFound === 0 && !metrics.promptLeakedSecret && !redact(`Authorization: Bearer ${fixtureSecret}`).includes(fixtureSecret) };
   const report = { schemaVersion: "lakda/acceptance-report/v1", generatedAt: new Date().toISOString(), execution: { gitCommit, worktreeDirty, hardeningCommand }, hardening: { suite: "tests/v02.spec.ts", passed: hardeningSuitePassed }, corpus: { schemaVersion: corpus.schemaVersion, version: corpus.version, path: "tests/fixtures/acceptance-corpus-v1.json", sha256: corpusSha256 }, environment: { fixture: "node-http", browser: "chromium", llm: "fake-openai-compatible-loopback" }, metrics, acceptance, overall: Object.values(acceptance).every(Boolean) };
   await mkdir(dirname(outputPath), { recursive: true });

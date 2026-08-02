@@ -1,8 +1,8 @@
 ---
 document_id: LAKDA-REQ-001
 status: normative
-version: 1.3.0-draft
-last_updated: 2026-07-14
+version: 1.4.0-draft
+last_updated: 2026-08-02
 ---
 
 # domain-lakda-runner 要件定義
@@ -80,7 +80,7 @@ v1 の文書・実装・受入試験は次の固定値を基準とする。変�
 | REQ-FN-006 | Must | persona ごとに Playwright `storageState` を切り替え、実行前に認証状態を検証できること。 |
 | REQ-FN-007 | Must | `pageerror`、browser crash、console error、主要 request の 5xx、許可ルートの 401/403/404、timeout、予期しない logout を機械判定すること。 |
 | REQ-FN-008 | Must | run metadata、action sequence、console log、failure report、HATE artifact manifest をすべての完了 run で保存すること。 |
-| REQ-FN-009 | Must | `failed` または `partial` の run で trace と screenshot を保存すること。 |
+| REQ-FN-009 | Must | browser起動済みの`failed`、`partial`、`error` runでtraceとscreenshotを保存すること。通常runは`artifacts.video="retain-on-non-pass"`を既定とし、同じnon-pass runだけWebMを保持すること。`regression-replay`、実LLM `full` profile、full fixture acceptanceは設定値にかかわらず録画しないこと。 |
 | REQ-FN-010 | Must | HATE/v1 artifact manifest を正本 schema に適合させ、実 artifact の path、size、SHA-256、classification、redaction、retention、security check を記録すること。 |
 | REQ-FN-011 | Must | `doctor` は環境を読み取り専用で診断し、ファイル、依存関係、browser、process を変更しないこと。 |
 | REQ-FN-012 | Must | run outcome と process exit code を仕様書の対応表どおりに返すこと。 |
@@ -142,7 +142,7 @@ v1 の文書・実装・受入試験は次の固定値を基準とする。変�
 |---|---|---|
 | REQ-SEC-009 | Must | HAR は一時領域で `content=omit` により取得し、保存前に query、cookie、header、body、token、PII を構造化 redaction し、raw HAR を削除した後の実bytesを再scanすること。security scan と artifact classification は実検査結果から設定し、binary 以外へ固定 `pass` を設定しないこと。 |
 | REQ-FN-016 | Must | Artifact Policy の検査順を base artifact 保存 → security scan → Outcome Policy → 最終 metadata/failure 保存 → 最終bytes再scan → HATE manifest生成・schema検証とし、検査済みbytesのsize/SHA-256をmanifestへ反映すること。HATE exportは同じbytesから再実行しても決定的であり、run directory内の`exports/`配下の生成物をartifactとして再入力しないこと。 |
-| REQ-FN-017 | Must | DOM snapshotの容量を保存前に保存後bytesで検査し、最終base artifactが容量を消費した場合はoptional snapshotを除去した実保存件数だけを期待値へ反映すること。browser未起動時にtrace/screenshot/video/HARを必須化せず、artifact、fixture reset、executor、rate limitのtermination reasonを混同しないこと。workersは有限の整数1〜4だけを受け付けること。 |
+| REQ-FN-017 | Must | DOM snapshotの容量を保存前に保存後bytesで検査し、最終base artifactが容量を消費した場合はoptional snapshotを除去した実保存件数だけを期待値へ反映すること。`video=false`は録画なし、通常runの`video=true`は全run保持、`video="retain-on-non-pass"`は実行中に録画してpassed時に破棄しnon-pass時だけ保持すること。省略時は通常runでnon-pass保持とし、`regression-replay`、実LLM `full` profile、full fixture acceptanceではoffを注入すること。保持WebMはportableな連番pathへ正規化すること。browser未起動時にtrace/screenshot/video/HARを必須化せず、artifact、fixture reset、executor、rate limitのtermination reasonを混同しないこと。workersは有限の整数1〜4だけを受け付けること。 |
 
 `workers=1`の既存 `RunResult` と artifact 配置は維持し、`workers>1`は独立 child run を逐次保存する。batch envelopeは永続化しない。
 
@@ -161,10 +161,10 @@ v1 の文書・実装・受入試験は次の固定値を基準とする。変�
 | REQ-LLM-011 | Must | release profileでは実GGUF SHA-256、実model ID、response model ID、runtime build、chat templateを取得・照合し、loopback外endpoint、不一致、取得不能、暗黙fallback、schema不正、allowlist違反を実行前または検出直後に不合格とすること。 |
 | REQ-NF-008 | Must | `lakda/real-llm-acceptance/v2` reportとsanitized bundleから、全child run、個別SHA-256、stable-key JSONによるaggregate SHA-256、件数、profile、対象revisionを第三者が独立再検証できること。 |
 | REQ-NF-009 | Must | release candidateではCode-to-gate strict、HATE upstream validation、manual-bb real staging evidence、QEG validate/gate/recordを順に実行し、最終release verdictをQEGだけが決定すること。 |
-| REQ-SEC-010 | Must | sanitized bundleにはdecision JSONL、action sequence、HATE manifest、bundle manifestだけを含め、DOM、trace、screenshot、認証状態、raw prompt、絶対pathを含めないこと。保存前にsecurity scanを行うこと。 |
+| REQ-SEC-010 | Must | sanitized bundleにはdecision JSONL、action sequence、HATE manifest、bundle manifestだけを含め、DOM、trace、screenshot、video、認証状態、raw prompt、絶対pathを含めないこと。保存前にsecurity scanを行うこと。 |
 | REQ-FN-018 | Must | staging手動確認をv0.2.1 RC条件とし、対象revision、実環境、`testExecutionMode=real`、case結果、operator、時刻、証跡hashを検証すること。staging入力またはself-hosted runnerがなければreleaseを`hold`とし、Lakda自身はQEG recordやGate verdictを生成しないこと。 |
 
-`video`、`HAR`、`DOM snapshot` の profile指定はv1で使用でき、常時保存とvisual baseline、semantic diffはpost-v1とする。
+`video`、`HAR`、`DOM snapshot` のprofile指定はv1で使用できる。通常runのvideo既定は`"retain-on-non-pass"`、`regression-replay`、実LLM `full` profile、full fixture acceptanceは常に`false`、通常runの`video=true`は常時保持である。non-pass保持は失敗run全体の保持であり、直前N秒だけを残す循環録画、visual baseline、semantic diffはpost-v1とする。
 
 ## 6. post-v1
 
@@ -174,7 +174,7 @@ v1 の文書・実装・受入試験は次の固定値を基準とする。変�
 |---|---|
 | Should | Firefox / WebKit |
 | Should | `route-crawl`、`form-fuzz`、`visual-sanity` |
-| Should | video、HARの常時保存、visual baseline、semantic diff |
+| Should | 時間上限付き循環video、visual baseline、semantic diff |
 | Should | 実LLM suiteの全PR実行、継続的staging synthetic monitoring |
 | Could | `llm-enrich` による failure summarization、dedupe、risk/requirement 候補 |
 | Out | Lakda による QEG `quality-evidence-record`、gate verdict、approval、waiver の直接生成 |
@@ -215,7 +215,7 @@ post-v1の具体仕様、要件の一次所有、仕様書ごとの二段階チ�
 | AC-017 | REQ-NF-008、REQ-SEC-010 | full 90-runとworker-smoke 20-runのsanitized bundleについて、schema、対象revision、profile件数、全個別file hash、payload hash、ordered aggregate hash、HATE/v1、改ざん・欠落・順序変更拒否を独立検証できること。 |
 | AC-018 | REQ-FN-018、REQ-NF-009 | Code-to-gate strict、HATE upstream、manual-bb実staging、QEG validate/gate/recordの五段Gateが対象revisionで完了し、mock、証跡欠落、full未達、manual未実施ではQEGがpassを返さないこと。 |
 | AC-019 | REQ-SEC-009 | HARを`content=omit`の一時captureから構造化redactionして保存し、raw HAR削除、secret/PIIの実bytes scan、classification、HATE再exportの一致を検証する。 |
-| AC-020 | REQ-FN-016、REQ-FN-017 | Policy確定順序、atomic metadata/failure、VerifiedArtifactのbytes不変、passed以外のartifact期待値、fixture reset/executor/rate limitのtermination reason、workers整数検証を検証する。 |
+| AC-020 | REQ-FN-016、REQ-FN-017 | Policy確定順序、atomic metadata/failure、VerifiedArtifactのbytes不変、通常runのnon-pass video既定、regression／実LLM full／full fixture acceptanceのoff既定、明示的off/常時保持/non-pass保持とportable WebM path、fixture reset/executor/rate limitのtermination reason、workers整数検証を検証する。 |
 
 ## 8. リリース判定
 

@@ -1,8 +1,8 @@
 ---
 document_id: LAKDA-SPEC-AE-INDEX
 status: review-ready
-version: 0.1.0-draft
-last_updated: 2026-07-14
+version: 0.2.0-draft
+last_updated: 2026-08-02
 requirements: ../../../REQUIREMENTS-ADAPTIVE-EXPLORATION.md
 ---
 
@@ -24,10 +24,12 @@ requirements: ../../../REQUIREMENTS-ADAPTIVE-EXPLORATION.md
 | 2 | [状態グラフ・探索](SPEC-02-STATE-GRAPH-EXPLORATION.md) | [CHK-02](CHECKLIST-02-STATE-GRAPH-EXPLORATION.md) | `REQ-FP-*`, `REQ-GRAPH-*`, `REQ-EXP-*`, `REQ-STOP-*`, `REQ-COV-*`, `REQ-REC-*` | `AC-AE-002`〜`007` |
 | 3 | [replay・oracle・証跡](SPEC-03-REPLAY-ORACLE-EVIDENCE.md) | [CHK-03](CHECKLIST-03-REPLAY-ORACLE-EVIDENCE.md) | `REQ-INP-*`, `REQ-REP-*`, `REQ-SHR-*`, `REQ-ORC-*`, `REQ-EVD-*` | `AC-AE-009`〜`013` |
 | 4 | [Playwright adapter](SPEC-04-PLAYWRIGHT-ADAPTER.md) | [CHK-04](CHECKLIST-04-PLAYWRIGHT-ADAPTER.md) | `REQ-WEB-*`, `REQ-PW-*` | `AC-AE-008`, `010`, `014` |
-| 5 | [Airtest/Poco adapter](SPEC-05-AIRTEST-POCO-ADAPTER.md) | [CHK-05](CHECKLIST-05-AIRTEST-POCO-ADAPTER.md) | `REQ-GAME-*` | `AC-AE-015` |
+| 5 | [Airtest/Poco visual-device adapter](SPEC-05-AIRTEST-POCO-ADAPTER.md) | [CHK-05](CHECKLIST-05-AIRTEST-POCO-ADAPTER.md) | `REQ-GAME-*` | `AC-AE-015` |
 | 6 | [Security adapter](SPEC-06-SECURITY-ADAPTER.md) | [CHK-06](CHECKLIST-06-SECURITY-ADAPTER.md) | `REQ-SECX-*` | `AC-AE-016` |
 
 受入方法、fixture、閾値、必要証跡は[適応型探索評価仕様](EVALUATION-ADAPTIVE-EXPLORATION.md)を正本とする。
+
+PC Web、mobile Web、Windows、Android、iOSを同一MVPとして束ねるcross-cutting integration profileは、[自動・クロスプラットフォーム探索仕様](../autonomous-exploratory-testing/README.md)と対応チェックリストを正本とする。基礎要件の一次所有は上表の6仕様へ残し、integration profileはExploration Charter、Session、visual candidate、finding、capture、統合Gateを所有する。
 
 ## 3. 共通規約
 
@@ -82,7 +84,7 @@ kill switch、scope逸脱、認証喪失、critical failure、artifact/security 
 | 4 探索評価 | SPEC-02 | Generator/Stopとcoverage分母規則固定済み |
 | 5 誘導と復旧 | SPEC-02 | backtrack、timeout、hard capのnegative case固定済み |
 | 6 入力と縮約 | SPEC-03 | mutation denyとimmutable parent trace検査固定済み |
-| 7 ゲーム | SPEC-05 | Core/Playwright受入済み、opt-in実機corpus利用可能 |
+| 7 visual-device | SPEC-05＋自動探索統合仕様 | Core/Playwright受入済み、Windows／Android／iOSのlane別corpus利用可能 |
 | 8 セキュリティ | SPEC-06 | authorization profileと専用安全試験承認済み |
 | 9 外部連携 | SPEC-03、SPEC-06 | HATE/v1投影と候補/確認済み分類固定済み |
 
