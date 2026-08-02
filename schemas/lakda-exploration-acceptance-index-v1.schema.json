@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/lakda/exploration-acceptance-index/v1",
+  "title": "Lakda exploration acceptance index v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "indexId", "requiredLanes", "entries"],
+  "properties": {
+    "schemaVersion": { "const": "lakda/exploration-acceptance-index/v1" },
+    "indexId": { "type": "string", "minLength": 1 },
+    "requiredLanes": { "type": "array", "uniqueItems": true, "minItems": 5, "items": { "enum": ["pc-web", "mobile-web", "windows", "android", "ios"] } },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["sessionId", "platform", "executionMode", "targetRevision", "sessionPath", "reportPath", "reportSha256", "hateManifestPath", "hateManifestSha256", "signature"],
+        "properties": {
+          "sessionId": { "type": "string", "minLength": 1 },
+          "platform": { "enum": ["pc-web", "mobile-web", "windows", "android", "ios"] },
+          "executionMode": { "const": "real", "description": "五laneの統合eligible判定は承認済みreal evidenceだけを受け付ける。fixture/emulator/mockはacceptance indexへ登録しない。" },
+          "targetRevision": { "type": "string", "minLength": 1 },
+          "sessionPath": { "type": "string", "minLength": 1 },
+          "reportPath": { "type": "string", "minLength": 1 },
+          "reportSha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+          "hateManifestPath": { "type": "string", "minLength": 1 },
+          "hateManifestSha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+          "signature": { "type": "object", "additionalProperties": false, "required": ["algorithm", "keyId", "signedPayloadDigest", "valueBase64"], "properties": { "algorithm": { "const": "ed25519" }, "keyId": { "type": "string", "minLength": 1 }, "signedPayloadDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }, "valueBase64": { "type": "string", "pattern": "^[A-Za-z0-9+/]+={0,2}$" } } }
+        }
+      }
+    }
+  }
+}

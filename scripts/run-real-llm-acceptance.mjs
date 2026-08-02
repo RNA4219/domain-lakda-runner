@@ -95,6 +95,7 @@ function config() {
       seededRandom: { candidateIds: ["navigate-root"], count: 1 },
     },
     obligations: [{ expectedUrl: "/" }],
+    artifacts: { video: profile.video },
     llm: {
       enabled: true,
       baseUrl: endpoint,

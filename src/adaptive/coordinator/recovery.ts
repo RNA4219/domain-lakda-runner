@@ -5,6 +5,7 @@ import type { ActionCandidate, ExecutionResult, Observation, OracleResult, Targe
 import { fingerprintObservation } from "../fingerprint.js";
 import { StateGraph } from "../graph.js";
 import { evaluateActionPostconditions } from "../oracles.js";
+import { verifyEvidenceArtifactRefs } from "../evidence.js";
 import { recordTargetObservation } from "./observation.js";
 
 export function executionFailureCategory(status: string): "unsupported" | "denied" | "timeout" | "target_lost" | "action_failed" | "infrastructure_error" {
@@ -65,6 +66,7 @@ export async function recoverAdaptiveFailure(input: {
     { category: executionFailureCategory(input.execution.status), messageRef: input.execution.failureSignature ?? input.execution.status, targetRef: input.candidate.targetRef },
     { runId: input.collector.metadata.runId, strategy: "backtrack", expectedFingerprint },
   );
+  await verifyEvidenceArtifactRefs(recovered.evidenceRefs, input.collector.paths.runDir);
   let recoveryObservation: Observation | undefined;
   if (recovered.recovered) {
     const recoveredTarget = input.activeTargets().find(target => target.targetId === (recovered.targetRef?.targetId ?? input.candidate.targetRef.targetId));
@@ -91,7 +93,7 @@ export async function recoverAdaptiveFailure(input: {
     personaPreserved: recoveryObservation?.personaRef === input.config.persona,
     invariantPreserved: recoveryInvariantAllowed(input.candidate, input.preObservation, recoveryObservation, input.execution),
     criticalOracleClear: !input.stepOracles.some(oracle => oracle.severity === "critical" && ["fail", "confirmed"].includes(oracle.verdict)),
-    artifactSecurityClear: !input.execution.evidenceRefs.some(ref => ref.securityStatus === "fail" || ref.redactionStatus === "failed"),
+    artifactSecurityClear: ![...input.execution.evidenceRefs, ...recovered.evidenceRefs].some(ref => ref.securityStatus === "fail" || ref.redactionStatus === "failed"),
   };
   const recoveryFailures = Object.entries(recoveryChecks).filter(([, passed]) => !passed).map(([name]) => name);
   const matchedExpectedState = recovered.recovered && recoveryPostFingerprint === expectedFingerprint && recoveryFailures.length === 0;

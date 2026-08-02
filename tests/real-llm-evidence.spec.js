@@ -12,9 +12,9 @@ import {
 import { createAcceptanceFixture } from "./helpers/real-llm-acceptance-fixture.js";
 
 test("real LLM profiles have fixed normative counts and legacy flags are custom", () => {
-  expect(resolveAcceptanceProfile(["--profile=full"], 3)).toMatchObject({ name: "full", workers: 1, repetitions: 3, releaseEligible: true });
-  expect(resolveAcceptanceProfile(["--profile=worker-smoke"], 3)).toMatchObject({ name: "worker-smoke", workers: 2, repetitions: 1, releaseEligible: true });
-  expect(resolveAcceptanceProfile(["--critical-only", "--workers=2"], 3)).toMatchObject({ name: "custom", workers: 2, repetitions: 1, releaseEligible: false });
+  expect(resolveAcceptanceProfile(["--profile=full"], 3)).toMatchObject({ name: "full", workers: 1, repetitions: 3, releaseEligible: true, video: false });
+  expect(resolveAcceptanceProfile(["--profile=worker-smoke"], 3)).toMatchObject({ name: "worker-smoke", workers: 2, repetitions: 1, releaseEligible: true, video: "retain-on-non-pass" });
+  expect(resolveAcceptanceProfile(["--critical-only", "--workers=2"], 3)).toMatchObject({ name: "custom", workers: 2, repetitions: 1, releaseEligible: false, video: "retain-on-non-pass" });
   expect(() => resolveAcceptanceProfile(["--profile=full", "--workers=2"], 3)).toThrow(/同時指定/);
 });
 
@@ -77,4 +77,10 @@ test("profile duplicate tuple and model attestation mismatch are rejected", asyn
   modelReport.recordPayloadSha256 = reportPayloadSha256(modelReport);
   await writeFile(model.reportPath, JSON.stringify(modelReport, null, 2) + "\n");
   await expect(verifyAcceptanceReport({ reportPath: model.reportPath, bundlePath: model.bundle })).rejects.toThrow(/model ID/);
+});
+
+test("full fixture and real LLM acceptance profiles disable continuous video", async () => {
+  const fixtureAcceptance = await readFile(join(process.cwd(), "scripts", "run-acceptance.mjs"), "utf8");
+  expect(fixtureAcceptance).toMatch(/function config\(overrides = \{\}\).*artifacts: \{ video: false \}/s);
+  expect(resolveAcceptanceProfile(["--profile=full"], 3).video).toBe(false);
 });

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/lakda/exploration-finding/v1",
+  "title": "Lakda exploration finding v1",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "findingId", "sessionId", "platform", "kind", "status", "severity", "message", "observedAt", "targetRevision", "oracleRefs", "evidenceRefs", "requirementRefs"],
+  "properties": {
+    "schemaVersion": { "const": "lakda/exploration-finding/v1" }, "findingId": { "type": "string", "minLength": 1 }, "sessionId": { "type": "string", "minLength": 1 },
+    "platform": { "enum": ["pc-web", "mobile-web", "windows", "android", "ios"] }, "kind": { "enum": ["crash", "freeze", "no-visual-change", "unknown-screen", "visual-anomaly"] },
+    "status": { "const": "exploratory-finding" }, "severity": { "enum": ["info", "warning", "major", "critical"] },
+    "message": { "type": "string", "minLength": 1 }, "observedAt": { "type": "string", "minLength": 1 }, "targetRevision": { "type": "string", "minLength": 1 },
+    "oracleRefs": { "type": "array", "items": { "type": "string" } }, "evidenceRefs": { "type": "array", "items": { "type": "string" } }, "requirementRefs": { "type": "array", "items": { "type": "string" } },
+    "replayRef": { "type": "string" }, "bookmark": { "type": "boolean" }
+  }
+}

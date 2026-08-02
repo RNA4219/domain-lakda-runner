@@ -17,7 +17,7 @@ function config() {
       securityAuthorization: {
         schemaVersion: "lakda/security-authorization/v2",
         authorizationId: "auth-1", owner: "security", targets: { hosts: ["127.0.0.1"], pathPrefixes: ["/safe"], methods: ["GET"], requestTemplateDigests: ["sha256:" + "1".repeat(64)], targetRevision: "revision-1" },
-        environment: "staging", validFrom: "2026-07-01T00:00:00Z", validUntil: "2026-08-01T00:00:00Z",
+        environment: "staging", validFrom: "2020-01-01T00:00:00Z", validUntil: "2099-12-31T23:59:59Z",
         allowedMutationKinds: ["parameter-mutation", "race"], maxRatePerMinute: 3, maxConcurrency: 2,
         cleanupRef: "cleanup-1", killSwitchRef: "kill-1", approvalEvidenceRef: "approval-1",
         dataPolicyRef: "data-policy-1", stopContactRef: "stop-contact-1",

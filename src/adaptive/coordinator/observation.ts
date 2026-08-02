@@ -5,11 +5,13 @@ import type { LakdaConfig } from "../../core/types.js";
 import { assertCandidateDiscoveryResult } from "../contracts.js";
 import type { ActionCandidate, CandidateClassification, CoverageDebt, Observation, OracleResult, TargetRef } from "../contracts.js";
 import { fingerprintObservation } from "../fingerprint.js";
+import { verifyEvidenceArtifactRefs } from "../evidence.js";
 import { StateGraph } from "../graph.js";
 import { generateInputs, type GeneratedInput, type InputField } from "../input.js";
 import { evaluateActionGuard } from "../oracles.js";
 import { evaluateAdaptiveSafety, type KillSwitch } from "../safety.js";
 import type { SecurityExecutionController } from "../security-execution.js";
+import { assertVisualCandidate, unknownScreenDebt, unknownScreenOracle } from "../visual.js";
 
 export type CandidateSnapshot = {
   observationId: string;
@@ -59,10 +61,11 @@ export async function observeCandidateSet(input: {
   timeoutQuarantine: TimeoutQuarantine;
   actions: number;
   replay: boolean;
-}): Promise<{ safeCandidates: ActionCandidate[]; replayCandidates: ActionCandidate[] }> {
+}): Promise<{ safeCandidates: ActionCandidate[]; replayCandidates: ActionCandidate[]; firstFingerprint?: string }> {
   if (!input.config.adaptive) throw new Error("adaptive-explore requires adaptive configuration");
   const safeCandidates: ActionCandidate[] = [];
   const replayCandidates: ActionCandidate[] = [];
+  let firstFingerprint: string | undefined;
   for (const target of input.activeTargets()) {
     const observation = await input.adapter.observe(target, { runId: input.collector.metadata.runId, personaRef: input.config.persona, scopeHosts: input.config.safety.allowHosts });
     input.observations.push(observation);
@@ -70,22 +73,60 @@ export async function observeCandidateSet(input: {
       if (!input.generatedInputs.some(existing => existing.caseId === generatedInput.caseId)) input.generatedInputs.push(generatedInput);
     }
     const fingerprint = fingerprintObservation(observation);
+    firstFingerprint ??= fingerprint.value;
     input.observationsByFingerprint.set(fingerprint.value, observation);
     input.graph.recordState(fingerprint, observation.obligations, input.actions);
     input.trace.push({ type: "observation", observationId: observation.observationId, targetRef: observation.targetRef, fingerprint: fingerprint.value });
     const discovery = input.adapter.discoverCandidates
-      ? await input.adapter.discoverCandidates(observation)
+      ? await input.adapter.discoverCandidates(observation, fingerprint.value)
       : { candidates: await input.adapter.generateCandidates(observation), coverageDebt: [] };
     assertCandidateDiscoveryResult(discovery);
+    const adapterCapabilities = input.adapter.capabilities();
+    const adapterId = adapterCapabilities.adapterId;
     const generated = discovery.candidates;
-    const coverageDebtSummary = discovery.coverageDebt.reduce<Record<string, number>>(
+    const exploration = input.config.mode === "adaptive-explore" && Boolean(input.config.explorationPlatform);
+    const visualCapabilities = [...new Set([
+      ...adapterCapabilities.observationCapabilities,
+      ...adapterCapabilities.actionKinds,
+      ...adapterCapabilities.evidenceCapabilities,
+    ])];
+    if (exploration) generated.forEach(candidate => assertVisualCandidate(candidate, visualCapabilities));
+    const visualLane = exploration && adapterId === "airtest-poco";
+    const visualDebt = visualLane && generated.length === 0 && !discovery.coverageDebt.some(debt => debt.reason === "unknown-screen")
+      ? unknownScreenDebt(observation, fingerprint.value)
+      : undefined;
+    const coverageDebt = visualDebt ? [...discovery.coverageDebt, visualDebt] : discovery.coverageDebt;
+    const unknownScreen = visualLane && generated.length === 0 && coverageDebt.some(debt => debt.reason === "unknown-screen");
+    if (unknownScreen) {
+      input.collector.markFinding();
+      const oracle = unknownScreenOracle(observation, fingerprint.value);
+      const duplicate = input.oracleResults.some(existing => existing.oracleId === oracle.oracleId);
+      if (!duplicate && adapterCapabilities.evidenceCapabilities.includes("screenshot")) {
+        try {
+          const evidenceRefs = await input.adapter.captureEvidence({ runId: input.collector.metadata.runId, kinds: ["screenshot"], stagingDir: input.collector.paths.runDir });
+          await verifyEvidenceArtifactRefs(evidenceRefs, input.collector.paths.runDir, { requireScreenshot: true });
+          oracle.evidenceRefs.push(...evidenceRefs);
+          input.trace.push({ type: "exploratory-finding", kind: "unknown-screen", observationId: observation.observationId, evidenceRefs: evidenceRefs.map(ref => ref.artifactId) });
+        } catch {
+          input.trace.push({ type: "capture-failure", kind: "unknown-screen", observationId: observation.observationId });
+          input.collector.markArtifactFailure();
+        }
+      } else if (!duplicate) {
+        input.trace.push({ type: "capture-capability-debt", kind: "unknown-screen", observationId: observation.observationId, requiredCapability: "screenshot" });
+      }
+      if (!duplicate) {
+        input.oracleResults.push(oracle);
+        input.trace.push({ type: "unknown-screen", observationId: observation.observationId, oracle });
+      }
+    }
+    const coverageDebtSummary = coverageDebt.reduce<Record<string, number>>(
       (summary, debt) => ({ ...summary, [debt.reason]: (summary[debt.reason] ?? 0) + 1 }),
       {},
     );
     input.candidateSnapshots.push({
       observationId: observation.observationId,
       candidates: generated,
-      coverageDebt: discovery.coverageDebt,
+      coverageDebt,
       coverageDebtSummary,
       ...(discovery.classification ? { classification: discovery.classification } : {}),
     });
@@ -128,7 +169,7 @@ export async function observeCandidateSet(input: {
       } else safeCandidates.push(candidate);
     }
   }
-  return { safeCandidates, replayCandidates };
+  return { safeCandidates, replayCandidates, ...(firstFingerprint ? { firstFingerprint } : {}) };
 }
 
 export async function recordTargetObservation(input: {

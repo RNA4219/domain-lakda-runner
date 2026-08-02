@@ -20,6 +20,8 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       "factor-model": { type: "string" }, suite: { type: "string" }, strength: { type: "string" }, "case-budget": { type: "string" }, "factor-group": { type: "string" },
       lead: { type: "string" }, trace: { type: "string" }, reviewer: { type: "string" }, investigation: { type: "string" }, kind: { type: "string" }, format: { type: "string" }, "out-dir": { type: "string" }, "scout-mode": { type: "string" },
       "base-run-dir": { type: "string" }, "head-run-dir": { type: "string" },
+      charter: { type: "string" }, session: { type: "string" }, reason: { type: "string" },
+      index: { type: "string" }, "trust-store": { type: "string" },
     },
   });
   return { positionals: parsed.positionals, flags: parsed.values };

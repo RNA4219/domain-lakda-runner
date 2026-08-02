@@ -14,7 +14,7 @@ next_review_due: 2026-08-22
 2. [REQUIREMENTS-MAINTAINABILITY](REQUIREMENTS-MAINTAINABILITY.md) — 0.4系保守・拡張改修の現行正本
 3. [maintainability仕様・チェックリスト](docs/spec/maintainability/README.md) — 5仕様と各1正本checklist
 4. [current release profile](release-profiles/current.json) — live releaseの機械可読入力
-5. [適応型探索要件](REQUIREMENTS-ADAPTIVE-EXPLORATION.md) / [6仕様](docs/spec/adaptive-exploration/README.md)
+5. [適応型探索要件](REQUIREMENTS-ADAPTIVE-EXPLORATION.md) / [6一次所有仕様](docs/spec/adaptive-exploration/README.md) / [自動探索統合仕様](docs/spec/autonomous-exploratory-testing/README.md)
 6. [P8〜P11拡張要件](docs/spec/Lakda拡張要件定義書.md) / [3仕様](docs/spec/lakda-extension/README.md)
 7. [REQUIREMENTS.md](REQUIREMENTS.md) / [SPECIFICATION.md](SPECIFICATION.md) / [EVALUATION.md](EVALUATION.md) — v1公開契約
 8. [GUARDRAILS](GUARDRAILS.md) / [RUNBOOK](RUNBOOK.md) — 安全境界と実行
@@ -28,6 +28,8 @@ next_review_due: 2026-08-22
 - Phase 0: [TASK.20260722-43](docs/tasks/TASK.20260722-43.md) → [TASK.20260722-44](docs/tasks/TASK.20260722-44.md)
 - Phase 1: [TASK.20260722-45](docs/tasks/TASK.20260722-45.md)
 - Phase 2〜6: TASK.20260722-46〜58。各Phase Gateが緑になるまで次へ進まない。
+- 追加artifact改修: [TASK.20260802-59](docs/tasks/TASK.20260802-59.md)でnon-pass screenshot／trace／WebM保持policyを扱う。
+- 探索的テスト仕様: [TASK.20260802-60](docs/tasks/TASK.20260802-60.md)で自動探索、PC／mobile、Windows／Android／iOS、Airtest画像、finding／captureの統合MVPを扱う。
 - 歴史的Task Seedは[Task索引](docs/tasks/README.md)から参照する。
 
 ## Release / 証跡境界

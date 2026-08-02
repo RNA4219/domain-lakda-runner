@@ -1,7 +1,11 @@
 import type { AdaptiveConfig } from "../adaptive/contracts.js";
 
 export type RunMode = "smoke" | "seeded-random" | "regression-replay" | "llm-explore" | "adaptive-explore";
+export type ExplorationPlatform = "pc-web" | "mobile-web" | "windows" | "android" | "ios";
+/** Charter由来の探索専用capture設定。通常modeの設定契約には影響させない。 */
+export type ExplorationCaptureRuntime = { sampledFrames: { enabled: boolean; intervalMs: number; maxFrames?: number; maxBytes?: number; source?: "operator-bridge" | "playwright"; stopTimeoutMs?: number } };
 export type RunOutcome = "passed" | "failed" | "partial" | "error";
+export type ArtifactVideoMode = boolean | "retain-on-non-pass";
 export type ArtifactExpectations = { trace: boolean; screenshot: boolean; video: boolean; har: boolean; domSnapshots: number };
 export type LlmStatus = "not_requested" | "available" | "unavailable" | "mismatch";
 export type TerminationReason =
@@ -98,6 +102,7 @@ export type LakdaConfig = {
   workers: number;
   outputDir: string;
   headed: boolean;
+  explorationPlatform?: ExplorationPlatform;
   adaptive?: AdaptiveConfig;
   extensions?: LakdaExtensions;
   /** v1 source of truth for executable actions. */
@@ -126,6 +131,8 @@ export type LakdaConfig = {
     /** target manifestのreal acceptance経路だけが設定する内部scope */
     pathPrefixes?: string[];
     denyActionKinds: string[];
+    /** exploration Charterからのみ注入されるnative deny zone。user configの公開項目ではない。 */
+    explorationDenyZones?: Array<{ x: number; y: number; width: number; height: number; surface?: string }>;
     maxActionsPerMinute: number;
     requireFixtureResetForMutations: boolean;
     fixtureResetConfigured: boolean;
@@ -135,7 +142,7 @@ export type LakdaConfig = {
     classification: "public" | "internal" | "confidential" | "restricted";
     trace: "retain-on-non-pass";
     screenshot: "retain-on-non-pass";
-    video: boolean;
+    video: ArtifactVideoMode;
     har: boolean;
     domSnapshots: boolean;
     maxRunBytes: number;

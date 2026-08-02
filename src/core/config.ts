@@ -56,7 +56,7 @@ const defaultConfig: LakdaConfig = {
     classification: "internal",
     trace: "retain-on-non-pass",
     screenshot: "retain-on-non-pass",
-    video: false,
+    video: "retain-on-non-pass",
     har: false,
     domSnapshots: false,
     maxRunBytes: 1_073_741_824,
@@ -80,6 +80,8 @@ function mergeConfig(input: PartialConfig): LakdaConfig {
   if (requestedLlmSeed !== undefined && requestedLlmSeed !== resolvedSeed) throw new Error("llm.seed はtop-level seedと一致させてください");
   const resolvedFixtureReset = input.fixtureReset ?? defaultConfig.fixtureReset;
   const fixtureResetConfigured = input.safety?.fixtureResetConfigured ?? Boolean(resolvedFixtureReset);
+  const resolvedMode = input.mode ?? defaultConfig.mode;
+  const resolvedVideo = resolvedMode === "regression-replay" ? false : (input.artifacts?.video ?? defaultConfig.artifacts.video);
   return {
     ...defaultConfig,
     ...input,
@@ -100,7 +102,7 @@ function mergeConfig(input: PartialConfig): LakdaConfig {
     fixtureReset: resolvedFixtureReset,
     safety: { ...defaultConfig.safety, ...input.safety, fixtureResetConfigured },
     llm: { ...defaultConfig.llm, ...input.llm, seed: resolvedSeed, runtimeEvidence: { ...defaultConfig.llm.runtimeEvidence, ...input.llm?.runtimeEvidence } },
-    artifacts: { ...defaultConfig.artifacts, ...input.artifacts },
+    artifacts: { ...defaultConfig.artifacts, ...input.artifacts, video: resolvedVideo },
   } as LakdaConfig;
 }
 
@@ -124,6 +126,7 @@ if (config.extensions?.combinations && (config.extensions.combinations.caseBudge
   if (!Number.isInteger(config.workers) || !Number.isFinite(config.workers) || config.workers < 1 || config.workers > 4) throw new Error("workers は1〜4の整数です");
   if (config.maxActions < 1 || config.durationMs < 1) throw new Error("maxActions と durationMs は1以上です");
   if (config.llm.maxRetries < 0 || config.llm.maxRetries > 2) throw new Error("llm.maxRetries は0〜2です");
+  if (![false, true, "retain-on-non-pass"].includes(config.artifacts.video)) throw new Error("artifacts.video は false、true、retain-on-non-pass のいずれかです");
   if (config.llm.seed !== config.seed) throw new Error("llm.seed はtop-level seedと一致させてください");
   if (config.safety.fixtureResetConfigured !== Boolean(config.fixtureReset)) throw new Error("fixtureResetConfigured はfixtureResetから導出される値と一致させてください");
   if (config.llm.temperature !== 0 || config.llm.topP !== 1 || config.llm.maxTokens !== 512) throw new Error("v1 のLLM sampling値は temperature=0, topP=1, maxTokens=512 です");

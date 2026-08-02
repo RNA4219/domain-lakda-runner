@@ -8,7 +8,13 @@ import { sha256 } from "../src/core/redaction.js";
 import { runLakda, runLakdaBatch } from "../src/core/runner.js";
 import { exportHate } from "../src/core/hate.js";
 import { writeSanitizedHar } from "../src/core/har.js";
+import { shouldRetainVideo, videoRecordingOptions } from "../src/core/browser-artifacts.js";
 import { startFixture } from "./fixtures/server.js";
+
+async function videoFiles(runDir: string): Promise<string[]> {
+  try { return (await readdir(join(runDir, "artifacts", "video"))).filter(path => path.endsWith(".webm")); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return []; throw error; }
+}
 
 test("ActionBudget shares a sliding window and expires entries", () => {
   let now = 0;
@@ -220,4 +226,80 @@ test("manifest export failure omits artifactManifestPath", async () => {
     expect(result.terminationReason).toBe("artifact_failure");
     expect(result.artifactManifestPath).toBeUndefined();
   } finally { Math.random = originalRandom; await fixture.close(); await rm(outputDir, { recursive: true, force: true }); }
+});
+
+test("video retention mode records continuously but keeps WebM only on non-pass", async () => {
+  test.setTimeout(60_000);
+  const fixture = await startFixture();
+  const outputDir = await mkdtemp(join(tmpdir(), "lakda-video-retention-"));
+  try {
+    expect(videoRecordingOptions(false, outputDir)).toBeUndefined();
+    expect(videoRecordingOptions(true, outputDir)).toBeDefined();
+    expect(shouldRetainVideo(true, "passed")).toBe(true);
+    expect(shouldRetainVideo("retain-on-non-pass", "passed")).toBe(false);
+    expect(shouldRetainVideo("retain-on-non-pass", "failed")).toBe(true);
+    expect(shouldRetainVideo("retain-on-non-pass", "partial")).toBe(true);
+    expect(shouldRetainVideo("retain-on-non-pass", "error")).toBe(true);
+
+    const passed = await runLakda(loadConfig(undefined, { baseUrl: fixture.baseUrl, outputDir }));
+    expect(passed.outcome, JSON.stringify(passed)).toBe("passed");
+    const passedRunDir = join(outputDir, passed.runId.replace(/[^A-Za-z0-9._-]/g, "-"));
+    expect(await videoFiles(passedRunDir)).toEqual([]);
+    const passedMetadata = JSON.parse(await readFile(join(passedRunDir, "run-metadata.json"), "utf8")) as { artifactPolicy: { expectations: { video: boolean } } };
+    expect(passedMetadata.artifactPolicy.expectations.video).toBe(false);
+
+    const alwaysRetained = await runLakda(loadConfig(undefined, {
+      baseUrl: fixture.baseUrl, outputDir, artifacts: { video: true },
+    }));
+    expect(alwaysRetained.outcome, JSON.stringify(alwaysRetained)).toBe("passed");
+    const alwaysRetainedRunDir = join(outputDir, alwaysRetained.runId.replace(/[^A-Za-z0-9._-]/g, "-"));
+    expect(await videoFiles(alwaysRetainedRunDir)).toEqual(["0001.webm"]);
+    const alwaysRetainedManifest = JSON.parse(await readFile(alwaysRetained.artifactManifestPath!, "utf8")) as { artifacts: Array<{ kind: string; path: string }> };
+    expect(alwaysRetainedManifest.artifacts.some(artifact => artifact.kind === "video" && artifact.path === "artifacts/video/0001.webm")).toBe(true);
+
+    const failed = await runLakda(loadConfig(undefined, {
+      baseUrl: fixture.baseUrl, outputDir,
+      actionCatalog: [{ id: "failure", kind: "navigate", path: "/failure" }],
+    }));
+    expect(failed.outcome, JSON.stringify(failed)).toBe("failed");
+    const failedRunDir = join(outputDir, failed.runId.replace(/[^A-Za-z0-9._-]/g, "-"));
+    expect(await videoFiles(failedRunDir)).toEqual(["0001.webm"]);
+    const failedManifest = JSON.parse(await readFile(failed.artifactManifestPath!, "utf8")) as { artifacts: Array<{ kind: string; path: string; redaction_status: string; security_checks: { secrets_scan: string; pii_scan: string } }> };
+    expect(failedManifest.artifacts.some(artifact => artifact.kind === "video" && artifact.path === "artifacts/video/0001.webm")).toBe(true);
+    expect(failedManifest.artifacts.find(artifact => artifact.path === "artifacts/video/0001.webm")).toMatchObject({
+      redaction_status: "pending",
+      security_checks: { secrets_scan: "not_applicable", pii_scan: "not_applicable" },
+    });
+    const forgedManifest = await exportHate(failedRunDir, join(failedRunDir, "exports", "forged-security.json"), {
+      "artifacts/video/0001.webm": { redactionStatus: "redacted", secretsScan: "pass", piiScan: "pass" },
+    }) as { artifacts: Array<{ path: string; redaction_status: string; security_checks: { secrets_scan: string; pii_scan: string } }> };
+    expect(forgedManifest.artifacts.find(artifact => artifact.path === "artifacts/video/0001.webm")).toMatchObject({
+      redaction_status: "pending",
+      security_checks: { secrets_scan: "not_applicable", pii_scan: "not_applicable" },
+    });
+  } finally { await fixture.close(); await rm(outputDir, { recursive: true, force: true }); }
+});
+
+test("regression replay never records video even when the shared config requests it", async () => {
+  const fixture = await startFixture();
+  const outputDir = await mkdtemp(join(tmpdir(), "lakda-regression-no-video-"));
+  const replayPath = join(outputDir, "failure-replay.json");
+  const action = { id: "failure", kind: "navigate" as const, path: "/failure" };
+  try {
+    await writeFile(replayPath, JSON.stringify({
+      schemaVersion: "lakda/action-plan/v1", mode: "regression-replay", seed: 4219,
+      baseUrl: fixture.baseUrl, actions: [action],
+    }));
+    const config = loadConfig(undefined, {
+      baseUrl: fixture.baseUrl, outputDir, mode: "regression-replay",
+      actionCatalog: [action], artifacts: { video: true },
+    });
+    expect(config.artifacts.video).toBe(false);
+    const result = await runLakda(config, replayPath);
+    expect(result.outcome, JSON.stringify(result)).toBe("failed");
+    const runDir = join(outputDir, result.runId.replace(/[^A-Za-z0-9._-]/g, "-"));
+    expect(await videoFiles(runDir)).toEqual([]);
+    await expect(readFile(join(runDir, "artifacts", "failure.png"))).resolves.toBeTruthy();
+    await expect(readFile(join(runDir, "artifacts", "trace.zip"))).resolves.toBeTruthy();
+  } finally { await fixture.close(); await rm(outputDir, { recursive: true, force: true }); }
 });

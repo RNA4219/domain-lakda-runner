@@ -2,8 +2,9 @@ import type { LlmEvidence } from "../core/types.js";
 import type { ActionCandidate, AdaptiveGeneratorStrategy } from "./contracts.js";
 import type { Coverage, StateGraph } from "./graph.js";
 
-export const BUILTIN_GENERATOR_STRATEGIES = ["random", "weighted-random", "least-visited-transition", "shortest-to-uncovered", "risk-weighted-uncovered", "llm-select"] as const satisfies readonly AdaptiveGeneratorStrategy[];
+export const BUILTIN_GENERATOR_STRATEGIES = ["random", "weighted-random", "least-visited-transition", "autonomous-uncovered", "shortest-to-uncovered", "risk-weighted-uncovered", "llm-select"] as const satisfies readonly AdaptiveGeneratorStrategy[];
 export const BUILTIN_GENERATOR_VERSION = "builtin/v1";
+export const AUTONOMOUS_UNCOVERED_GENERATOR_VERSION = "autonomous-uncovered/v1";
 export type AdaptiveLlmDecision = { schemaVersion: "lakda/adaptive-llm-selection/v1"; decision: "action"; candidateId: string } | { schemaVersion: "lakda/adaptive-llm-selection/v1"; decision: "stop" };
 export type RedactedGraphSummary = {
   schemaVersion: "lakda/adaptive-llm-graph-summary/v1";
@@ -16,7 +17,7 @@ export type RedactedGraphSummary = {
 export type AdaptiveLlmSelector = { selectAdaptiveCandidate(candidateIds: string[], summary: RedactedGraphSummary): Promise<{ decision: AdaptiveLlmDecision; evidence: LlmEvidence }> };
 export type GeneratorSelection = { kind: "candidate"; candidate: ActionCandidate; evidence?: LlmEvidence } | { kind: "stop"; reason: "llm-stop"; evidence: LlmEvidence } | { kind: "none" };
 type GeneratorContext = { candidates: ActionCandidate[]; graph: StateGraph; random: () => number; llm?: AdaptiveLlmSelector };
-type GeneratorRegistryEntry = { version: typeof BUILTIN_GENERATOR_VERSION; select(context: GeneratorContext): Promise<GeneratorSelection> };
+type GeneratorRegistryEntry = { version: typeof BUILTIN_GENERATOR_VERSION | typeof AUTONOMOUS_UNCOVERED_GENERATOR_VERSION; select(context: GeneratorContext): Promise<GeneratorSelection> };
 const opaqueCandidateId = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 
 function orderedCandidates(candidates: ActionCandidate[]): ActionCandidate[] { return [...candidates].sort((left, right) => left.candidateId.localeCompare(right.candidateId)); }
@@ -31,8 +32,19 @@ function weightedCandidate(candidates: ActionCandidate[], draw: () => number): A
 }
 function scoredCandidate(candidates: ActionCandidate[], graph: StateGraph, strategy: Exclude<AdaptiveGeneratorStrategy, "random" | "weighted-random" | "llm-select">, draw: () => number): ActionCandidate | undefined {
   const scored = candidates.map(candidate => {
-    const transitionVisits = graph.transitionVisits(candidate.sourceFingerprint, candidate.candidateId); const stateVisits = graph.visits(candidate.sourceFingerprint); const unseen = graph.uncovered([candidate]).length ? 1 : 0;
-    const score = strategy === "least-visited-transition" ? -transitionVisits : strategy === "shortest-to-uncovered" ? unseen * 10_000 - stateVisits * 10 - transitionVisits : unseen * candidate.risk.weight * 100 - transitionVisits;
+    const transitionVisits = graph.transitionVisits(candidate.sourceFingerprint, candidate.candidateId);
+    const stateVisits = graph.visits(candidate.sourceFingerprint);
+    const uncovered = graph.uncovered([candidate]).length ? 1 : 0;
+    const risk = Number.isFinite(candidate.risk.weight) ? Math.max(0, candidate.risk.weight) : 0;
+    const score = strategy === "least-visited-transition"
+      ? -transitionVisits
+      : strategy === "shortest-to-uncovered"
+        ? uncovered * 10_000 - stateVisits * 10 - transitionVisits
+        : strategy === "autonomous-uncovered"
+          // Charterで約束する優先順を明示する。未実行・coverage gapを最優先し、
+          // state/transition訪問回数、risk、seeded tie-breakで次候補を安定決定する。
+          ? uncovered * 1_000_000 + (transitionVisits === 0 ? 100_000 : 0) + (stateVisits <= 1 ? 10_000 : 0) + risk * 100 - transitionVisits * 1_000 - stateVisits * 10
+          : uncovered * risk * 100 - transitionVisits;
     return { candidate, score };
   });
   const max = Math.max(...scored.map(value => value.score));
@@ -54,6 +66,7 @@ const registry = Object.freeze({
   random: Object.freeze({ version: BUILTIN_GENERATOR_VERSION, async select({ candidates, random }: GeneratorContext) { const candidate = randomCandidate(orderedCandidates(candidates), random); return candidate ? { kind: "candidate" as const, candidate } : { kind: "none" as const }; } }),
   "weighted-random": Object.freeze({ version: BUILTIN_GENERATOR_VERSION, async select({ candidates, random }: GeneratorContext) { const candidate = weightedCandidate(orderedCandidates(candidates), random); return candidate ? { kind: "candidate" as const, candidate } : { kind: "none" as const }; } }),
   "least-visited-transition": Object.freeze({ version: BUILTIN_GENERATOR_VERSION, async select({ candidates, graph, random }: GeneratorContext) { const candidate = scoredCandidate(orderedCandidates(candidates), graph, "least-visited-transition", random); return candidate ? { kind: "candidate" as const, candidate } : { kind: "none" as const }; } }),
+  "autonomous-uncovered": Object.freeze({ version: AUTONOMOUS_UNCOVERED_GENERATOR_VERSION, async select({ candidates, graph, random }: GeneratorContext) { const candidate = scoredCandidate(orderedCandidates(candidates), graph, "autonomous-uncovered", random); return candidate ? { kind: "candidate" as const, candidate } : { kind: "none" as const }; } }),
   "shortest-to-uncovered": Object.freeze({ version: BUILTIN_GENERATOR_VERSION, async select({ candidates, graph, random }: GeneratorContext) { const candidate = scoredCandidate(orderedCandidates(candidates), graph, "shortest-to-uncovered", random); return candidate ? { kind: "candidate" as const, candidate } : { kind: "none" as const }; } }),
   "risk-weighted-uncovered": Object.freeze({ version: BUILTIN_GENERATOR_VERSION, async select({ candidates, graph, random }: GeneratorContext) { const candidate = scoredCandidate(orderedCandidates(candidates), graph, "risk-weighted-uncovered", random); return candidate ? { kind: "candidate" as const, candidate } : { kind: "none" as const }; } }),
   "llm-select": Object.freeze({ version: BUILTIN_GENERATOR_VERSION, async select({ candidates, graph, llm }: GeneratorContext): Promise<GeneratorSelection> {

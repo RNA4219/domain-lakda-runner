@@ -15,7 +15,7 @@
         "properties": {
           "schemaVersion": { "const": "lakda-coverage-debt/v1" },
           "debtId": { "type": "string", "minLength": 1 },
-          "reason": { "enum": ["ambiguous-locator", "sensitive-locator", "missing-accessible-name", "missing-input-profile", "out-of-scope-link", "disabled-control", "unsupported-control"] },
+          "reason": { "enum": ["ambiguous-locator", "sensitive-locator", "missing-accessible-name", "missing-input-profile", "out-of-scope-link", "disabled-control", "unsupported-control", "unknown-screen"] },
           "actionKind": { "type": "string", "minLength": 1 },
           "actionId": { "type": "string", "minLength": 1 },
           "role": { "type": "string", "minLength": 1 },

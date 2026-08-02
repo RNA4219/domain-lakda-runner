@@ -27,7 +27,7 @@
 | AC-017 | full 90-runとworker-smoke 20-runのsanitized bundleを第三者がschema、revision、件数、全file hash、payload/aggregate hash、HATE/v1まで独立再検証でき、改ざん・欠落・順序変更を拒否する。 | evidence verifier + tamper tests | 6.4, 8.5 |
 | AC-018 | Code-to-gate strict、HATE upstream、manual-bb実staging、QEG validate/gate/recordを対象revisionで完了する。mock、full未達、manual未実施、証跡欠落はpass不可。 | self-hosted RC workflow + QEG | 8.5 |
 | AC-019 | HARを`content=omit`の一時captureから構造化redactionして保存し、すべてのheader値、cookie/Set-Cookie、query値、bodyの保護、raw HAR削除、secret/PII scan、classification、alternate/defaultの再export一致を検証する。 | HAR/security contract | 2.1, 8, 9 |
-| AC-020 | Policy確定順序、atomic metadata/failure、VerifiedArtifact bytes不変、export失敗時の`artifactManifestPath`不返却、passed以外のartifact期待値、fixture reset/executor/rate limitのtermination reason、workers整数検証を検証する。 | policy/abnormal contract | 2.1, 3, 7.2, 8.3 |
+| AC-020 | Policy確定順序、atomic metadata/failure、VerifiedArtifact bytes不変、export失敗時の`artifactManifestPath`不返却、通常runのnon-pass video既定、regression/fullのoff既定、明示的off/常時保持/non-pass保持、passed時のWebM破棄、non-pass時の連番WebMとHATE登録、fixture reset/executor/rate limitのtermination reason、workers整数検証を検証する。 | policy/abnormal contract | 2.1, 3, 7.2, 8.3 |
 
 ## LLM 固有受入
 

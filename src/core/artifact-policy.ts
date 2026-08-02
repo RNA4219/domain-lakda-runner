@@ -4,6 +4,7 @@ import type { ArtifactExpectations, LakdaConfig, RunOutcome } from "./types.js";
 import { findSensitive } from "./redaction.js";
 import { fileDigest, listFiles, portablePath } from "./artifact-store.js";
 import type { ArtifactSecurityRecord } from "./artifact-store.js";
+import { readBinaryAttestations, verifyBinaryAttestation } from "../exploration/binary-attestation.js";
 
 export type VerifiedArtifact = { path: string; size: number; sha256: string; security: ArtifactSecurityRecord };
 
@@ -17,6 +18,8 @@ export type ArtifactPolicyReport = {
   sizeExceeded: boolean;
   unsupportedPaths: string[];
 };
+
+export type BinaryAttestationOptions = { required?: boolean; trustStorePath?: string; allowedKeyIds?: readonly string[] };
 
 function binary(path: string): boolean {
   return /\.(zip|png|jpg|jpeg|webm)$/i.test(path);
@@ -40,13 +43,14 @@ export async function inspectArtifactPolicy(
   outcome: RunOutcome,
   expected: ArtifactExpectations,
   excludePaths: string[] = [],
+  binaryAttestation: BinaryAttestationOptions = {},
 ): Promise<ArtifactPolicyReport> {
   const files = (await listFiles(runDir)).filter(path => !excludePaths.includes(path) && !isGeneratedExportPath(runDir, path));
   const relativeFiles = files.map(path => portablePath(runDir, path));
   const required = ["run-metadata.json", "action-sequence.json", "console.jsonl", "failure-report.json"];
   const missingPaths = required.filter(path => !relativeFiles.includes(path));
   const profileMissingPaths: string[] = [];
-  if (outcome !== "passed") {
+  if (outcome !== "passed" || expected.trace || expected.screenshot) {
     if (expected.trace && !hasPath(relativeFiles, "artifacts/trace.zip")) profileMissingPaths.push("artifacts/trace.zip");
     if (expected.screenshot && !hasPath(relativeFiles, "artifacts/failure.png")) profileMissingPaths.push("artifacts/failure.png");
   }
@@ -59,13 +63,27 @@ export async function inspectArtifactPolicy(
   const verifiedArtifacts: VerifiedArtifact[] = [];
   const residualSensitivePaths: string[] = [];
   const unsupportedPaths: string[] = [];
+  const attestations = binaryAttestation.required ? await readBinaryAttestations(runDir) : new Map();
   for (const path of files) {
     const rel = portablePath(runDir, path);
     const digest = await fileDigest(path);
     if (binary(rel)) {
-      const security = { redactionStatus: "not_required" as const, secretsScan: "not_applicable" as const, piiScan: "not_applicable" as const };
+      const attestation = attestations.get(rel);
+      const attested = binaryAttestation.required && attestation
+        ? await verifyBinaryAttestation(runDir, rel, attestation, { requireSignature: true, trustStorePath: binaryAttestation.trustStorePath, ...(binaryAttestation.allowedKeyIds !== undefined ? { allowedKeyIds: binaryAttestation.allowedKeyIds } : {}) })
+        : false;
+      // A retained screenshot/trace/video is not text-scanned merely because
+      // the current profile does not require a signed binary attestation.
+      // Keep ordinary local evidence, but represent its scan state honestly;
+      // real exploration remains fail-closed below until attestation verifies.
+      const security: ArtifactSecurityRecord = attested
+        ? { redactionStatus: attestation?.decision === "sanitized" ? "redacted" : "not_required", secretsScan: "pass", piiScan: "pass" }
+        : binaryAttestation.required
+          ? { redactionStatus: "pending", secretsScan: "fail", piiScan: "fail" }
+          : { redactionStatus: "pending", secretsScan: "not_applicable", piiScan: "not_applicable" };
       securityByPath[rel] = security;
       verifiedArtifacts.push({ path: rel, size: digest.size, sha256: digest.sha256, security });
+      if (binaryAttestation.required && !attested) residualSensitivePaths.push(rel);
       continue;
     }
     if (!textArtifact(rel)) { unsupportedPaths.push(rel); continue; }

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/lakda/exploration-capability/v1",
+  "title": "Lakda exploration capability snapshot v1",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "lane", "adapterId", "capabilityRevision", "targetRevision", "capturedAt", "targetKinds", "observation", "input", "capture", "liveness"],
+  "properties": {
+    "schemaVersion": { "const": "lakda/exploration-capability/v1" },
+    "lane": { "enum": ["pc-web", "mobile-web", "windows", "android", "ios"] },
+    "adapterId": { "type": "string", "minLength": 1 },
+    "capabilityRevision": { "type": "string", "minLength": 1 },
+    "targetRevision": { "type": "string", "minLength": 1 },
+    "executionMode": { "enum": ["fixture", "real", "emulator", "mock"] },
+    "capturedAt": { "type": "string", "minLength": 1 },
+    "targetKinds": { "type": "array", "items": { "type": "string" } },
+    "device": { "type": "object", "additionalProperties": false, "properties": { "platform": { "enum": ["windows", "android", "ios"] }, "platformVersion": { "type": "string" }, "modelClass": { "type": "string" }, "serialDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }, "deviceAliasDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }, "appId": { "type": "string", "minLength": 1 }, "appRevision": { "type": "string", "minLength": 1 }, "runtimeVersion": { "type": "string", "minLength": 1 }, "airtestVersion": { "type": "string", "minLength": 1 }, "pocoVersion": { "type": "string", "minLength": 1 } } },
+    "display": { "type": "object", "additionalProperties": false, "properties": { "width": { "type": "integer", "minimum": 1 }, "height": { "type": "integer", "minimum": 1 }, "orientation": { "enum": ["portrait", "landscape", "unknown"] }, "surface": { "type": "string" } } },
+    "observation": { "type": "object", "additionalProperties": false, "required": ["screen", "templateMatch", "pocoHierarchy"], "properties": { "screen": { "type": "boolean" }, "templateMatch": { "type": "boolean" }, "pocoHierarchy": { "type": "boolean" } } },
+    "input": { "type": "object", "additionalProperties": false, "required": ["tap", "text", "back"], "properties": { "tap": { "type": "boolean" }, "text": { "type": "boolean" }, "back": { "type": "boolean" } } },
+    "capture": { "type": "object", "additionalProperties": false, "required": ["screenshot", "video", "sampledFrames"], "properties": { "screenshot": { "type": "boolean" }, "video": { "type": "boolean" }, "sampledFrames": { "type": "boolean" } } },
+    "liveness": { "type": "object", "additionalProperties": false, "required": ["connected", "responsive"], "properties": { "connected": { "type": "boolean" }, "responsive": { "type": "boolean" } } },
+    "bridgeDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "templateCorpusDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "rawCapabilityDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+  }
+}

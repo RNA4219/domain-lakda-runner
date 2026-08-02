@@ -17,9 +17,11 @@ import { LocalLlmClient, LlmContractError, probeLlm } from "./llm.js";
 import { applyArtifactPolicy, aggregateOutcomes, type OutcomeDecision } from "./outcome.js";
 import { createActionPlan, validateActionPlan, workerSeed } from "./plan.js";
 import { assertSafeAction, safeActions } from "./safety.js";
-import type { Action, ActionPlan, LakdaConfig, Locator, LlmStatus, RunBatchResult, RunOutcome, RunResult, WorkerRunEntry } from "./types.js";
+import { applyVideoRetention, captureFailureScreenshot, finalizeVideoCapture, videoRecordingOptions } from "./browser-artifacts.js";
+import type { Action, ActionPlan, ExplorationCaptureRuntime, LakdaConfig, Locator, LlmStatus, RunBatchResult, RunOutcome, RunResult, WorkerRunEntry } from "./types.js";
+import type { ExternalToolBridge } from "../adapters/external-bridges.js";
 
-export type RunRuntimeContext = { workerIndex?: number; batchId?: string; clock?: () => number; actionBudget?: ActionBudget };
+export type RunRuntimeContext = { workerIndex?: number; batchId?: string; clock?: () => number; actionBudget?: ActionBudget; adaptiveReplayPrefixActions?: number; adaptiveExpectedFingerprint?: string; controlFile?: string; explorationCapture?: ExplorationCaptureRuntime; adaptiveBridge?: ExternalToolBridge; requireBinaryAttestation?: boolean; attestationTrustStorePath?: string; artifactAttestorKeyIds?: readonly string[]; explorationTargetRevisionProbe?: { kind: "response-header" | "dom-meta"; name: string; expected: string } };
 
 type LiveSelection = { kind: "action"; action: Action } | { kind: "stop" } | { kind: "hold" };
 type LiveSelector = (page: Page, priorAction: Action | undefined) => Promise<LiveSelection>;
@@ -51,12 +53,6 @@ function locatorFor(page: Page, locator: Locator, actionId: string): PlaywrightL
   if (locator.testId) return page.getByTestId(locator.testId);
   if (!locator.role || !locator.name) throw new Error(`宣言型locatorが不正です: ${actionId}`);
   return page.getByRole(locator.role, { name: locator.name, exact: true });
-}
-
-async function redactBeforeScreenshot(page: Page): Promise<void> {
-  try {
-    await page.addStyleTag({ content: '[data-lakda-sensitive], input[type="password"], input[name*="token" i], input[name*="secret" i] { color: transparent !important; text-shadow: 0 0 12px #000 !important; background: #000 !important; }' });
-  } catch { /* screenshot masking cannot replace the primary run result */ }
 }
 
 async function executeAction(page: Page, action: Action, plan: ActionPlan, config: LakdaConfig, timeoutMs: number): Promise<void> {
@@ -184,7 +180,7 @@ async function executePlan(config: LakdaConfig, plan: ActionPlan, collector: Art
     browser = await chromium.launch({ headless: !config.headed });
     const storageState = configuredAuthStatePath(config);
     if (config.artifacts.har) { harTempDir = await mkdtemp(join(tmpdir(), "lakda-har-")); harTempPath = join(harTempDir, "network.har"); }
-    context = await browser.newContext({ storageState: existsSync(storageState) ? storageState : undefined, recordVideo: config.artifacts.video ? { dir: resolve(collector.paths.runDir, "artifacts", "video") } : undefined, recordHar: harTempPath ? { path: harTempPath, content: "omit" } : undefined });
+    context = await browser.newContext({ storageState: existsSync(storageState) ? storageState : undefined, recordVideo: videoRecordingOptions(config.artifacts.video, collector.paths.runDir), recordHar: harTempPath ? { path: harTempPath, content: "omit" } : undefined });
     await context.tracing.start({ screenshots: true, snapshots: true, sources: false });
     page = await context.newPage();
     collector.markCaptureAvailable();
@@ -243,12 +239,14 @@ async function executePlan(config: LakdaConfig, plan: ActionPlan, collector: Art
     if (context) {
       const nonPass = final.outcome !== "passed" || collector.failures.length > 0;
       if (nonPass && page) {
-        try { await redactBeforeScreenshot(page); await page.screenshot({ path: collector.paths.screenshot, fullPage: true }); }
+        try { await captureFailureScreenshot(context, page, collector.paths.screenshot); }
         catch (error) { collector.markArtifactFailure(); collector.addFailure("UI-008", error instanceof Error ? error.message : "screenshot failure"); }
         try { await context.tracing.stop({ path: collector.paths.trace }); }
         catch (error) { collector.markArtifactFailure(); collector.addFailure("UI-008", error instanceof Error ? error.message : "trace failure"); }
       } else await context.tracing.stop().catch(() => undefined);
       await context.close().catch(() => undefined);
+      try { await finalizeVideoCapture(config.artifacts.video, collector.paths.runDir); }
+      catch (error) { collector.markArtifactFailure(); collector.addFailure("UI-008", error instanceof Error ? error.message : "video retention failure"); }
     }
     await browser?.close().catch(() => undefined);
     if (harTempDir) {
@@ -275,7 +273,7 @@ export async function runLakda(config: LakdaConfig, replayInput?: string, runtim
       const replay = await readJson(replayInput);
       if (isAdaptiveReplayTrace(replay)) {
         if (config.mode !== "adaptive-explore") throw new Error("adaptive replayにはmode=adaptive-exploreの設定が必要です");
-        execution = !actionBudget.canConsume() ? { outcome: "partial", terminationReason: "rate_limit" } : await runAdaptiveExplore(config, collector, resolvedRuntime, replay);
+        execution = !actionBudget.canConsume() ? { outcome: "partial", terminationReason: "rate_limit" } : await runAdaptiveExplore(config, collector, resolvedRuntime, replay, resolvedRuntime.adaptiveReplayPrefixActions);
       } else {
         plan = validateActionPlan(replay, config);
         plan.mode = "regression-replay";
@@ -323,17 +321,24 @@ export async function runLakda(config: LakdaConfig, replayInput?: string, runtim
 
   if (execution.outcome !== "error" && collector.artifactFailure) execution = { outcome: "error", terminationReason: "artifact_failure" };
   if (execution.outcome !== "error" && collector.executorFailure) execution = { outcome: "error", terminationReason: "executor_error" };
+  try { await applyVideoRetention(config.artifacts.video, execution.outcome, collector.paths.runDir, collector.findingDetected); }
+  catch (error) {
+    collector.markArtifactFailure();
+    collector.addFailure("UI-008", error instanceof Error ? error.message : "video retention failure");
+    execution = { outcome: "error", terminationReason: "artifact_failure" };
+  }
 
   let manifestPath: string | undefined;
   try {
     const finalized = await collector.finalize(plan, execution.outcome, exitCode(execution.outcome), llmStatus, execution.terminationReason);
 
-    let policy = await inspectArtifactPolicy(finalized.runDir, config, execution.outcome, collector.metadata.artifactPolicy.expectations);
+    const binaryAttestation = { required: resolvedRuntime.requireBinaryAttestation === true, ...(resolvedRuntime.attestationTrustStorePath ? { trustStorePath: resolvedRuntime.attestationTrustStorePath } : {}), ...(resolvedRuntime.artifactAttestorKeyIds !== undefined ? { allowedKeyIds: resolvedRuntime.artifactAttestorKeyIds } : {}) };
+    let policy = await inspectArtifactPolicy(finalized.runDir, config, execution.outcome, collector.metadata.artifactPolicy.expectations, [], binaryAttestation);
     let resolved = applyArtifactPolicy(execution, policy);
     for (let pass = 0; pass < 3; pass += 1) {
       if (policy.sizeExceeded && await removeOptionalDomSnapshots(collector)) {
         if (resolved.outcome !== "error") resolved = { outcome: "partial", terminationReason: "artifact_limit" };
-        policy = await inspectArtifactPolicy(finalized.runDir, config, resolved.outcome, collector.metadata.artifactPolicy.expectations);
+        policy = await inspectArtifactPolicy(finalized.runDir, config, resolved.outcome, collector.metadata.artifactPolicy.expectations, [], binaryAttestation);
       }
       if (policy.residualSensitivePaths.length > 0) {
         await removeSensitiveArtifacts(finalized.runDir, policy.residualSensitivePaths);
@@ -342,7 +347,7 @@ export async function runLakda(config: LakdaConfig, replayInput?: string, runtim
         resolved = { outcome: "error", terminationReason: "artifact_failure" };
       }
       await collector.updateOutcome(resolved.outcome, exitCode(resolved.outcome), resolved.terminationReason);
-      const finalPolicy = await inspectArtifactPolicy(finalized.runDir, config, resolved.outcome, collector.metadata.artifactPolicy.expectations);
+      const finalPolicy = await inspectArtifactPolicy(finalized.runDir, config, resolved.outcome, collector.metadata.artifactPolicy.expectations, [], binaryAttestation);
       const next = applyArtifactPolicy(resolved, finalPolicy);
       policy = finalPolicy;
       if (next.outcome === resolved.outcome && next.terminationReason === resolved.terminationReason && finalPolicy.residualSensitivePaths.length === 0) break;

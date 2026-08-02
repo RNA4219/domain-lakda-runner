@@ -12,6 +12,8 @@ import {
   runCommand,
 } from "../commands/runtime.js";
 import { reportLeadsCommand, scoutCommand } from "../commands/scouting.js";
+import { exploreBookmarkCommand, exploreForkCommand, exploreKillCommand, explorePauseCommand, exploreReportCommand, exploreResumeCommand, exploreRunCommand } from "../commands/exploration.js";
+import { exploreAcceptanceCommand } from "../commands/exploration.js";
 import {
   runsCompareCommand,
   runsListCommand,
@@ -47,6 +49,14 @@ export async function dispatchCli(parsed: ParsedCliArgs): Promise<number> {
   if (command === "report leads") return await reportLeadsCommand(parsed.flags);
   if (command === "investigate") return await investigateCommand(parsed.flags);
   if (command === "promote") return await promoteCommand(parsed.flags);
+  if (command === "explore run") return await exploreRunCommand(parsed.flags);
+  if (command === "explore resume") return await exploreResumeCommand(parsed.flags);
+  if (command === "explore report") return await exploreReportCommand(parsed.flags);
+  if (command === "explore pause") return await explorePauseCommand(parsed.flags);
+  if (command === "explore kill") return await exploreKillCommand(parsed.flags);
+  if (command === "explore bookmark") return await exploreBookmarkCommand(parsed.flags);
+  if (command === "explore fork") return await exploreForkCommand(parsed.flags);
+  if (command === "explore acceptance") return await exploreAcceptanceCommand(parsed.flags);
   if (command === "runs list") {
     return await runsListCommand({
       outputDir: stringFlag(parsed.flags, "output-dir"),
@@ -72,6 +82,7 @@ export async function runCli(argv: string[]): Promise<number> {
     return await dispatchCli(parseCliArgs(argv));
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
-    return 1;
+    const exitCode = error && typeof error === "object" && "exitCode" in error && (error as { exitCode?: unknown }).exitCode === 2 ? 2 : 1;
+    return exitCode;
   }
 }

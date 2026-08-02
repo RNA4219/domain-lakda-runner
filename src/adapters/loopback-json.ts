@@ -2,9 +2,9 @@ import { assertLoopbackEndpoint } from "../core/safety.js";
 import { assertAdaptiveContract, type ActionCandidate, type AdapterCapabilities, type EvidenceArtifactRef, type ExecutionResult, type Observation, type TargetRef } from "../adaptive/contracts.js";
 import { securityBindingDigest } from "../adaptive/security-policy.js";
 import type { AdapterFailure, EvidenceRequest, ExecuteContext, ObserveContext, RecoverContext, RecoveryResult } from "./types.js";
-import type { ExternalToolBridge, SecurityCleanupRequest, SecurityCleanupResult, SecurityControlRequest, SecurityControlResult } from "./external-bridges.js";
+import type { CaptureControlRequest, CaptureControlResult, ExternalToolBridge, SecurityCleanupRequest, SecurityCleanupResult, SecurityControlRequest, SecurityControlResult } from "./external-bridges.js";
 
-type Operation = "observe" | "generate-candidates" | "execute" | "recover" | "capture-evidence" | "security-control" | "cleanup";
+type Operation = "observe" | "generate-candidates" | "discover-candidates" | "execute" | "recover" | "capture-evidence" | "capture-control" | "security-control" | "cleanup";
 const MAX_JSON_BYTES = 1_048_576;
 
 async function boundedJson<T>(response: Response, operation: string): Promise<T> {
@@ -61,9 +61,14 @@ export class LoopbackJsonBridge implements ExternalToolBridge {
 
   observe(target: TargetRef, context: ObserveContext): Promise<Observation> { return this.call("observe", { target, context }); }
   generateCandidates(observation: Observation): Promise<ActionCandidate[]> { return this.call("generate-candidates", { observation }); }
+  async discoverCandidates(observation: Observation, sourceFingerprint?: string): Promise<{ candidates: ActionCandidate[]; coverageDebt: import("../adaptive/contracts.js").CoverageDebt[]; classification?: import("../adaptive/contracts.js").CandidateClassification }> {
+    if (!this.capabilityValue.observationCapabilities.includes("candidate-discovery")) return { candidates: await this.generateCandidates(observation), coverageDebt: [] };
+    return await this.call("discover-candidates", { observation, ...(sourceFingerprint ? { sourceFingerprint } : {}) });
+  }
   execute(candidate: ActionCandidate, context: ExecuteContext): Promise<ExecutionResult> { return this.call("execute", { candidate, context }); }
   recover(failure: AdapterFailure, context: RecoverContext): Promise<RecoveryResult> { return this.call("recover", { failure, context }); }
   captureEvidence(request: EvidenceRequest): Promise<EvidenceArtifactRef[]> { return this.call("capture-evidence", { request }); }
+  captureControl(request: CaptureControlRequest): Promise<CaptureControlResult> { return this.call("capture-control", { request }); }
   checkKillSwitch(request: SecurityControlRequest): Promise<SecurityControlResult> { return this.call("security-control", { request }); }
   cleanup(request: SecurityCleanupRequest): Promise<SecurityCleanupResult> { return this.call("cleanup", { request }); }
 }

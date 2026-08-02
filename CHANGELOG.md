@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### Added
+
+- `artifacts.video="retain-on-non-pass"`を通常runの既定として追加し、deterministic／adaptive Playwright runでpassed時にWebMを破棄、non-pass時だけ保持できるようにした。
+- 自動探索の五lane acceptance index、session-level HATE、run manifest再照合、native scope／bridge報告revision bindingを追加した。
+- crash／freeze／no-visual-change／unknown-screen／visual-anomalyの5分類oracle、operator bookmark、100-run決定性検査を追加した。
+- Airtest/Poco reference bridgeへtemplate corpus実bytes binding、candidate fingerprint、capture境界を追加し、binary artifactへ署名付きattestationとtarget attestor allowlistを追加した。
+
+### Changed
+
+- `regression-replay`、実LLM `full` 90-run profile、full fixture acceptanceは録画負荷を避けるため、設定値にかかわらず`video=false`とした。
+- Exploration Charterの旧`adaptive`任意上書きを廃止し、型付き`profile`とnative app／surface／deny zone scopeへ固定した。個別real reportはaggregator検証まで`pending_external`とする。
+- native reference bridgeのidentityは実機APIによる独立観測ではなくoperator宣言として扱い、real acceptanceで実機取得記録とmanual-bbを別途要求するよう明記した。
+
+### Fixed
+
+- Playwrightの`page@<hash>.webm`がemailとしてredactionされHATE pathと実fileが不一致になる問題を、`0001.webm`からのportable連番へ正規化して修正。
+- 実行時刻を参照するSecurity executionテストの承認fixtureが2026-08-01で失効し、日付経過だけで全suiteが失敗する問題を修正。
+- session本体artifactとappend-only event projectionを同一cross-process lockで更新し、旧event hash chainのないsessionをmigrationせず拒否するようにした。
+- resumeが渡す`adaptiveExpectedFingerprint`とcoordinatorの参照名がずれてcurrent fingerprint検証が発火しない問題を修正した。
+- raw bridge capabilityとnormalized session capabilityのdigest混同、evidence path／SHA-256／symlink未検証、binary attestationのconfused-deputy、HATE security status上書きをfail-closed化した。
+
 ## 0.4.0-rc.3 - Unreleased
 
 ### Added

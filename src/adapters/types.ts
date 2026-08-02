@@ -19,14 +19,14 @@ export type ExecuteContext = {
   race?: { groupId: string; participantIndex: number; participantCount: number };
 };
 export type RecoverContext = { runId: string; strategy: string; expectedFingerprint?: string };
-export type EvidenceRequest = { runId: string; kinds: string[] };
+export type EvidenceRequest = { runId: string; kinds: string[]; stagingDir?: string };
 export type AdapterFailure = { category: AdapterError["category"]; messageRef: string; targetRef?: TargetRef };
 export type RecoveryResult = { recovered: boolean; strategy: string; targetRef?: TargetRef; evidenceRefs: EvidenceArtifactRef[] };
 
 export interface AdaptiveAdapter {
   capabilities(): AdapterCapabilities;
   observe(target: TargetRef, context: ObserveContext): Promise<Observation>;
-  discoverCandidates?(observation: Observation): Promise<CandidateDiscoveryResult>;
+  discoverCandidates?(observation: Observation, sourceFingerprint?: string): Promise<CandidateDiscoveryResult>;
   generateCandidates(observation: Observation): Promise<ActionCandidate[]>;
   execute(candidate: ActionCandidate, context: ExecuteContext): Promise<ExecutionResult>;
   recover(failure: AdapterFailure, context: RecoverContext): Promise<RecoveryResult>;

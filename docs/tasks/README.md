@@ -1,7 +1,7 @@
 ---
 document_id: LAKDA-TASK-INDEX-001
 status: active
-last_updated: 2026-07-22
+last_updated: 2026-08-02
 ---
 
 # Task Seed索引
@@ -24,6 +24,8 @@ last_updated: 2026-07-22
 - [TASK.20260722-56](TASK.20260722-56.md) — Graph比較・tamper・PII境界
 - [TASK.20260722-57](TASK.20260722-57.md) — Sanitized examples・package検証
 - [TASK.20260722-58](TASK.20260722-58.md) — 統合Gate・manual-bb・Birdseye・Acceptance
+- [TASK.20260802-59](TASK.20260802-59.md) — non-pass画面証跡・WebM保持policy
+- [TASK.20260802-60](TASK.20260802-60.md) — 自動・クロスプラットフォーム探索仕様正本化
 
 ## 歴史的Task Seed
 

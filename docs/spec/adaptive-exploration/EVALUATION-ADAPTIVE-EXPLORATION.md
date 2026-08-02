@@ -1,8 +1,8 @@
 ---
 document_id: LAKDA-EVAL-AE-001
 status: review-ready
-version: 0.1.0-draft
-last_updated: 2026-07-14
+version: 0.2.0-draft
+last_updated: 2026-08-02
 requirements: ../../../REQUIREMENTS-ADAPTIVE-EXPLORATION.md
 ---
 
@@ -52,7 +52,7 @@ requirements: ../../../REQUIREMENTS-ADAPTIVE-EXPLORATION.md
 | AC-AE-012 | SPEC-03 | CHECKLIST-03 | oracle negative corpus |
 | AC-AE-013 | SPEC-03 | CHECKLIST-03 | real/mock/simulated matrix |
 | AC-AE-014 | SPEC-01/04 | CHECKLIST-01/04 | adapter contract + Chromium |
-| AC-AE-015 | SPEC-05 | CHECKLIST-05 | opt-in real device |
+| AC-AE-015 | SPEC-05 | CHECKLIST-05 | Windows／Android／iOS lane別real device |
 | AC-AE-016 | SPEC-01/06 | CHECKLIST-01/06 | authorization negative + approved real |
 
 ## 4. 評価case
@@ -184,14 +184,14 @@ requirements: ../../../REQUIREMENTS-ADAPTIVE-EXPLORATION.md
 - 合格: adapter objectの公開schema漏出0件、暗黙fallback0件、lossy error変換0件。Coreがadapter failureを別Outcome入力として保持する。
 - 証跡: capability snapshot、boundary schema、error mapping table、ExecutionResult。
 
-### 4.15 AC-AE-015 Airtest/Poco opt-in実機
+### 4.15 AC-AE-015 Airtest/Poco visual-device lane
 
 **対応要件:** REQ-GAME-001〜004。
 
-- 前提: 承認済みopt-in実機、固定app revision、Airtest-onlyとAirtest+Pocoのcase、未知画面、freeze/crash fixture。
-- 手順: capabilityを固定し、画像とUI hierarchyを別provenanceで観測する。Poco切断caseを含める。
-- 合格: capability/provenance、未知画面、freeze/crashが別resultで記録され、Poco不能を成功扱いした件数0。
-- 証跡: device alias、app hash、capability、Observation、screenshot/hierarchy、OracleResult。実機real以外は本Gate不適格。
+- 前提: 承認済みWindows application、Android実機、iOS実機、固定app revision、Airtest-onlyとAirtest+Pocoのcase、未知画面、freeze/crash、video有無のfixture。Android emulatorはsimulated negative controlとして分離する。
+- 手順: laneごとにcapabilityを固定し、画像、UI hierarchy、device状態を別provenanceで観測する。orientation／resolution差分、Poco切断、video非対応、safe candidateなし、LLM座標投入caseを含める。
+- 合格: 各laneのcapability／executionMode／provenance、normalized region、未知画面、freeze/crash、capture kindが別resultで記録される。Poco不能の成功扱い、lane間証跡流用、random／LLM座標tap、自動defect昇格が各0件。emulator/mockだけでreal Gateを満たした件数0。
+- 証跡: platform lane、device alias、app hash、capability snapshot／digest、Observation、normalized region、screenshot／hierarchy／videoまたはsampled frames、OracleResult、HATE/v1 manifest。Windows、Android実機、iOS実機のreal reportがすべて揃うまで`pending_external`。
 
 ### 4.16 AC-AE-016 Security authorizationと安全停止
 

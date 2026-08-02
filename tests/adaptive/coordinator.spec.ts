@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { loadConfig } from "../../src/core/config.js";
@@ -108,6 +108,51 @@ test("adaptive-explore writes a state graph and deterministic replay trace from 
   }
 });
 
+test("operator pause/kill and resume fingerprint drift stop before another adaptive action", async () => {
+  const fixture = await startFixture(() => ({ body: '<main><button data-testid="next" data-lakda-mutation-kind="none">Next</button></main>' }));
+  const outputDir = await mkdtemp(join(tmpdir(), "lakda-adaptive-control-"));
+  try {
+    const config = loadConfig(undefined, {
+      baseUrl: fixture.baseUrl, outputDir, seed: 99, maxActions: 1, durationMs: 5_000, mode: "adaptive-explore",
+      adaptive: {
+        schemaVersion: "lakda/adaptive-config/v1", adapter: { id: "playwright" }, generator: { strategy: "autonomous-uncovered", version: "autonomous-uncovered/v1" },
+        stopWhen: { any: [{ type: "actionCoverage", atLeast: 1 }] },
+        settlePolicy: { policyVersion: "settle/v1", maxWaitMs: 1_000, stableWindowMs: 20 },
+        fingerprintPolicy: { algorithmVersion: "sha256/v1", canonicalizationVersion: "canonical/v1" },
+        recovery: { maxBacktracks: 0, maxAttemptsPerState: 1 },
+        safety: { allowTargetKinds: ["page"], denyActionIds: [], allowMutationKinds: ["none"] },
+      },
+    });
+    for (const command of ["pause", "kill"] as const) {
+      const controlDir = await mkdtemp(join(tmpdir(), `lakda-${command}-control-`));
+      try {
+        await writeFile(join(controlDir, "0001.json"), JSON.stringify({ command, reason: `operator-${command}`, requestId: `${command}-1` }), "utf8");
+        const result = await runLakda(config, undefined, { controlFile: controlDir });
+        expect(result.outcome).toBe("partial");
+        expect(result.terminationReason).toBe(command === "pause" ? "hold" : "machine_failure");
+        const adaptiveDir = join(dirname(result.actionSequencePath!), "adaptive");
+        const coverage = JSON.parse(await readFile(join(adaptiveDir, "coverage.json"), "utf8")) as { actions: number };
+        const trace = JSON.parse(await readFile(join(adaptiveDir, "trace.json"), "utf8")) as { trace: Array<Record<string, unknown>> };
+        expect(coverage.actions).toBe(0);
+        expect(trace.trace).toContainEqual(expect.objectContaining({ type: "operator-control", command, requestId: `${command}-1`, actionCount: 0 }));
+        expect(await readdir(controlDir)).toEqual([]);
+      } finally { await rm(controlDir, { recursive: true, force: true }); }
+    }
+
+    const drifted = await runLakda(config, undefined, { adaptiveExpectedFingerprint: `state:${"f".repeat(64)}` });
+    expect(drifted.outcome).toBe("failed");
+    expect(drifted.terminationReason).toBe("machine_failure");
+    const driftedAdaptiveDir = join(dirname(drifted.actionSequencePath!), "adaptive");
+    const driftedCoverage = JSON.parse(await readFile(join(driftedAdaptiveDir, "coverage.json"), "utf8")) as { actions: number };
+    const driftedTrace = JSON.parse(await readFile(join(driftedAdaptiveDir, "trace.json"), "utf8")) as { trace: Array<Record<string, unknown>> };
+    expect(driftedCoverage.actions).toBe(0);
+    expect(driftedTrace.trace).toContainEqual(expect.objectContaining({ type: "replay-divergence", reason: "checkpoint-fingerprint-mismatch" }));
+  } finally {
+    await fixture.close();
+    await rm(outputDir, { recursive: true, force: true });
+  }
+});
+
 
 test("adaptive recovery verifies the restored fingerprint and records a backtrack edge", async () => {
   const fixture = await startFixture(url => url.pathname === "/hang"
@@ -116,7 +161,8 @@ test("adaptive recovery verifies the restored fingerprint and records a backtrac
   const outputDir = await mkdtemp(join(tmpdir(), "lakda-adaptive-recovery-"));
   try {
     const config = loadConfig(undefined, {
-      baseUrl: fixture.baseUrl, outputDir, seed: 17, maxActions: 2, durationMs: 5_000, mode: "adaptive-explore",
+      baseUrl: fixture.baseUrl, outputDir, seed: 17, maxActions: 2, durationMs: 15_000, mode: "adaptive-explore",
+      artifacts: { video: "retain-on-non-pass" },
       adaptive: {
         schemaVersion: "lakda/adaptive-config/v1", adapter: { id: "playwright" }, generator: { strategy: "least-visited-transition" },
         stopWhen: { any: [{ type: "noveltyPlateau", windowActions: 3, minActions: 2 }] },
@@ -128,7 +174,13 @@ test("adaptive recovery verifies the restored fingerprint and records a backtrac
     });
     const result = await runLakda(config);
     expect(result.outcome).toBe("failed");
-    const adaptiveDir = join(dirname(result.actionSequencePath!), "adaptive");
+    const runDir = dirname(result.actionSequencePath!);
+    const adaptiveDir = join(runDir, "adaptive");
+    expect(await readdir(join(runDir, "artifacts", "video"))).toEqual(["0001.webm"]);
+    await expect(readFile(join(runDir, "artifacts", "failure.png"))).resolves.toBeTruthy();
+    await expect(readFile(join(runDir, "artifacts", "trace.zip"))).resolves.toBeTruthy();
+    const manifest = JSON.parse(await readFile(result.artifactManifestPath!, "utf8")) as { artifacts: Array<{ kind: string; path: string }> };
+    expect(manifest.artifacts.some(artifact => artifact.kind === "video" && artifact.path === "artifacts/video/0001.webm")).toBe(true);
     const trace = JSON.parse(await readFile(join(adaptiveDir, "trace.json"), "utf8")) as { trace: Array<Record<string, unknown>> };
     const graph = JSON.parse(await readFile(join(adaptiveDir, "transition-graph.json"), "utf8")) as { edges: Array<Record<string, unknown>> };
     const execution = trace.trace.find(entry => entry.type === "execution")?.executionResult as { status: string; preFingerprint: string; postFingerprint?: string };
@@ -218,12 +270,14 @@ test("adaptive-explore executes an operator-managed Airtest/Poco loopback bridge
     actionKind: "tap", locatorRecipe: { strategy: "image", value: "next" }, generatedBy: { ruleId: "bridge", observationId: observation.observationId, reason: "visible" },
     risk: { weight: 1 }, mutationKind: "none",
   };
+  let captureControlCalls = 0;
   const fixture = await startFixture((url, method) => {
     if (method !== "POST") return { status: 405, body: "POST required" };
-    if (url.pathname === "/capabilities") return { contentType: "application/json", body: JSON.stringify({ schemaVersion: "lakda/adaptive-contracts/v1", adapterId: "airtest-poco", revision: "1", targetKinds: ["device"], actionKinds: ["tap"], observationCapabilities: ["screen"], evidenceCapabilities: [], recoveryStrategies: ["backtrack"] }) };
+    if (url.pathname === "/capabilities") return { contentType: "application/json", body: JSON.stringify({ schemaVersion: "lakda/adaptive-contracts/v1", adapterId: "airtest-poco", revision: "1", targetKinds: ["device"], actionKinds: ["tap"], observationCapabilities: ["screen"], evidenceCapabilities: ["screenshot", "sampled-frames/v1"], recoveryStrategies: ["backtrack"] }) };
     if (url.pathname === "/observe") return { contentType: "application/json", body: JSON.stringify(observation) };
     if (url.pathname === "/generate-candidates") return { contentType: "application/json", body: JSON.stringify([candidate]) };
     if (url.pathname === "/execute") return { contentType: "application/json", body: JSON.stringify({ schemaVersion: "lakda/adaptive-contracts/v1", executionId: "device-exec", candidateId: candidate.candidateId, preFingerprint: fingerprint, postFingerprint: "state:device-complete", startedAt: "2026-07-15T00:00:01Z", endedAt: "2026-07-15T00:00:02Z", status: "executed", recoveryStatus: "not_required", targetChanges: [], settleResult: { policyVersion: "settle/v1", status: "settled", elapsedMs: 1, reasons: [] }, evidenceRefs: [] }) };
+    if (url.pathname === "/capture-control") { captureControlCalls += 1; return { contentType: "application/json", body: JSON.stringify({ accepted: true, mode: "sampled-frames/v1", artifactRefs: [] }) }; }
     return { status: 404, body: "missing" };
   });
   const outputDir = await mkdtemp(join(tmpdir(), "lakda-adaptive-bridge-"));
@@ -240,8 +294,9 @@ test("adaptive-explore executes an operator-managed Airtest/Poco loopback bridge
         safety: { allowTargetKinds: ["device"], denyActionIds: [], allowMutationKinds: ["none"] },
       },
     });
-    const result = await runLakda(config);
+    const result = await runLakda(config, undefined, { explorationCapture: { sampledFrames: { enabled: false, intervalMs: 1_000 } } });
     expect(result.outcome, JSON.stringify(result)).toBe("passed");
+    expect(captureControlCalls).toBe(0);
     const trace = JSON.parse(await readFile(join(dirname(result.actionSequencePath!), "adaptive", "trace.json"), "utf8"));
     expect(trace.trace.some((entry: { type: string }) => entry.type === "execution")).toBe(true);
   } finally {
@@ -289,7 +344,7 @@ test("Security bridge executes an authorized sequential parameter mutation only 
         securityAuthorization: {
           schemaVersion: "lakda/security-authorization/v2", authorizationId: "auth-1", owner: "security",
           targets: { hosts: ["127.0.0.1"], pathPrefixes: ["/safe"], methods: ["GET"], requestTemplateDigests: ["sha256:" + "1".repeat(64)], targetRevision: "revision-1" },
-          environment: "staging", validFrom: "2026-07-01T00:00:00Z", validUntil: "2026-08-01T00:00:00Z",
+          environment: "staging", validFrom: "2020-01-01T00:00:00Z", validUntil: "2099-12-31T23:59:59Z",
           allowedMutationKinds: ["parameter-mutation"], maxRatePerMinute: 1, maxConcurrency: 1,
           cleanupRef: "cleanup-1", killSwitchRef: "kill-1", approvalEvidenceRef: "approval-1", dataPolicyRef: "data-policy-1", stopContactRef: "stop-contact-1",
           binding: {
