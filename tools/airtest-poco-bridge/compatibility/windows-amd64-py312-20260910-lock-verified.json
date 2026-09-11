@@ -1,0 +1,617 @@
+{
+  "schemaVersion": "lakda/bridge-dependency-verification/v2",
+  "verifiedAt": "2026-09-10T04:14:50.647282+00:00",
+  "pythonVersion": "3.12.14",
+  "platform": "win32",
+  "architecture": "AMD64",
+  "lockSha256": "sha256:148ac21f265703c631f2db1473c3e869fbc1ff00220cc2ceb28c8aee759f1466",
+  "status": "passed",
+  "scope": "locked-versions-and-package-import",
+  "deviceConnected": false,
+  "environment": {
+    "distributionSource": "interpreter-site-packages",
+    "isVirtualEnvironment": true,
+    "allowedUnpinnedInstallerPackages": [
+      "pip"
+    ]
+  },
+  "packages": [
+    {
+      "name": "airtest",
+      "version": "1.3.5"
+    },
+    {
+      "name": "cached-property",
+      "version": "1.5.2"
+    },
+    {
+      "name": "certifi",
+      "version": "2026.7.22"
+    },
+    {
+      "name": "charset-normalizer",
+      "version": "3.5.1"
+    },
+    {
+      "name": "colorama",
+      "version": "0.4.6"
+    },
+    {
+      "name": "colored",
+      "version": "2.3.2"
+    },
+    {
+      "name": "comtypes",
+      "version": "1.4.16"
+    },
+    {
+      "name": "construct",
+      "version": "2.10.70"
+    },
+    {
+      "name": "decorator",
+      "version": "5.3.1"
+    },
+    {
+      "name": "Deprecated",
+      "version": "1.2.18"
+    },
+    {
+      "name": "deprecation",
+      "version": "2.1.0"
+    },
+    {
+      "name": "facebook-wda",
+      "version": "1.5.4"
+    },
+    {
+      "name": "ffmpeg-python",
+      "version": "0.2.0"
+    },
+    {
+      "name": "filelock",
+      "version": "3.32.6"
+    },
+    {
+      "name": "future",
+      "version": "1.0.0"
+    },
+    {
+      "name": "hrpc",
+      "version": "1.0.9"
+    },
+    {
+      "name": "idna",
+      "version": "3.19"
+    },
+    {
+      "name": "Jinja2",
+      "version": "3.1.6"
+    },
+    {
+      "name": "logzero",
+      "version": "1.7.0"
+    },
+    {
+      "name": "MarkupSafe",
+      "version": "3.0.3"
+    },
+    {
+      "name": "mss",
+      "version": "6.1.0"
+    },
+    {
+      "name": "numpy",
+      "version": "1.26.4"
+    },
+    {
+      "name": "opencv-contrib-python",
+      "version": "4.6.0.66"
+    },
+    {
+      "name": "packaging",
+      "version": "26.3"
+    },
+    {
+      "name": "pillow",
+      "version": "12.3.0"
+    },
+    {
+      "name": "pocoui",
+      "version": "1.0.94"
+    },
+    {
+      "name": "psutil",
+      "version": "7.2.2"
+    },
+    {
+      "name": "py",
+      "version": "1.11.0"
+    },
+    {
+      "name": "pypiwin32",
+      "version": "223"
+    },
+    {
+      "name": "pywin32",
+      "version": "312"
+    },
+    {
+      "name": "pywinauto",
+      "version": "0.6.3"
+    },
+    {
+      "name": "requests",
+      "version": "2.34.2"
+    },
+    {
+      "name": "retry",
+      "version": "0.9.2"
+    },
+    {
+      "name": "setuptools",
+      "version": "84.0.0"
+    },
+    {
+      "name": "simplejson",
+      "version": "4.1.2"
+    },
+    {
+      "name": "simple-tornado",
+      "version": "0.2.2"
+    },
+    {
+      "name": "six",
+      "version": "1.16.0"
+    },
+    {
+      "name": "tabulate",
+      "version": "0.10.0"
+    },
+    {
+      "name": "tidevice",
+      "version": "0.12.11"
+    },
+    {
+      "name": "tornado",
+      "version": "6.5.8"
+    },
+    {
+      "name": "urllib3",
+      "version": "2.7.0"
+    },
+    {
+      "name": "websocket-client",
+      "version": "0.48.0"
+    },
+    {
+      "name": "wrapt",
+      "version": "1.17.3"
+    }
+  ],
+  "dependencyCheck": {
+    "status": "passed",
+    "lockedPackages": 43,
+    "installedPackages": 43,
+    "checks": [
+      {
+        "name": "airtest",
+        "expectedVersion": "1.3.5",
+        "installedVersions": [
+          "1.3.5"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "cached-property",
+        "expectedVersion": "1.5.2",
+        "installedVersions": [
+          "1.5.2"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "certifi",
+        "expectedVersion": "2026.7.22",
+        "installedVersions": [
+          "2026.7.22"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "charset-normalizer",
+        "expectedVersion": "3.5.1",
+        "installedVersions": [
+          "3.5.1"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "colorama",
+        "expectedVersion": "0.4.6",
+        "installedVersions": [
+          "0.4.6"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "colored",
+        "expectedVersion": "2.3.2",
+        "installedVersions": [
+          "2.3.2"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "comtypes",
+        "expectedVersion": "1.4.16",
+        "installedVersions": [
+          "1.4.16"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "construct",
+        "expectedVersion": "2.10.70",
+        "installedVersions": [
+          "2.10.70"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "decorator",
+        "expectedVersion": "5.3.1",
+        "installedVersions": [
+          "5.3.1"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "deprecated",
+        "expectedVersion": "1.2.18",
+        "installedVersions": [
+          "1.2.18"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "deprecation",
+        "expectedVersion": "2.1.0",
+        "installedVersions": [
+          "2.1.0"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "facebook-wda",
+        "expectedVersion": "1.5.4",
+        "installedVersions": [
+          "1.5.4"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "ffmpeg-python",
+        "expectedVersion": "0.2.0",
+        "installedVersions": [
+          "0.2.0"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "filelock",
+        "expectedVersion": "3.32.6",
+        "installedVersions": [
+          "3.32.6"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "future",
+        "expectedVersion": "1.0.0",
+        "installedVersions": [
+          "1.0.0"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "hrpc",
+        "expectedVersion": "1.0.9",
+        "installedVersions": [
+          "1.0.9"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "idna",
+        "expectedVersion": "3.19",
+        "installedVersions": [
+          "3.19"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "jinja2",
+        "expectedVersion": "3.1.6",
+        "installedVersions": [
+          "3.1.6"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "logzero",
+        "expectedVersion": "1.7.0",
+        "installedVersions": [
+          "1.7.0"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "markupsafe",
+        "expectedVersion": "3.0.3",
+        "installedVersions": [
+          "3.0.3"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "mss",
+        "expectedVersion": "6.1.0",
+        "installedVersions": [
+          "6.1.0"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "numpy",
+        "expectedVersion": "1.26.4",
+        "installedVersions": [
+          "1.26.4"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "opencv-contrib-python",
+        "expectedVersion": "4.6.0.66",
+        "installedVersions": [
+          "4.6.0.66"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "packaging",
+        "expectedVersion": "26.3",
+        "installedVersions": [
+          "26.3"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "pillow",
+        "expectedVersion": "12.3.0",
+        "installedVersions": [
+          "12.3.0"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "pocoui",
+        "expectedVersion": "1.0.94",
+        "installedVersions": [
+          "1.0.94"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "psutil",
+        "expectedVersion": "7.2.2",
+        "installedVersions": [
+          "7.2.2"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "py",
+        "expectedVersion": "1.11.0",
+        "installedVersions": [
+          "1.11.0"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "pypiwin32",
+        "expectedVersion": "223",
+        "installedVersions": [
+          "223"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "pywin32",
+        "expectedVersion": "312",
+        "installedVersions": [
+          "312"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "pywinauto",
+        "expectedVersion": "0.6.3",
+        "installedVersions": [
+          "0.6.3"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "requests",
+        "expectedVersion": "2.34.2",
+        "installedVersions": [
+          "2.34.2"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "retry",
+        "expectedVersion": "0.9.2",
+        "installedVersions": [
+          "0.9.2"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "setuptools",
+        "expectedVersion": "84.0.0",
+        "installedVersions": [
+          "84.0.0"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "simple-tornado",
+        "expectedVersion": "0.2.2",
+        "installedVersions": [
+          "0.2.2"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "simplejson",
+        "expectedVersion": "4.1.2",
+        "installedVersions": [
+          "4.1.2"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "six",
+        "expectedVersion": "1.16.0",
+        "installedVersions": [
+          "1.16.0"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "tabulate",
+        "expectedVersion": "0.10.0",
+        "installedVersions": [
+          "0.10.0"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "tidevice",
+        "expectedVersion": "0.12.11",
+        "installedVersions": [
+          "0.12.11"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "tornado",
+        "expectedVersion": "6.5.8",
+        "installedVersions": [
+          "6.5.8"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "urllib3",
+        "expectedVersion": "2.7.0",
+        "installedVersions": [
+          "2.7.0"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "websocket-client",
+        "expectedVersion": "0.48.0",
+        "installedVersions": [
+          "0.48.0"
+        ],
+        "status": "passed",
+        "reason": "match"
+      },
+      {
+        "name": "wrapt",
+        "expectedVersion": "1.17.3",
+        "installedVersions": [
+          "1.17.3"
+        ],
+        "status": "passed",
+        "reason": "match"
+      }
+    ],
+    "excluded": []
+  },
+  "imports": [
+    {
+      "module": "airtest",
+      "status": "passed"
+    },
+    {
+      "module": "airtest.core.api",
+      "status": "passed"
+    },
+    {
+      "module": "airtest.core.win.win",
+      "status": "passed"
+    },
+    {
+      "module": "airtest.core.android.android",
+      "status": "passed"
+    },
+    {
+      "module": "airtest.core.ios.ios",
+      "status": "passed"
+    },
+    {
+      "module": "poco",
+      "status": "passed"
+    },
+    {
+      "module": "poco.drivers.android.uiautomation",
+      "status": "passed"
+    }
+  ]
+}

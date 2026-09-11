@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/lakda/report-batch-sources/v1",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "batchId", "recordedAt", "root", "classification", "outcome", "exitCode", "requestedWorkers", "completedWorkers", "workers"],
+  "properties": {
+    "schemaVersion": { "const": "lakda/report-batch-sources/v1" },
+    "batchId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9:._-]{0,255}$" },
+    "recordedAt": { "type": "string", "format": "date-time" },
+    "root": { "type": "string", "minLength": 1, "maxLength": 4096, "pattern": "^[^\u0000]+$" },
+    "classification": { "$ref": "https://local.invalid/lakda/report-view/v1#/$defs/classification" },
+    "outcome": { "$ref": "#/$defs/outcome" },
+    "exitCode": { "enum": [0, 1, 2] },
+    "requestedWorkers": { "type": "integer", "minimum": 1, "maximum": 4 },
+    "completedWorkers": { "type": "integer", "minimum": 0, "maximum": 4 },
+    "workers": { "type": "array", "minItems": 1, "maxItems": 4, "items": { "$ref": "#/$defs/worker" } }
+  },
+  "$defs": {
+    "outcome": { "enum": ["passed", "failed", "partial", "error"] },
+    "worker": {
+      "type": "object", "additionalProperties": false,
+      "required": ["workerIndex", "seed", "status"],
+      "properties": {
+        "workerIndex": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "seed": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+        "status": { "enum": ["completed", "error"] },
+        "run": { "$ref": "#/$defs/run" },
+        "error": {
+          "type": "object", "additionalProperties": false, "required": ["name", "message"],
+          "properties": { "name": { "type": "string", "minLength": 1, "maxLength": 128 }, "message": { "type": "string", "maxLength": 2048 } }
+        }
+      },
+      "oneOf": [
+        { "properties": { "status": { "const": "completed" } }, "required": ["run"], "not": { "required": ["error"] } },
+        { "properties": { "status": { "const": "error" } }, "required": ["error"], "not": { "required": ["run"] } }
+      ]
+    },
+    "run": {
+      "type": "object", "additionalProperties": false,
+      "required": ["runId", "attempt", "path", "manifestSha256", "outcome", "exitCode", "terminationReason"],
+      "properties": {
+        "runId": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "attempt": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "path": { "$ref": "https://local.invalid/lakda/report-view/v1#/$defs/portable" },
+        "manifestSha256": { "anyOf": [{ "$ref": "https://local.invalid/lakda/report-view/v1#/$defs/digest" }, { "type": "null" }] },
+        "outcome": { "$ref": "#/$defs/outcome" },
+        "exitCode": { "enum": [0, 1, 2] },
+        "terminationReason": { "type": "string", "minLength": 1, "maxLength": 256 }
+      }
+    }
+  }
+}

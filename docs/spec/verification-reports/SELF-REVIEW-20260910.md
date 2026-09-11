@@ -1,0 +1,249 @@
+---
+document_id: LAKDA-REVIEW-UP-001
+status: completed
+last_updated: 2026-09-11
+---
+
+# 仕様セルフレビュー
+
+SR-106（撮影設定の独立照合）: 実行側でvideo=offを拒否しても、保存readerは同じCharterに対する録画記録を受理していた。署名対象digestと一致する保存Charterから撮影設定を取り出し、readerにも適用する。off、sampled無効・source不一致、間隔・枚数・容量・停止待機の超過を送信前に拒否し、保存要求の違反も拒否する。
+
+SR-107（期限後に返る開始応答）: SDKが開始成功を返した時点で期限切れになっている場合、応答を通常成功として検査すると失敗記録自体が保存できなかった。承認内の要求・送信開始と、期限後の結果をexecutionStatus=failedで記録し、元の撮影へ停止を一度送る。journalの終了確認と撮影の成功・媒体採用を区別する。accepted=trueかつstopped=trueの開始応答も矛盾として拒否する。
+
+SR-108（保存不能時の停止）: 撮影要求または結果の保存に失敗した際、停止要求にも保存成功を必須とすると稼働中の録画を止められない。新しい撮影・入力は止めつつ、既存の撮影へのcleanupだけは保存失敗後も送る。未送信番号が残っても停止できるPython側の連番規則と合わせる。停止した事実を保存できなかったjournalは未完了を維持する。
+
+SR-109（runner接続と旧記録）: 署名済みfacadeの撮影をnativeCaptureへ接続したことで、旧capture fixtureだけではCLI pause時の実媒体を作れなくなった。fixtureも新しい要求経路でPNGと署名記録を保存し、pause／resumeの2 journal・3操作・2画像取得とHTML readyを確認する。v1記録の独立読取、journal内version混在の拒否、旧上限を超えるv2撮影応答の保存も回帰対象とする。
+
+SR-105（録画開始中のclose上限）: SDK開始がrecording lockを保持したまま詰まると、closeの500ms枠より長くlock取得を待っていた。SDKを3秒保留する先行試験でclose待機3.016秒を確認した。lock取得にも残り時間を適用し、取得不能ならcapture-close-unconfirmedとして元transportを保持する。開始が戻った後の監視停止とclose再確認を同じ試験で確認する。試験上の1.5秒許容はthread schedulingの余裕であり、実装の待機枠500msを延長する設定ではない。
+
+SR-101（撮影要求の再送と停止対象）: native actionと撮影の連番を共有すると、一枚の画像取得や停止再確認が入力操作の順序を変えてしまう。撮影専用連番と開始連番を分け、直前応答だけを再送する。古い要求・飛び番号・同番号の別内容をSDK呼出し前に拒否し、停止は開始時のguard・scopeだけへ作用させる。期限切れ・lease取消後も元撮影のcleanupは可能とする。保存応答の再送は現在の接続や録画中状態の確認ではない。
+
+SR-102（非同期送信前の入力保持）: Nodeの動的importを待ってからrequestをcopyすると、呼出し元が待機中にrunId等を書き換えられた。実HTTP fixtureで先に失敗を確認し、最初のawaitより前にcopyする。変更後に送信されたrunIdと呼出し数を確認する。
+
+SR-103（停止確認と応答生成の失敗）: sampled framesの既存controlは停止・検証後にrefsを返さないため、native応答では元guardが所有していた検証済み一覧を受け渡す。停止後の一覧copyが失敗すると、途中で受け取ったaccepted=trueを流用してしまう問題をfixtureで確認した。失敗時はaccepted=false・refsなしへ戻し、確認済みのstoppedだけを保持する。HTTP handlerの既存1 MiB上限との差も先行失敗で確認し、新しいnative-captureだけ4 MiBの有界応答に合わせる。
+
+SR-104（接続段階の区別）: 新しいHTTP clientは低水準のoperator通信であり、windowを受け渡しただけで署名承認を検証したとはしない。署名済みfacade、撮影journalと保存証跡の独立検証へつなぐまでCLIの連続撮影制限を維持する。既存の内部guard検証記録は変更せず、新しい実結果を別記録へ保存する。
+
+SR-97（背景撮影とlease取消）: 観測内容を保持したguardが登録取消を検査していなかった。確認前後で同じentryが登録されていることを確認する。captureには操作連番を消費しないv2 window照合を用意し、snapshotは保持したADB APIへ束縛する。最初の試験では、fixtureがimport後に検索pathを戻すため遅延importが失敗した。helperを通常のmodule importへ移し、CLI起動にも同じ依存を使わせる。
+
+SR-98（期限後の停止）: 撮影継続の確認をそのまま終了処理に使うと、期限後に元の録画を止められない。停止では元のADB・selector・display・recorder・processとtransport世代を確認し、継続用の時間・登録条件から分ける。元の接続自体が変わった場合は停止未確認とし、共有APIや新deviceへ停止先を切り替えない。
+
+SR-99（終了順序と応答不明）: transportを先に閉じる既存closeでは、背景録画の停止確認ができなかった。closingで新しい処理を拒否し、共通500ms内のcapture停止を確認してからtransportを閉じる。timeoutでは接続を保持して再確認できるようにする。また、SDK開始中の例外で状態が消えていたため開始未確認を保持し、所有不明の停止を避ける。これらの先行失敗を人工SDKで確認した。
+
+SR-100（監視workerの作成失敗）: SDK開始後に監視threadの作成だけが失敗すると、停止先を保持していても既存分岐では終了処理を再試行できなかった。後続stopから終了処理専用workerを作成できるようにし、監視できなかった期間を成功したcaptureへ補完しない。停止待機のtimeoutはworkerの終了を意味せず、後続要求も同じ進行中workerを待つ。
+
+SR-94（SDK録画の接続先）: 固定Airtest 1.3.5の録画APIはAndroid device側にあるが、bridgeは共有APIだけでcapabilityを判定していた。deviceを優先し、開始時の停止methodも保持する。device側の開始未確認と停止False／Noneを成功にしない条件をfixtureで検証する。method固定とSDK内部の接続世代の保証は区別し、native v2の連続撮影制限は維持する。
+
+SR-95（動画形式と検査状態）: SDK出力のMP4に対し、inventory・request MIME・core／sessionのbinary判定がWebMのみだった。先行試験でMP4のrequest拒否、coreのunsupported、session HATEのother／検査passを確認した。MP4を動画・binaryとして接続し、未検査はpendingとする。形式の追加は既存署名payloadを変更せず、既存WebMと未知形式の拒否を維持する。人工bytesとテスト用署名の試験は実映像の検査・codec受入を意味しない。
+
+SR-96（旧ソース文字列検査）: 全体試験では545件がpassし、1件が旧WebM固定のソース文字列を要求して失敗した。特定の記述方法を固定するassertionを外し、Pythonの実行試験でMP4と従来WebMの完全なartifact相対pathを検証する。停止先の切替やbytesの検証を含む143件がpassした。最初のMP4契約試験では検証関数の引数順を取り違えていたため修正し、失敗logと修正後の15件の結果を分けて保持する。
+
+SR-90（CLIとcheckpoint）: native bridgeの実際の操作応答はpostFingerprintを持たず、runnerは別のpost-action観測を保存する。CLI接続試験で操作成功後のcheckpoint確定が失敗した。最後の操作に続く観測をfallbackとして使い、過去の操作のfingerprintだけで最後の観測欠落を補完しない試験を加えた。SDK応答へ存在しない値を代入せず、traceとreplay-traceの照合を維持する。
+
+SR-91（trustの解決基準）: target署名は元manifestの親、媒体検証はcwd、保存reportはsession rootを基準としており、相対trustが同じ鍵fileを指していなかった。署名付きfixture画像を含むpauseがartifact_failureになり、完了後のJSON reportも失敗することを確認した。CLIで元targetの親から解決したoperator pathを実行・媒体検証・session report・HATEへ渡す。HTMLは引き続きreport設定の明示trustを要求する。
+
+SR-92（再開と段階導入）: pausedではcompleteな過去journalを接続前に要求し、draftの観測未取得とは区別する。resumeごとに新しい観測とjournalを保存し、期限切れ・記録改変・結果不明・端末不一致では追加SDK操作0件とする。連続撮影とのSDK接続統合は未完了であり、その設定のCLI v2拒否を残す。撮影を自動無効化せず、最終要求からも削除しない。
+
+SR-93（受渡し設定のpreflight）: 通常の画像検証へ解決済みtrustを渡した後も、capture.binaryAttestationの事前検査は相対pathをcwdから解決していた。署名済みnative v2と存在するoperator鍵でtrust-invalidになる先行試験を追加し、ここにも元targetの親から解決したpathを渡した。既存v1の解決規則は変更しない。媒体0件の実行でsetupからfinalizationまでを確認するもので、新しいscannerの実媒体検査を実証する試験ではない。
+
+SR-87（runnerの操作経路）: 署名済みexecutorがあっても、従来adapterがbridge.execute／recoverを呼ぶと観測と保存記録を迂回する。runner用facadeは必須sinkと署名検証を初期化し、通常入力・復旧をexecutor.performだけへ送る。低水準nativeActionを返さず、methodは作成時に束縛する。並行呼出し、bridge bindingの変更、呼出し元によるmethod差替え、capabilityの参照変更を検証する。
+
+SR-88（撮影開始中の失効）: 撮影開始の応答後に承認が失効すると、開始済みcaptureを保持したまま例外で終了することを先行試験で確認した。開始要求を送った後の失敗では同じrun／保存先へstopを送り、acceptedかつstoppedを確認する。停止できなければnative-bridge-capture-stop-unconfirmedで失敗し、成功と補完しない。期限後の明示stop／discardも許可する。これはcleanupであり、新しい撮影やSDK入力の許可ではない。
+
+SR-89（facade検証の範囲）: facadeの読取前後の検査は、保存観測の期限・署名とbridgeが報告するbindingの検査であり、SDKの現在の選択や背景撮影の接続世代を独立に取得した証明ではない。SDK入力は既存native-actionのdevice／transport guardが担う。CLI導入では保存済みtarget・trustの解決、初回／resume前のnative記録検査、既存captureとの接続を確認する必要が残る。facadeのfixture成功だけでCLI拒否を解除しない。
+
+SR-85（HATEと本文だけのreport）: native記録のbytesを変更してもHATE exporterが再登録し、operator trustなしのtextOnly reportがreadyになる挙動を先行試験で確認した。署名・journal・4入力の実bytesを検証した上で、HATE全native参照のpath／size／digestを一致させる。reportは媒体の検証より前にoperator trustを渡し、未完了／応答不明をwarningとdegradedにする。欠落・不一致は入力errorにする。
+
+SR-86（公開直前と信頼の再検査）: HATEに載ったfileだけの再読取では、入力読取後に追加された孤立fileを検出できない。native inventoryとsource digestを公開直前に再照合し、重複入力directoryも検査対象に残す。媒体targetの関数も渡された検証済みflagだけを信用せず、指定trustでnative証跡を再検証する。保存済みv2文書・実file・event参照のどこからnativeが分かっても検査対象とする。これらは保存内容の整合検証であり、実端末への接続や受入承認ではない。
+
+SR-84（保存時点と信頼元）: 保存済みtargetを現在時刻だけで検査すると、承認期限後に正当な過去の証跡を読めなくなる。一方、署名が正しいだけでは観測済みを示さない。保存観測時点の署名・policyとjournalの整合を併せて検証し、明示したoperator鍵だけを使う。鍵fileの上限と再照合、入力の複製、親signal、4入力の実bytesへの束縛を要件にした。応答不明をcompleteへ補完せず、CLIの実行許可も変更しない。
+
+SR-78（HTTP相互運用の時計差）: 正常open応答のissuedAt=1789055061404に対しNodeのsessionNow=1789055061399で、binding等は一致したまま拒否された。2ms以内だけの待機では不足するため20ms以下・1回20msへ変更し、比較条件、AbortSignal、承認と単調時計の期限を維持する。診断では[Nodeの同期load hook](https://nodejs.org/api/module.html#moduleregisterhooksoptions)を試験process内だけへ適用し、追加awaitや応答改変を避けた。診断を外した10回の相互運用で、操作／復旧と5記録の保存読取が通った。
+
+SR-79（保存先と増大する入力）: 呼出し元によるpaths objectの変更で保存先が変わらないよう、rootから正規pathを再構成して固定する。読取前のsize検査だけでは増大するfileを無制限に読み得るため、32 KiB chunkと読取途中の実bytes上限を使う。同じ観測を新journalへ再使用する入力も拒否する。
+
+SR-80（checkpoint追記中の期限切れ）: fileの保存・再読取が期限内でも、その後のsession event追記で期限が切れた場合にSDKへ進むことを試験で確認した。追記の前後にも同じsignalを検査し、予定の保存では操作0件、終了記録の保存では既存receiptを保持して停止する。途中で保存したfile／eventを成功扱いのために消したり書き換えたりしない。
+
+SR-81（完了と耐久性の意味）: 終了記録のexecutionStatusはHTTP応答と操作後検査までの状態で、当該記録の保存成功や呼出し元の成功受領とは別である。readerのcompleteも操作成功を意味しない。file公開とevent追記の間で停止した場合の不足検出、5秒signalの検査境界、強制中断できないI/Oと電源断耐久性の限界をSPEC-02へ明記した。
+
+SR-82（ヘッダー拒否試験の本文）: 既存Python試験はContent-Length=0などのヘッダー拒否caseでも本文を送っており、応答読取中の接続切断が起きた。これらはヘッダーだけを送り、413／415／403とdispatch 0件を検証する。本文のJSON・UTF-8・object検査は実本文を送る別caseで維持する。失敗ログを保持し、修正後は全138件とHTTP 5件の5回実行を確認した。OSの接続切断原因全般を解決したとは主張しない。
+
+SR-83（Pythonキャッシュの配布混入）: packのpass後に一覧を照合すると、直接実行したPythonが生成した`__pycache__`7件が配布対象になっていた。存在するruntime fileだけの検査では不十分なため、cacheを拒否するpackage検査を追加して失敗を確認した。bridge配下の`.npmignore`で除外し、作業中のcacheを削除して検査を通す方法は使わない。
+
+SR-76（操作と保存の順序）: 操作結果だけを後から保存すると、SDK開始後の保存失敗が「操作なし」に見える。観測→予定→終了の順に記録し、予定保存前の失敗はSDK0件、送信後に応答を検証できない場合はunknownとして停止する。予定と終了の片側が欠けた記録から成功を推定しない。
+
+SR-77（要求本文と照合の分離）: native-action要求にはinput値やlocatorが含まれ得る。永続化する要求はdigestと照合参照だけにし、receipt照合をその参照で行える共通処理へ分ける。元要求の全文やraw failureを公開証跡へ追加しない。
+
+SR-75（監視threadの実行待ちと期限）: background監視だけでidle期限を検査すると、threadがまだ実行されていない瞬間に古い監視を更新できる。checkの前後とkeepalive自体で期限を検査し、期限後の照合・延長を拒否する。threadの実行を置換した先行試験で2経路の不足を確認してから修正した。停止は論理失効だけで完了とせず、close時のjoinまで確認する。
+
+SR-72（transport IDの有効範囲）: SDK object／serialは再接続でも残り得る。transport IDだけでもADB serverの再起動後の同じ番号を区別できないため、継続中のtrack-devices-l接続と現在のdevices-l結果を組み合わせる。切断した監視を旧session／leaseへ再接続しない。[ADB service契約](https://android.googlesource.com/platform/packages/modules/adb/%2B/810cb15464132158c8b9acb282f248b2c7083d49/SERVICES.TXT)と[long trackerの実装](https://android.googlesource.com/platform/packages/modules/adb/%2B/1a0fb8846d4e6b671c8aa7f137a8c21d7b248716/services.cpp)を参照した。
+
+SR-73（SDKとADB接続先の差）: SDKのhost／port表示だけでは、cmd_optionsや環境変数による接続先の変更を見逃す。固定SDKのoptions形式を照合し、接続先を変える3環境変数がある場合はこのproviderで拒否する。[ADB clientの環境変数処理](https://android.googlesource.com/platform/system/core/%2B/4ee27039e0ee4d7c1b5314642d51f01096bfa79e/adb/client/commandline.cpp)も確認した。環境値をエラーへ含めない。
+
+SR-74（監視資源の寿命）: openごとに監視threadを増やさず、同じSDK接続で1本を共有する。受信容量・行数・共通I/O期限・idle寿命を固定し、切替・終了時に旧監視のcloseと停止を確認する。監視を更新しても古いleaseの時計を再起算しない。
+
+SR-66〜71は[承認期限・UTC時計の検証記録](NATIVE-IDENTITY-WINDOW-20260910.md)へ保存した。最終Python116件・全体511件・package 549 files／61 schemasがpass。時計の2件の不整合を修正し、診断変更なしのHTTP相互運用を10回連続で確認した。CLI／session接続、実transport世代と実機受入は残る。
+
+SR-70（異なるruntimeのUTC時計）: HTTP相互運用で観測時刻がNodeの要求より3ms古く、先行のsession検査も不定に拒否された。導入済みPython 3.12.14のget_clock_infoはGetSystemTimeAsFileTime・resolution=0.015625を返した。native protocolへWindowsの精密UTC APIを導入し、FILETIMEとISO時刻は整数でミリ秒へ変換する。API不能を粗い時計の値で埋めない。[Pythonの変更記録](https://docs.python.org/3.13/library/time.html#time.time)と[Windows API](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getsystemtimepreciseasfiletime)も確認した。
+
+SR-71（返却時刻の1ms差）: 精密時計の導入後、SDK返却のcheckedAtがNodeの受信時計より1ms先である例を診断した。Nodeは2ms以下の差に限り既存予算の中で一度待ち、同じ厳格な時刻検査を行う。未来を許容する比較へ変えず、観測や操作をretryしない。診断用のメモリ上のmodule変更を除いた最終buildで10回連続の相互運用を確認した。
+
+SR-68（独自bridgeの応答）: HTTP clientの64 KiB制限だけでは、wrapperへ渡した別bridgeの過大応答が通ることを先行試験で確認した。共通receipt verifierにも容量検査を置き、ordinal・window・resultの照合をwrapperからも呼ぶ。通信開始後に応答を検証できなければactionAttemptedをunknownとし、検証済みreceiptがある場合だけその値を保持する。
+
+SR-69（容量拒否のHTTP試験）: Windowsで過大な本文を送信しながらserverが読取前に閉じると、試験側にWinError 10053が出た。容量超過caseはContent-Length=65537のheaderだけを送り、本文を待たず413を返すことを検証する方式へ変更した。容量上限やserverの動作を緩めず、失敗ログを保持する。
+
+SR-66（承認期限と観測期限）: 観測leaseが有効でもoperator承認が先に失効する場合がある。native-action v2へ検証済みtarget文書のdigestと承認期間を伝え、lease初回で固定し、SDK直前と返却後にwall clockと固定した単調時計期限を検査する。これはbridge単体の署名検証ではなく追加制約であり、Nodeの署名済みwrapperと組み合わせる。CLI／保存証跡の未接続拒否は解除しない。
+
+SR-67（経過時間の再起算）: acquisition受領後にelapsedMsから起点を逆算すると、awaitの間に経過した時間を失う可能性がある。wrapperは観測取得を呼ぶ直前から起点を保持し、openも含む保守的な経過時間を操作ごとに再検査する。呼出し元の入力は最初のawait前にsnapshotへ固定する。
+
+SR-62〜65は[native操作のローカル検証](NATIVE-IDENTITY-ACTIONS-20260910.md)へ記録した。Python101件・全体497件、最後の小修正後の関連9件・型・Lint、package 544 files／60 schemasがpass。最終buildで人工SDKへの操作・復旧をHTTP経由で確認し、29 digestを照合した。operator承認期限の継続適用、実transport世代、CLI／session証跡と実機受入は未完了である。
+
+SR-65（複製できない入力の例外）: facadeのstructuredCloneは関数等を含む入力で例外本文に入力内容を含め得る。失敗を固定のaction-request-invalidへ変換し、HTTP前に拒否する。全体497件の後にこの小さい修正と1試験を追加し、関連9件・型・Lint・pack・最終buildでのHTTP相互運用を再検証した。497件をこの最終修正後の全体結果とは記載しない。
+
+SR-64（要求snapshotと未対応の接続世代）: Node facadeの遅延import中に呼出し元が要求を変更すると、当初と異なる連番を送信していた。最初のawaitより前にsnapshotを取り、HTTP中の変更も含めて照合条件を固定する。接続確認はSDK object／selector・現在選択device・Poco参照の変化を扱うが、同じobject／selectorのままSDK内部で再接続したことを識別する接続世代の取得は未実装であり、real受入の必須残作業とする。
+
+SR-62（SDKの実際の操作先）: 観測providerは明示deviceを使うが、既存execute／recoverのAirtest APIは共有の現在deviceへ委譲する。新native-actionでは現在選択deviceを確認し、tap／backを観測したdeviceのmethodへ直接送る。Pocoはdevice・ADB・agentの対応も検査する。candidate再観測後とSDK呼出し直前の検査を省略しない。
+
+SR-63（復旧・重複と実行の不確実性）: executeだけを検査するとrecover経由の戻る操作が残る。両方を同じlease／連番・排他制御へ通し、要求をSDK呼出し前に消費する。SDK呼出し後の検査失敗を操作0と表示せず、actionAttemptedを保持する。通信timeoutやSDK内部の失敗が物理操作の取消しを示すとは扱わない。
+
+SR-58〜61の最終結果は[native target v2のローカル検証](NATIVE-IDENTITY-TARGET-20260910.md)へ記録した。関連26件・全体489件、package 539 files／59 schemasがpass。既定readerの追加前に失敗する試験と、変更後の拒否を保存し、最終source／schema／testと検証logの14 digestを照合した。実行制御・保存証跡・実機受入は未完了である。
+
+SR-61（既存readerへの流入）: 共通loaderへv2を追加すると、CLIを停止していてもHATE／report／acceptanceの既存readerが観測証跡なしのv2を受理できる。これらの経路はまだ新identityの保存証跡を照合しないため、共通loaderの既定ではv2を拒否する。nativeIdentityPolicy=validate-onlyを明示した文書検証だけを受理し、CLIはその検証後も接続前に停止する。最初の488件・packの成功を保存証跡経路の完成とは扱わず、この指摘の反映後に再検証する。
+
+SR-58（署名対象の完全性）: 新native policyのprovider・端末・必須field・期限・build mappingを文書へ埋め込み、文書外の未署名pathへ依存しない。v2は承認期間とkeyId等のmetadataも署名対象へ含め、digestと署名bytesだけを除外する。既存v1の署名形式は変更しない。重複keyIdは一意なtrust anchorを選べないため拒否する。
+
+SR-59（複数providerのmapping）: 1件のmappingに複数providerの許可だけを足すと、別providerを許可しても対応するbuildの解釈がない。providerごとに1件のmappingを埋め込み、許可providerと完全に一対一で対応させる。mappingのplatform／appId／digest／承認revisionへの到達と全体256 KiB上限を検査する。必須観測の緩和をpolicyで許さない。
+
+SR-60（段階導入時の実行境界）: v2を共通loaderで受理しただけでは旧CLIの宣言値照合で実行が始まるおそれがある。署名済みpolicyと観測の照合器を追加する間はCLI preflightでv2を接続前に拒否し、操作直前の有効性確認と保存証跡まで接続してから解除する。文書の検証成功と実行許可を区別する。
+
+SR-58〜60の実装試験では、実Ed25519のfixture署名を使って3 platformの文書を読み、署名済みpolicyと人工観測を照合した。初回／resumeの試験はbridge接続関数の呼出し0を確認し、実操作成功とは扱わない。遅延import先のassertion関数には明示したmodule型が必要であり、TS2776／TS2775を修正した。試験の空fixture引数によるLint 2件も修正した。v2容量はraw bytesと構造化文書の双方で照合するが、共通loaderのfile読取・JSON parseより前のmemory上限を保証するものではない。
+
+SR-55〜57の結果は[HTTP受渡しのローカル検証](NATIVE-IDENTITY-EXCHANGE-20260910.md)へ記録した。Python83件・TypeScript側476件、package 535 files／58 schemasがpass。HTTP容量検査の失敗と修正も保存し、最終runtime・testと記録の24 digestを照合した。署名済みtargetと実行制御・保存証跡への接続、実機受入は未完了である。
+
+SR-55（接続と一回用session）: endpoint digestだけではSDK再接続を区別できないため、server発行のconnectionIdをdevice／runtime／ADB object／selectorへ束縛する。30秒・未消費32件を上限とし、provider呼出し前にlock内でsessionを消費する。別challenge・期限・接続差・provider失敗でも再使用しない。capability読取中の接続切替も、その直後にmarkerを再検査してprovider呼出し前に拒否する。既存capabilityは宣言値として保持し、観測recordと区別する。
+
+SR-56（HTTPと受信量）: Hostと実listenerのport／base pathからbridge digestを計算し、open要求と照合する。Node clientはredirectを追わず、JSON／UTF-8、4 KiB／16 KiBをstream読取中に検査し、open／observeの15秒予算を共通化する。HTTP試験で4 KiB検査がJSON parse後になっていたことを検出し、body読取前へ移した。試験用ヘッダーの型不整合1件も修正した。未知provider field、SDK例外本文、raw serialをobservationへ転記しない。
+
+SR-57（通信と承認の境界）: 実Python handler、Android provider、build済みNode client、既存の観測照合器を人工SDK応答で接続し、1 provider call・5 queryで一致を確認した。比較条件はfixtureの既知値であり、operatorの実署名を検証した証跡ではない。署名済みtarget v2、初回action／resume／再接続時の実行制御と証跡の保存・読取は残っている。通信が成功しただけでその受入を完了扱いにしない。
+
+SR-52／53と配布検査の結果は[Android providerのローカル検証](NATIVE-ANDROID-PROVIDER-20260910.md)へ記録した。Python63件（追加15件）、TypeScript側468件、package 530 files／57 schemasがpass。新helperは実際に配布されていたが既存の必須file検査に未登録だったため、package contentsとisolated installの両方へ確認を追加し、Lintとpackを再検証した。全体check時のruntime・testはその後変更していない。実機・公開endpoint・署名済み実行経路・Windows／iOS providerは未完了である。
+
+SR-52（Androidの取得元と問い合わせ範囲）: operatorのapp IDを結果へ転記せず、固定Airtest 1.3.5の接続済みADBでpackage出力のheaderとversionCodeを読む。別sectionのversionCode、複数header、重複version、別appを観測成功にしない。問い合わせ対象は検証済みASCII package名だけで、操作commandや任意shell文字列を受け取らない。installed appの確認をforeground windowの証明とは扱わない。SDKの各呼出しへ共通予算の残時間を渡し、取得後も期限を確認する。SDK内部bufferの上限や実機timeoutの保証は、このfixture検証だけでは主張しない。
+
+SR-53（rawログと接続切替）: Airtest 1.3.5のADB実装はcommandに含むserialをDEBUGへ出力し、例外にもcommandと出力を含め得る。観測threadの当該loggerだけを抑制してfinallyで戻し、SDK例外本文を公開しない。端末property／buildの再取得とSDK object・selectorの再確認に加え、BridgeState自身のdevice／runtimeが取得中に差し替わる場合も拒否する。実SDKのcmd実装と偽Popenを使う5 queryのprobeでは、端末接続・process起動0でdigestとログ抑制を確認した。Windows／iOS providerと公開・実行経路は別の残作業とする。
+
+SR-49〜51の結果は[観測契約・照合器のローカル検証](NATIVE-IDENTITY-CONTRACT-20260910.md)へ記録した。最終全体468件（native 12件を含む）、package 529 files／57 schemasがpass。最初の全体checkで制御文字の正規表現にLintエラー2件があり、既存の文字コード判定と同じ方式へ修正した。失敗logも保持する。実provider・実行経路への接続・実機受入は未完了であり、Task 68の完了を示さない。
+
+SR-49（実機identityの宣言と観測）: 現行bridgeのapp revision／端末digestはCLI引数由来であり、その一致だけでは独立した実観測にならない。新しいobservationでは4項目をstatus・source・valueへ分け、宣言を別objectに保存する。app ID・build・device digestがobservedでなければ新照合を通さず、platformと取得元の組合せ、許可providerのname／version、実観測buildに対応するmapping digestを照合する。構造照合だけでproviderが実際にOSを読んだと保証しない。既存v1の読取を維持し、新しいtarget manifest v2と実providerの接続はTask 68で継続する。
+
+SR-50（観測の鮮度と再接続）: bridge endpointのdigestだけでは再接続を区別できないため、接続IDと要求ごとのchallengeも照合する。wall clockの前後関係に加え、単調時計の経過時間を設定maxAgeと観測期限の両方へ制限する。1000／60000／300000 msと期限境界、時計後退を確認する。elapsedの小数はperformance.nowの契約として許容する。返す記録は入力から独立した値とdigestに限定し、承認や操作許可を生成しない。
+
+SR-51（契約の境界と相互運用）: mappingの重複build、512件を超える入力、64 KiBを超える入力を拒否し、別app・provider・platformのmappingを使わない。device digestはcanonical JSONを固定文字列から独立計算したgolden値と照合する。appIdはbasename／app IDとしてdrive付きpathも拒否する。初期の契約試験は通過したが型検査でreadonly配列の絞込みと判別unionのfixtureに不整合があり、型を保った記述へ修正した。
+
+SR-47／48と先行の停止制御の実結果は[原本の非公開保全・停止制御](ATTESTATION-ORIGINALS-20260910.md)へ記録した。関連56件、全体456件、package 521 files／55 schemasがpass。21件のdigestを保存し、IO-01全体・別volumeの成功・実機と固定SHA受入は未完了としている。
+
+SR-47（コピー後の原本保全）: 最終statが返った後の更新は再照合を増やすだけでは削除前に捕捉できない。元fileのunlinkをprivate `originals/<requestId>/<sourcePath>`への移管へ置き換え、検査入力用コピーと元のfile identityを両方残す。実statの結果取得直後にin-place更新またはpath差替えを行う同期fixtureで、旧処理は成功を返して更新後bytesを失い、新処理は移管後の照合を拒否しながら更新後bytesを保持することを確認する。新規request directory以外は移管先に使わず、移管失敗・停止・期限切れで原本を削除しない。別volumeの成功経路、移管後の並行writerへの排他、一般snapshot readerの不変性は未完了であり、IO-01全体を閉じない。
+
+SR-48（既存回帰の期待値）: 最終digest後の更新は、metadataの変化を観測できればrun内で拒否し、観測できなくても移管後のdigest照合で拒否する。既存testは更新後bytesがrun内またはprivate原本に残ることを確認する。更新時刻が変わった場合にだけ合格する試験へ狭めず、元bytes喪失・公開成功・既存コピーの上書きを許容しない。
+
+SR-43（全媒体I/Oへの停止伝播）: コピー本体だけが停止checkを持ち、inventoryのhash計算、コピー後の検証、隔離前の元file確認、採用前のprivate source確認ではファイル全体を読み終えるまで停止を検知できなかった。共通readerへ任意checkを追加し、64 KiB単位のread／write前後へ伝える。元fileを消す前のidentity再照合は維持する。従来のテストがcheck回数に依存していた箇所は、元fileの検証完了を明示的な同期点にして、同じ更新場面を確認する。
+
+SR-44（受渡しと診断の期限）: inventory後に期限を作ると準備時間が予算外になり、exchange作成時の単調時計期限を取り直すとwall clock後退で延長し得る。inventory前に開始時刻と期限を固定してexchangeへ引き継ぐ。timeout／cancelledの診断を残すため、診断確定には別の有界予算を使い、媒体の採用期限は延長しない。直接exportRetainedを呼ぶ経路にも同じ既定制御を置き、任意callbackを指定しないだけで停止・期限が無効になる穴を閉じる。
+
+SR-45（最後の停止確認後の再照合）: 新設した非同期checkを最終identity照合後に呼ぶだけでは、そのcheck中のfile更新を再確認していなかった。最後のcheck後にidentity・容量・更新時刻をもう一度照合し、その後は新たなcallbackを挟まず結果を返す。最終testでは各check位置でfileへ追記し、容量が変わる更新を拒否することを確認する。開いたfileへのrenameはこのWindows環境でEPERMとなり、差替え検出の合格証跡には使っていない。この補強が、次の同一情報でのin-place上書きまで防ぐとは主張しない。
+
+SR-46／未解決IO-01（更新時刻が変わらない上書き）: in-place上書きを全check位置へ入れた先行試験は、再照合を追加しても未検知になる場合があった。独立probeの60回中17回で、128 KiBのbytesが変わってもinode・容量・mtimeNs・ctimeNsが同じだった。capture停止とoperatorのatomic出力確定が前提であり、metadata再照合は排他lockの証明ではない。このin-placeケースを修正済みとせず、元fileを除去する経路を含めた媒体不変性の残課題としてTask 67とchecklistへ保持する。最後のcallback後の差替え検出と、同一情報のままの上書き検出を別々に扱う。
+
+SR-41／42のlocal実結果と16件のsource／log digestは[検査済み画像の項目別対応](ATTESTATION-MEDIA-LINKS-20260910.md)へ記録した。関連30件、全体439件、配布物521 files／55 schemasを確認した。固定SHAと実機受入は未完了である。
+
+SR-41（元媒体と検査済み出力の対応）: 履歴が元画像を参照している場合、署名検証済みの出力があっても従来の参照索引では項目に関連付かなかった。署名・出力bytes・適用target条件を先に検証し、同じsource内のsourcePath／size／digestが完全一致する出力だけへ解決する。曖昧な対応は未解決のまま保持し、参照元の機密区分を一致候補すべてへ伝える。IDだけの記録は、検証済み完全参照から作った対応以外で補完しない。v1をv2証明へ昇格せず、v2のrequest／receipt／run／session／policy bindingを維持する。
+
+SR-42（対応付けの互換と統合検証）: 新しいoutput照合でHATEが許容するdigestのprefix・大文字表記を誤って拒否することを先行testで確認し、HATE境界の表記を正規化した。子runの人工fixtureではrun登録eventが足りずsession bindingで拒否されたため、既存契約どおりeventとmanifest参照を揃えた。検証規則は緩めていない。保存済みv1／v2のfinding・event、v2の子run履歴・bookmark、HTMLの画像decodeと外部通信0件を確認した。誤った参照、未信頼・不正署名・key拒否、restricted／confidential、text-onlyを関連30件で検証した。
+
+SR-39／40のlocal実結果は[未採用理由・診断HATE・HTML表示](ATTESTATION-RESULT-20260910.md)へ記録した。関連46件、全体430件、配布物518 files／55 schemas、表示サンプルを確認した。source／log／出力の30 digestを記録し、固定SHAと実機受入は別の未完了工程として保持する。
+
+SR-39（媒体の欠落理由と失敗の確定）: timeout等で隔離した媒体を単なるprofile欠落として扱うと、失敗の根拠まで未確定になる。要求・受領digest・採用状態をversioned resultへ結び付け、実際の欠落と、説明できる欠落を別欄に保持する。outcome=errorと全欠落の説明を条件にHATEを確定し、HAR／DOM等の未記録欠落を免除しない。reportは同じsnapshotから理由を表示する。隔離後の書換えと元bytesの別名残存は、公開前と保存済みresultの検証で拒否する。初回の接続試験では内部digestとHATE形式のprefix差を検出し、境界で明示変換して再確認した。
+
+SR-40（採用記録の一部削除）: result fileが存在する範囲だけを検証すると、正常採用した媒体のresultを削除しても再exportが成功した。新runのmetadataにある要求・採用一覧と全result／receiptを照合し、件数・ID・状態・理由・採用先の差を拒否する。旧v2の読取互換は維持し、新runの結果を旧形式へ格下げして受理しない。人工runの先行失敗から再export拒否と元manifest不変を確認した。
+
+SR-37／38のlocal実結果とsource／logの16 digestは[通常runの受渡し検証](ATTESTATION-RUN-20260910.md)へ記録した。接続9件、全体417件、配布物508 files／54 schemasがpass。失敗時のHATE確定、大型媒体I/O中の停止上限、実機受入は引き続き未完了である。
+
+SR-37（通常runの終了と停止）: captureのclose失敗を見落とすと、まだ確定を確認できない媒体へretention・隔離・公開を適用し得る。collectorへcapture状態を持ち、停止を確認した場合だけ新handoffへ進める。探索loopで既に消費したpause／killもmetadataへ引き継ぐ。複数媒体の受領は共通期限で全件を待ち、応答のない先頭要求による後続の期限切れを防ぐ。実browserと人工attestorによる正常HATE、timeout、一秒以内のkill反映、既消費pause、trust差替え、close未確認をtestにした。timeout等の必須媒体欠落を含むHATE確定と、大型媒体I/O中の停止上限は引き続き検証・実装対象である。
+
+SR-38（private保存先と過去のrun）: 現在のrunだけを範囲検査しても、設定されたprivate rootが別の公開runや過去HATE内にある場合を防げない。通常runのpublic保存rootと、探索sessionのpublic保存rootを接続前に除外し、ancestorのHATE／run-start recordも検査する。先行testでは不正な設定でtargetへのrequestが1件発生したが、修正後は接続0件・private directory作成0件で拒否する。過去のmanifest内容やbytesは変更しない。
+
+SR-35／36のlocal実結果とsource／log digestは[保存済みv2検証記録](ATTESTATION-EVIDENCE-REPORT-20260910.md)に記録した。通常runの受渡しと実機受入は継続工程である。
+
+SR-36（v2接続時の旧媒体拒否順序）: target許可を先に確認する変更で、許可が不一致の場合に、正しい旧署名が示すraw sourceの別名残存検査を飛ばしていた。追加した人工snapshotのtestで、従来の`retained-raw-media`拒否が返らない回帰を確認した。v1は署名・bytesとraw残存を先に検査し、その後にtarget許可とv2必須条件を適用する順序へ戻した。v2の必要bindingを任意にする修正は行わず、関連21件の最終testで確認した。
+
+SR-35（保存済みv2と旧署名への後退）: 現在時刻で期限を判定すると過去の正常受領まで無効になり、反対にbindingを任意扱いすると新しい受渡しへ有効な旧署名を流用できる。v2では保存した受領時刻、要求・応答file digest、実run／session／target／policy、明示許可keyを揃える。bindingを指定した検証にv1を渡す先行testの失敗を修正した。採用済み記録は媒体を再照合して公開し、timeout等の受領記録も保存する。reportは署名済みCharterのpolicyと実際の参照元からbindingを組み立て、同じHATE内の受領snapshotを読む。schemaとHTMLに要求・受領recordのdigestを保持し、受領時刻をattestor署名済みと表示しない。
+
+SR-32（媒体受渡しの境界）: run内へprivate requestやraw quarantineを置くと既存HATE列挙の対象に入り、媒体ごとに30秒待つとsampled framesで待機時間が増大する。private stagingを公開runの外へ置き、run内要求に共通deadlineを使う。要求全体・source・予定output・policyをresponse署名へ結び付け、rejected／scan failを成功媒体と分離する。Charterの新設定は既存target manifestのcharterDigestへ束縛する。Task 67でschema／署名契約から先行検証し、filesystem・run finalization・report接続を別の必須工程として残す。
+
+SR-33（受領中の停止と結果の意味）: 応答の読取前後だけで停止を確認すると、要求の再照合・署名検証中の停止を見落として`response-verified`を返すことを追加testで確認した。署名検証後にも停止・単調時計の共通期限を確認する。受領recordはschemaを設け、応答の検証状態と媒体採用を区別し、理由・応答file digest・時刻のnull条件を固定する。private fileのcanonical bytes、単一claim、finalized run拒否も仕様へ記載する。媒体bytesの隔離・採用とcoordinator／reportへの接続は、この修正の完了範囲に含めない。
+
+SR-34（隔離コピーと元fileの更新）: private copyと元fileのdigestを確認した後でも、最後の停止確認の間に元fileが更新される場合がある。先行testでは更新後の元fileまで削除していた。削除直前にfile identity／size／更新時刻を再照合し、同じsizeの更新でも削除を拒否する。採用先の上書き、junctionへの置換、署名後の同size媒体変更も拒否する。採用コピーの最後に停止・期限が来た場合は新規採用先だけを取り除き、private sourceを保持する。exchangeのstage／retainへ接続したfixtureを追加し、response検証と媒体採用の成否を別々に確認した。通常run／HATE／report v2への接続は引き続き別工程として残る。
+
+SR-30／31の実装後確認: [Python検証記録](PYTHON-VALIDATION-20260910.md)。結果記録の先行失敗を修正し、最終Python48件を確認した。実環境の43 packageのlock一致・7 importsと、tgzから抽出したverifierの実行を記録した。固定SHA・remote CI・実機受入は継続対象である。
+
+SR-30（Python結果記録の設計）: test開始後の単一recordだけを更新する方式では、module／classの初期化・後始末に属するerrorを表現できず、直前caseを書き換える可能性がある。active caseとfixture recordを分離し、実行開始case数とJUnitに出力するrecord数を別に記録する。expected failureとunexpected successも通常成功から分離し、0件・全skip・全expected failureは全体不合格とする。subtestの後続skipで既存の失敗を取り消さない。要件案0.1.4とSPEC-02へ反映済み。実装の確認はTask 62の先行テストで行う。
+
+SR-31（依存lock照合の設計）: lock digestとimport成功だけでは、導入済みversionがlockどおりであることを証明できない。lockの必要packageと環境のdistributionを照合し、欠落・不一致・曖昧な重複を不合格とする。import時に検索対象へ加わるvendored distributionは環境へinstallしたpackageと区別する。配布物hash検査・導入version・importの証跡を分け、既存import-only記録はそのscopeの履歴として保持する。要件案0.1.4とSPEC-02へ反映済み。Task 62で人工環境と既存clean venvを検証する。
+
+SR-22（raw媒体の別名保持）: sourcePathの完全一致だけでは、同じraw bytesが別名でHATEへ残った場合を見逃す。署名されたsourceのsize／SHA-256でも照合し、検証済みoutput自身を除く一致媒体を拒否する。保持digestを索引化し、媒体数とartifact数の積に比例する探索を避ける。別名での保持を人工bytesで再現するテストは修正前に失敗した。
+
+SR-19（receiptの公開）: 最終file名へ直接書くと、途中のwrite失敗・abortで壊れたJSONが残る。専用stageで書込みを完了し、上書きなしのatomic file公開と所有物だけの後処理へ変更した。途中書込みを実際に発生させるfixtureで、最終名・stage・予約の残留がないことを確認した。standaloneもreceipt保存まで共通deadlineを渡す。
+
+SR-20（共有媒体の検証入口）: HATEのscan flagだけでは署名者の許可を証明できず、保存済みmetadataが指定するtrust pathもoperator設定として扱えない。有界なoperator鍵一覧とHATE snapshotだけからv1署名を検証し、採用した媒体にdigestの記録を付ける。鍵一覧の途中更新、署名不一致、重複、raw source残存をfixtureで検証した。v1をM2のrequest bindingへ昇格しない。
+
+SR-21（複数sessionの対象制約）: 表示用summaryだけで参照を列挙すると、restricted sessionの参照が消え、別sessionの許可だけで媒体を採用できる。検証済みrun参照のID／attempt／manifest digestから全対象を照合するよう修正した。未参照、許可鍵なし、capability／bridge不一致、target digest不一致、restricted参照併存を確認する。これらは人工署名・人工archiveによる検証であり、実機受入の証拠ではない。
+
+SR-18（旧P6の廃止と履歴の保持）: `Legacy`というnameだけでは手動dispatchが残り、現行checkoutを旧versionとして検査できる。元bytesを照合して非実行の`.txt`へ退避し、元revision・blob・digestを記録する。checkoutごとの改行変換を避け、文書checkerで再導入・旧納品契約の混入・履歴変更を検出する。履歴化だけで現在のreleaseやM1全体の受入を完了にしない。
+
+SR-17（開始記録と既存入力の互換性）: 最小診断の入口で`exports`のlinkを一律拒否すると、従来readerが検証できるrun内junctionまで拒否する。manifestが存在する場合は従来のstrict readerへ渡し、不存在の場合だけ親directoryを検査する。壊れた親linkを不存在として受理しない規則をbatchにも共用した。開始記録を持たない旧完成runの受理、既存不正manifestの拒否、生成中の更新拒否を維持し、関連testで確認した。画面も確定結果と結果未確定runを別表示にする。
+
+SR-16（未確定runの意味）: manifestがないことだけでは異常終了やerror outcomeを証明できない。操作前の最小開始記録を追加し、未確定の結果・件数を補わず、localの診断とshareの拒否を明確化した。既存不正manifestの救済を禁止し、生成直前にも開始記録・directory・manifest不在を照合する。従来の完成runと新規開始記録が両方ある場合はID／attempt／seed／日時／producerの対応を検証する。
+
+SR-14（batch契約の具体化）: 成立したrunだけを列挙すると、directory作成前に失敗したworkerが消える。private batch indexへ全workerの元結果を保存し、index自体のdigestをHATE manifest digestとは分ける。worker index・件数・seed・batch outcome・各runの実manifest bindingを検証し、件数の二重加算と不正manifestから最小診断への格下げを拒否する。restrictedとshareの不足診断境界もSPEC-01へ固定した。
+
+SR-15（batch生成・表示の統合検証）: 全workerがrun保存先のfile衝突で開始できない場合も、保存rootを新規作成せず元worker結果から診断を生成する。worker行のsourceと子run履歴のsourceが異なる点を考慮し、run keyに束縛された履歴へ表示を接続した。private indexのdigestを独立表示し、既存不正manifestの拒否と出力直前の再照合を維持する。batch 6件、runtime 5件、既存viewer 2件の関連検証と型・ESLintがpassした。単一runの最小開始記録と媒体proof接続は別の未完了項目として残る。
+
+SR-12／13の修正後、report自動生成・Playwright adapter・coordinatorの関連26件、型、ESLintがpassした。実browserによる0／1 action後のpause→resume完了と、旧HTML snapshotの不変性を確認済み。実target／実機の受入を意味しない。
+
+SR-13（統合検証で追記）: 1 action後のresumeでcheckpoint-fingerprint-mismatchを確認し、Playwright execute後のobserveだけpersonaRefを渡していないことを特定した。操作後とtarget close後の戻り先に同じpersonaRefを渡し、hash算法と厳格な比較を維持する。既存artifactの書換えは行わず、旧データのpersona欠落に由来する不一致も成功へ昇格しない。
+
+対象: [仕様索引](README.md)、[57要件](../../proposals/20260910-detailed-requirements.md)、[report詳細](../../proposals/20260910-report-detail.md)。基準sourceはb027b6b＋本タスクの文書差分。
+
+| ID | 指摘 | 反映・判定 |
+|---|---|---|
+| SR-01 | report設定の保存場所・path基準が未決 | SPEC-01でlakda.report.json、report-config、CLI優先順位と署名対象外を固定 |
+| SR-02 | タイムアウト後にPromise処理が継続し部分書込が残り得る | 共通deadline／AbortSignal、I/O終了待ち、atomic publishを必須化 |
+| SR-03 | sourceを検証後にコピーすると差替えを見逃し得る | copy時digest、source snapshot再確認、範囲検証を固定 |
+| SR-04 | catalogは全artifact bytesを保持しreport容量上限と矛盾 | streaming共通readerとtextだけの有界保持へ分割。既存catalog上限は暗黙変更しない |
+| SR-05 | shareを公開許可と誤解する余地 | 区分継承、未検査媒体除外、localの明示、真正性の限界を保持 |
+| SR-06 | Python source文字列検査では途中capture失敗を証明できない | 実Python、途中失敗、stop失敗、counter、HTTP handler testを必須化 |
+| SR-07 | legacy attestationにrun bindingを追加すると旧署名を破壊 | v2応答＋versioned request、v1読取互換、新realへの暗黙昇格禁止 |
+| SR-08 | 実機API／依存解決未検証なのに実装完了扱いになる懸念 | provider／matrixごとの実結果、fixtureとreal分離、pending_externalを固定 |
+| SR-09 | 現行catalogはpending媒体を拒否し、local reportの表示条件と異なる | schema／path／hashの共通検証と、利用目的別media policyを分離する。catalog既定の厳格な拒否を維持し、localの例外をcatalogへ持ち込まない |
+| SR-10 | 通常modeのaction-sequenceは計画全体を保持し、途中停止時の未実行actionを含む | SPEC-01に計画／実行件数の区別、旧runのdegraded、新規runの最小実行記録を追加。Task 65でproducer記録だけ補い、操作・stdout／exitは変更しない |
+| SR-11 | 保存済みsessionは参照run manifest copyと相対directoryを持つが、移動後のrun保存rootを自動決定できない | 明示source内のID／attempt／digest解決を優先し、なければCharter既定の保存先だけを使う。移動済みrunは明示入力とし、周辺走査やbasenameによる推測を禁止。session状態・technical outcome・受入状態も別fieldへ保持 |
+
+設計上のblocking指摘は上記仕様へ反映した。実装testで新しい不整合が判明した場合は仕様とchecklistを更新する。Python／browser／package／realのruntime検証が完了したという判定ではない。
+
+結論: ユーザーの指示に基づき、Task 61〜69の順序で実装へ進む。実機やscanner等の外部入力が必要な受入は未実施として維持する。
+
+SR-24（媒体選択の実装検証）: 媒体一覧を再描画するたびにvideoを作り直すと、履歴選択で再生位置が0へ戻ることを実再生可能な人工WebMのテストで確認した。同じ詳細内ではvideo cardを再利用し、表示切替・page移動・詳細closeで一時停止する。0.2秒への手動seek後の位置保持、自動再生なし、close後の停止を確認した。項目対応済み画像がrun一覧から消える旧filterも、所属run全体と選択したrecordの切替へ置き換えた。
+
+SR-25（参照の整合と機密区分）: HATEのbytes整合だけでは、traceの完全参照が同じ媒体を指すことを証明できない。完全参照のdigest／size／portable path、期待するexecution／oracle契約種別、同一sourceのID対応を検証する。存在しない参照先でもdigest書式不正は拒否する。参照側が高い機密区分を持つ場合は媒体policyへ伝え、restrictedの関連を公開しない。findingはsessionのrun bindingとoracle参照を通し、別runの同一ID／bytesから対応を推定しない。bundle側は双方向参照とsource／run所属を再照合する。
+
+SR-26（所属の最終確認）: 項目への関連がない媒体では、`runKey`をnullへ変更しても旧view検証が受理し、runの媒体一覧から消えることを追加テストで確認した。媒体は検証済みrunのsource／key、または検証済みsessionのsource／nullへ必ず対応させ、所属を失った媒体を拒否する。関連がないことと所属がないことを区別する。
+
+SR-27（拡大表示の実測）: 最大件数の初回測定では、Chrome／Edgeの双方で390px・browser zoom 200%時に詳細の横overflowが発生した。195 CSS pxの回帰testで再現し、長いIDの折返し、pagerの折返し、狭幅時の入力最小幅と集計card列を修正した。性能結果の遅いsampleを除く方法は採用せず、修正前の失敗を固有directoryに保持して修正後を別実行で測定する。browser page zoomは[Chromiumの保存設定処理](https://chromium.googlesource.com/chromium/src/+/lkgr/chrome/browser/ui/zoom/chrome_zoom_level_prefs.cc)を参照し、隔離profileだけへ適用する。描画側の実測倍率とlayout幅が一致しない場合は未確認として失敗させる。
+
+SR-28（画像拡大の実表示）: classとaria-expandedだけの検査では、195 CSS px時に拡大前後とも画像幅55pxのままである不具合を見逃していた。原寸320px以上へ広げて画像枠内でスクロールする方式にし、画像枠のfocus・矢印キーによる横／縦移動・縮小時のfit／scroll先頭／button focus復帰を回帰testで確認した。bodyとdialogの横overflowは増やさない。指定browser受入にも実寸と移動の確認を追加した。
+
+SR-29（媒体受入の判定）: 未対応理由は履歴と媒体欄の双方に表示されるため、媒体欄を特定して検査する。Escape直後はnative dialogのclose eventが未処理の瞬間があるため、非表示完了後に停止を確認する。500ms以内のpausedとended=falseを同時に検査し、人工動画が自然に終わっただけで停止テストをpassにしない。元実装のpause条件は変更していない。
+
+SR-23（項目と媒体の対応要件）: traceのadapter証跡IDとHATE exporterのartifact IDが一致するとは限らず、IDの見た目から結び付けると誤った関連を生成し得る。保存済み完全参照のpath／size／SHA-256照合、同じsource内の一意なID対応、findingのoracle参照とsession→run bindingを採用条件にした。IDだけで対応表がない旧bookmark、曖昧な候補、未保持媒体は対応未確認とし、run単位の媒体表示を維持する。restrictedと署名proofの境界、viewの双方向参照検証、run一覧で関連付け済み媒体が消えない規則もSPEC-01へ追記した。MEDIA-01〜06は設計上の受入例であり、実装test合格を意味しない。
+
+SR-12（統合検証で追記）: pauseのoperator記録が再生用traceへ混ざり、resume時に拒否される不整合を確認した。Task 65の前提修正として新規replay projectionから4種のoperator記録だけを除外し、観測trace、HATE保持、厳格なreplay validatorを維持する。0 actionの再開も空replayを使わず既存binding検査を通す。pause前後のレポート不変性とresume成功を実browserで検証して判断する。

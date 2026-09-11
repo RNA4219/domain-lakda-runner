@@ -20,6 +20,8 @@ Commands:
   lakda combo verify --factor-model <path> --suite <suite.json> --out <coverage.json>
   lakda scout --config <path> --suite <trace-or-suite.json> [--scout-mode rule-only|llm] [--out <leads.json>]
   lakda report leads --run-dir <run-dir> --format json|html
+  lakda report generate (--run-dir <run-dir>|--session <session-dir>|--sources <sources.json>) --out <new-report-dir> [--profile local|share] [--text-only] [--report-config <file>]
+  lakda report verify --report-dir <report-dir>
   lakda investigate --lead <lead.json> --trace <adaptive-trace.json> --config <lakda.config.json> --reviewer <ref> --out <investigation.json>
   lakda promote --investigation <investigation.json> --kind trace|suite --out <promotion.json>
   lakda explore run --charter <charter.json>
@@ -33,6 +35,10 @@ Commands:
   lakda runs list --output-dir <runs-dir>
   lakda runs show --run-dir <run-dir>
   lakda runs compare --base-run-dir <run-dir> --head-run-dir <run-dir> [--out <comparison.json>]
+
+Report options for run / replay / explore run / explore resume:
+  [--report html|off] [--report-dir <output-root>] [--report-profile local|share] [--report-config <file>]
+  [--report-language ja|en] (default: ja; also available for report generate)
 `);
   const output: unknown[][] = [];
   const original = console.log;

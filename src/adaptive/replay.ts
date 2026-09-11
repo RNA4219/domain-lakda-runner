@@ -123,14 +123,19 @@ function validateEntry(value: unknown, index: number): asserts value is Adaptive
 
 export type ReplayValidationOptions = { requireReplayable?: boolean }
 
-export function validateAdaptiveReplayTrace(value: unknown, options: ReplayValidationOptions = {}): asserts value is AdaptiveReplayTrace {
+export function validateAdaptiveEvidenceTrace(value: unknown): asserts value is AdaptiveReplayTrace {
   const current = object(value, "adaptive replay trace");
   keys(current, topKeys, "adaptive replay trace");
   if (current.schemaVersion !== "lakda/adaptive-trace/v1" && current.schemaVersion !== "lakda/adaptive-replay/v1") throw new Error("unknown adaptive replay schemaVersion");
   if (!Number.isInteger(current.seed)) throw new Error("adaptive replay seed must be an integer");
   const entries = array(current.trace, "adaptive replay trace.trace");
   entries.forEach(validateEntry);
-  const steps = buildReplaySteps(current as unknown as AdaptiveReplayTrace);
+}
+
+export function validateAdaptiveReplayTrace(value: unknown, options: ReplayValidationOptions = {}): asserts value is AdaptiveReplayTrace {
+  validateAdaptiveEvidenceTrace(value);
+  const entries = value.trace;
+  const steps = buildReplaySteps(value);
   const requireReplayable = options.requireReplayable !== false;
   if (steps.length === 0 && !entries.some(entry => (entry as Record<string, unknown>).type === "replay-divergence")) throw new Error("adaptive replay requires a candidate or replay divergence evidence");
   if (requireReplayable && steps.length === 0) throw new Error("adaptive replay requires a candidate");

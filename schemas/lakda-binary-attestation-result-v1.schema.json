@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/lakda/binary-attestation-result/v1",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "request", "requestSha256", "receiptSha256", "adoption", "reason", "artifact"],
+  "properties": {
+    "schemaVersion": { "const": "lakda/binary-attestation-result/v1" },
+    "request": { "$ref": "https://local.invalid/lakda/binary-attestation-request/v1" },
+    "requestSha256": { "$ref": "#/$defs/digest" },
+    "receiptSha256": { "$ref": "#/$defs/digest" },
+    "adoption": { "enum": ["adopted", "failed", "not-attempted"] },
+    "reason": { "anyOf": [{ "type": "null" }, { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-z][a-z0-9-]*$" }] },
+    "artifact": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/artifact" }] }
+  },
+  "allOf": [{
+    "if": { "properties": { "adoption": { "const": "adopted" } } },
+    "then": { "properties": { "reason": { "type": "null" }, "artifact": { "$ref": "#/$defs/artifact" } } },
+    "else": { "properties": { "reason": { "type": "string" }, "artifact": { "type": "null" } } }
+  }],
+  "$defs": {
+    "digest": { "$ref": "https://local.invalid/lakda/binary-attestation-request/v1#/$defs/digest" },
+    "artifact": {
+      "type": "object", "additionalProperties": false, "required": ["path", "size", "sha256"],
+      "properties": {
+        "path": { "$ref": "https://local.invalid/lakda/binary-attestation-request/v1#/$defs/path" },
+        "size": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "sha256": { "$ref": "#/$defs/digest" }
+      }
+    }
+  }
+}

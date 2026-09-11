@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lakda/native-capture-evidence/v1",
+  "title": "private撮影先を除いたnative撮影の要求・終了記録",
+  "oneOf": [{ "$ref": "#/$defs/requested" }, { "$ref": "#/$defs/finished" }],
+  "$defs": {
+    "time": { "type": "integer", "minimum": 0, "maximum": 8640000000000000 },
+    "payload": { "type": "object", "additionalProperties": false, "required": ["runId"],
+      "properties": { "runId": { "type": "string", "minLength": 1, "maxLength": 256 }, "mode": { "enum": ["video", "sampled-frames/v1"] },
+        "intervalMs": { "$ref": "../native-capture/v1#/$defs/positive" }, "maxFrames": { "$ref": "../native-capture/v1#/$defs/positive" },
+        "maxBytes": { "$ref": "../native-capture/v1#/$defs/positive" }, "stopTimeoutMs": { "type": "integer", "minimum": 1, "maximum": 300000 } } },
+    "expectation": { "type": "object", "additionalProperties": false,
+      "required": ["schemaVersion", "operation", "ordinal", "captureOrdinal", "lease", "approvalWindow", "payload", "stagingDirSha256"],
+      "properties": { "schemaVersion": { "const": "lakda/native-capture-request/v1" }, "operation": { "$ref": "../native-capture/v1#/$defs/operation" },
+        "ordinal": { "$ref": "../native-capture/v1#/$defs/ordinal" }, "captureOrdinal": { "$ref": "../native-capture/v1#/$defs/ordinal" },
+        "lease": { "$ref": "../native-capture/v1#/$defs/lease" }, "approvalWindow": { "$ref": "../native-capture/v1#/$defs/window" },
+        "stagingDirSha256": { "$ref": "../native-capture/v1#/$defs/digest" }, "payload": { "$ref": "#/$defs/payload" } } },
+    "requested": { "type": "object", "additionalProperties": false, "required": ["kind", "requestSha256", "requestedAt", "expectation"],
+      "properties": { "kind": { "const": "capture-requested" }, "requestSha256": { "$ref": "../native-capture/v1#/$defs/digest" },
+        "requestedAt": { "$ref": "#/$defs/time" }, "expectation": { "$ref": "#/$defs/expectation" } } },
+    "finished": { "type": "object", "additionalProperties": false,
+      "required": ["kind", "requestSha256", "ordinal", "startedAt", "finishedAt", "executionStatus", "receipt"],
+      "properties": { "kind": { "const": "capture-finished" }, "requestSha256": { "$ref": "../native-capture/v1#/$defs/digest" },
+        "ordinal": { "$ref": "../native-capture/v1#/$defs/ordinal" }, "startedAt": { "anyOf": [{ "$ref": "#/$defs/time" }, { "type": "null" }] },
+        "finishedAt": { "$ref": "#/$defs/time" }, "executionStatus": { "enum": ["completed", "failed"] },
+        "receipt": { "anyOf": [{ "$ref": "../native-capture/v1#/$defs/response" }, { "type": "null" }] } } }
+  }
+}

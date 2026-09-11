@@ -1,0 +1,323 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lakda/native-identity-observation/v1",
+  "title": "実機identityの観測記録",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "observationId",
+    "challenge",
+    "platform",
+    "bridgeBinding",
+    "provider",
+    "observedAt",
+    "expiresAt",
+    "fields",
+    "declared"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "lakda/native-identity-observation/v1"
+    },
+    "observationId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "challenge": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "platform": {
+      "enum": [
+        "windows",
+        "android",
+        "ios"
+      ]
+    },
+    "bridgeBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bridgeDigest",
+        "capabilityDigest",
+        "connectionId"
+      ],
+      "properties": {
+        "bridgeDigest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "capabilityDigest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "connectionId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      }
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/+:-]*$"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/+:-]*$"
+        }
+      }
+    },
+    "observedAt": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+    },
+    "expiresAt": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+    },
+    "fields": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "appId",
+        "appBuild",
+        "deviceDigest",
+        "platformVersion"
+      ],
+      "properties": {
+        "appId": {
+          "$ref": "#/$defs/field"
+        },
+        "appBuild": {
+          "$ref": "#/$defs/field"
+        },
+        "deviceDigest": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/field"
+            },
+            {
+              "properties": {
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^sha256:[0-9a-f]{64}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "platformVersion": {
+          "$ref": "#/$defs/field"
+        }
+      }
+    },
+    "declared": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "appId",
+        "appRevision",
+        "deviceDigest",
+        "platformVersion"
+      ],
+      "properties": {
+        "appId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256,
+              "pattern": "^[^\\u0000-\\u001f\\u007f/\\\\]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "appRevision": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256,
+              "pattern": "^[^\\u0000-\\u001f\\u007f/\\\\]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "deviceDigest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "platformVersion": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256,
+              "pattern": "^[^\\u0000-\\u001f\\u007f/\\\\]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "source",
+        "value"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "observed",
+            "declared-only",
+            "unavailable"
+          ]
+        },
+        "source": {
+          "enum": [
+            "windows-process-image",
+            "windows-executable-sha256",
+            "windows-machine-guid",
+            "windows-version",
+            "android-package-manager",
+            "android-version-code",
+            "android-serialno",
+            "android-release",
+            "ios-installation-proxy",
+            "ios-bundle-version",
+            "ios-udid",
+            "ios-product-version",
+            "operator-declaration",
+            "unavailable"
+          ]
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256,
+              "pattern": "^[^\\u0000-\\u001f\\u007f/\\\\]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "observed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "source": {
+                "enum": [
+                  "windows-process-image",
+                  "windows-executable-sha256",
+                  "windows-machine-guid",
+                  "windows-version",
+                  "android-package-manager",
+                  "android-version-code",
+                  "android-serialno",
+                  "android-release",
+                  "ios-installation-proxy",
+                  "ios-bundle-version",
+                  "ios-udid",
+                  "ios-product-version"
+                ]
+              },
+              "value": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256,
+                "pattern": "^[^\\u0000-\\u001f\\u007f/\\\\]+$"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "declared-only"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "source": {
+                "const": "operator-declaration"
+              },
+              "value": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "unavailable"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "source": {
+                "const": "unavailable"
+              },
+              "value": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/lakda/report-bundle-manifest/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "reportId",
+    "producerVersion",
+    "rendererVersion",
+    "policyVersion",
+    "profile",
+    "classification",
+    "generatedAt",
+    "verification",
+    "sources",
+    "excludedMedia",
+    "files",
+    "viewSha256"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "lakda/report-bundle-manifest/v1"
+    },
+    "reportId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "producerVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "rendererVersion": {
+      "const": "lakda/report-renderer/v1"
+    },
+    "policyVersion": {
+      "const": "lakda/report-policy/v1"
+    },
+    "profile": {
+      "enum": [
+        "local",
+        "share"
+      ]
+    },
+    "classification": {
+      "enum": [
+        "public",
+        "internal",
+        "confidential",
+        "restricted"
+      ]
+    },
+    "generatedAt": {
+      "type": "string",
+      "minLength": 1
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "inputVerifiedAt"
+      ],
+      "properties": {
+        "scope": {
+          "const": "report-bundle-files"
+        },
+        "inputVerifiedAt": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "$ref": "https://local.invalid/lakda/report-view/v1#/$defs/source"
+      }
+    },
+    "excludedMedia": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "reason"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "size",
+          "sha256"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(/|$))(?!.*[:\\\\\\u0000-\\u001f])[^/]+(?:/[^/]+)*$"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          }
+        }
+      }
+    },
+    "viewSha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
+  }
+}

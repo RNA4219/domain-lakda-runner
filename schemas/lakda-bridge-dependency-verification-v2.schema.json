@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/lakda/bridge-dependency-verification/v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "verifiedAt", "pythonVersion", "platform", "architecture", "lockSha256", "status", "scope", "deviceConnected", "environment", "packages", "dependencyCheck", "imports"],
+  "properties": {
+    "schemaVersion": { "const": "lakda/bridge-dependency-verification/v2" },
+    "verifiedAt": { "type": "string", "minLength": 1 },
+    "pythonVersion": { "type": "string", "minLength": 1 },
+    "platform": { "type": "string", "minLength": 1 },
+    "architecture": { "type": "string", "minLength": 1 },
+    "lockSha256": { "type": ["string", "null"], "pattern": "^sha256:[a-f0-9]{64}$" },
+    "status": { "enum": ["passed", "failed"] },
+    "scope": { "const": "locked-versions-and-package-import" },
+    "deviceConnected": { "const": false },
+    "environment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["distributionSource", "isVirtualEnvironment", "allowedUnpinnedInstallerPackages"],
+      "properties": {
+        "distributionSource": { "const": "interpreter-site-packages" },
+        "isVirtualEnvironment": { "type": "boolean" },
+        "allowedUnpinnedInstallerPackages": { "const": ["pip"] }
+      }
+    },
+    "packages": { "type": "array", "items": { "$ref": "#/$defs/package" } },
+    "dependencyCheck": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "lockedPackages", "installedPackages", "checks", "excluded"],
+      "properties": {
+        "status": { "enum": ["passed", "failed"] },
+        "lockedPackages": { "type": ["integer", "null"], "minimum": 0 },
+        "installedPackages": { "type": "integer", "minimum": 0 },
+        "checks": { "type": "array", "items": { "$ref": "#/$defs/check" } },
+        "excluded": {
+          "type": "array", "maxItems": 1,
+          "items": { "allOf": [{ "$ref": "#/$defs/package" }, { "properties": { "name": { "const": "pip" }, "version": { "type": "string" } } }] }
+        },
+        "reason": { "enum": ["lock-read-failed", "lock-invalid", "environment-read-failed"] },
+        "errorType": { "type": "string", "minLength": 1 }
+      },
+      "if": { "properties": { "status": { "const": "passed" } } },
+      "then": {
+        "properties": {
+          "lockedPackages": { "type": "integer", "minimum": 1 },
+          "checks": { "minItems": 1, "items": { "properties": { "status": { "const": "passed" }, "reason": { "const": "match" } } } }
+        },
+        "not": { "anyOf": [{ "required": ["reason"] }, { "required": ["errorType"] }] }
+      }
+    },
+    "imports": { "type": "array", "minItems": 7, "maxItems": 7, "uniqueItems": true, "items": { "$ref": "#/$defs/import" } }
+  },
+  "if": { "properties": { "status": { "const": "passed" } } },
+  "then": {
+    "properties": {
+      "lockSha256": { "type": "string" },
+      "dependencyCheck": { "properties": { "status": { "const": "passed" } } },
+      "imports": { "items": { "properties": { "status": { "const": "passed" } } } }
+    }
+  },
+  "$defs": {
+    "package": {
+      "type": "object", "additionalProperties": false, "required": ["name", "version"],
+      "properties": { "name": { "type": ["string", "null"] }, "version": { "type": ["string", "null"] } }
+    },
+    "check": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "expectedVersion", "installedVersions", "status", "reason"],
+      "properties": {
+        "name": { "type": ["string", "null"] },
+        "expectedVersion": { "type": ["string", "null"] },
+        "installedVersions": { "type": "array", "items": { "type": "string" } },
+        "status": { "enum": ["passed", "failed"] },
+        "reason": { "enum": ["match", "missing", "version-mismatch", "ambiguous-distribution", "unexpected-package", "invalid-distribution-metadata"] }
+      },
+      "if": { "properties": { "status": { "const": "passed" } } },
+      "then": { "properties": { "name": { "type": "string" }, "expectedVersion": { "type": "string" }, "installedVersions": { "minItems": 1, "maxItems": 1 }, "reason": { "const": "match" } } }
+    },
+    "import": {
+      "type": "object", "additionalProperties": false, "required": ["module", "status"],
+      "properties": {
+        "module": { "enum": ["airtest", "airtest.core.api", "airtest.core.win.win", "airtest.core.android.android", "airtest.core.ios.ios", "poco", "poco.drivers.android.uiautomation"] },
+        "status": { "enum": ["passed", "failed", "not-run"] },
+        "reason": { "enum": ["outside-environment", "import-failed", "dependency-check-failed"] },
+        "errorType": { "type": "string", "minLength": 1 }
+      },
+      "if": { "properties": { "status": { "const": "passed" } } },
+      "then": { "not": { "anyOf": [{ "required": ["reason"] }, { "required": ["errorType"] }] } },
+      "else": { "required": ["reason"] }
+    }
+  }
+}

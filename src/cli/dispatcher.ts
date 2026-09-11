@@ -12,6 +12,7 @@ import {
   runCommand,
 } from "../commands/runtime.js";
 import { reportLeadsCommand, scoutCommand } from "../commands/scouting.js";
+import { generateReportCommand, rejectReportArguments, verifyReportCommand } from "../commands/reports.js";
 import { exploreBookmarkCommand, exploreForkCommand, exploreKillCommand, explorePauseCommand, exploreReportCommand, exploreResumeCommand, exploreRunCommand } from "../commands/exploration.js";
 import { exploreAcceptanceCommand } from "../commands/exploration.js";
 import {
@@ -47,6 +48,8 @@ export async function dispatchCli(parsed: ParsedCliArgs): Promise<number> {
   if (command === "combo verify") return await verifyCombinationCommand(parsed.flags);
   if (command === "scout") return await scoutCommand(parsed.flags);
   if (command === "report leads") return await reportLeadsCommand(parsed.flags);
+  if (command === "report generate") return await generateReportCommand(parsed.flags);
+  if (command === "report verify") return await verifyReportCommand(parsed.flags);
   if (command === "investigate") return await investigateCommand(parsed.flags);
   if (command === "promote") return await promoteCommand(parsed.flags);
   if (command === "explore run") return await exploreRunCommand(parsed.flags);
@@ -79,7 +82,14 @@ export async function dispatchCli(parsed: ParsedCliArgs): Promise<number> {
 
 export async function runCli(argv: string[]): Promise<number> {
   try {
-    return await dispatchCli(parseCliArgs(argv));
+    let parsed: ParsedCliArgs;
+    try { parsed = parseCliArgs(argv); }
+    catch (error) {
+      const command = (error as { reportCommand?: unknown })?.reportCommand ?? (argv[0] === "report" ? argv[1] : undefined);
+      if (command === "generate" || command === "verify") return rejectReportArguments(command);
+      throw error;
+    }
+    return await dispatchCli(parsed);
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     const exitCode = error && typeof error === "object" && "exitCode" in error && (error as { exitCode?: unknown }).exitCode === 2 ? 2 : 1;

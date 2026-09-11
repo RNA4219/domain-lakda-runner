@@ -1,7 +1,7 @@
 ---
 document_id: LAKDA-RELEASE-GATE-INDEX-001
 status: historical-index
-last_updated: 2026-07-22
+last_updated: 2026-09-10
 ---
 
 # Historical release Gate design index
@@ -13,5 +13,6 @@ last_updated: 2026-07-22
 - `manual_case_set.json` — RC5 manual-bb case set
 - `rand/` — RC5 RanD入力
 - `qeg-600a037/` — revision 600a037に固定されたQEG artifact
+- [旧P6 workflowの履歴](history/README.md) — 元revisionと実bytesを保持した非実行archive
 
 現行live releaseは[current release profile](../../release-profiles/current.json)と、そのprofileが参照する`release-profiles/<version>/`配下の設計入力を使う。過去QEG goは記録されたrevision以外へ適用しない。

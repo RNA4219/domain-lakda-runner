@@ -1,0 +1,227 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lakda/native-action/v1",
+  "title": "観測済みnative接続への操作と確認応答",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "operation",
+        "lease",
+        "ordinal",
+        "payload"
+      ],
+      "properties": {
+        "operation": {
+          "const": "execute"
+        },
+        "lease": {
+          "$ref": "#/$defs/lease"
+        },
+        "ordinal": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "schemaVersion": {
+          "const": "lakda/native-action-request/v1"
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "candidate",
+            "context"
+          ],
+          "properties": {
+            "candidate": {
+              "type": "object"
+            },
+            "context": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "operation",
+        "lease",
+        "ordinal",
+        "checkedAt",
+        "actionAttempted",
+        "result"
+      ],
+      "properties": {
+        "operation": {
+          "const": "execute"
+        },
+        "lease": {
+          "$ref": "#/$defs/lease"
+        },
+        "ordinal": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "schemaVersion": {
+          "const": "lakda/native-action-result/v1"
+        },
+        "checkedAt": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+        },
+        "actionAttempted": {
+          "type": "boolean"
+        },
+        "result": {
+          "type": "object",
+          "required": [
+            "executionId",
+            "candidateId",
+            "preFingerprint",
+            "status"
+          ]
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "operation",
+        "lease",
+        "ordinal",
+        "payload"
+      ],
+      "properties": {
+        "operation": {
+          "const": "recover"
+        },
+        "lease": {
+          "$ref": "#/$defs/lease"
+        },
+        "ordinal": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "schemaVersion": {
+          "const": "lakda/native-action-request/v1"
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "failure",
+            "context"
+          ],
+          "properties": {
+            "failure": {
+              "type": "object"
+            },
+            "context": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "operation",
+        "lease",
+        "ordinal",
+        "checkedAt",
+        "actionAttempted",
+        "result"
+      ],
+      "properties": {
+        "operation": {
+          "const": "recover"
+        },
+        "lease": {
+          "$ref": "#/$defs/lease"
+        },
+        "ordinal": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "schemaVersion": {
+          "const": "lakda/native-action-result/v1"
+        },
+        "checkedAt": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+        },
+        "actionAttempted": {
+          "type": "boolean"
+        },
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "recovered",
+            "strategy",
+            "evidenceRefs"
+          ],
+          "properties": {
+            "recovered": {
+              "type": "boolean"
+            },
+            "strategy": {
+              "type": "string"
+            },
+            "targetRef": {
+              "type": "object"
+            },
+            "evidenceRefs": {
+              "type": "array"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "lease": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observationId",
+        "observationDigest",
+        "connectionId",
+        "challenge"
+      ],
+      "properties": {
+        "observationId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "observationDigest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "connectionId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "challenge": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      }
+    }
+  }
+}

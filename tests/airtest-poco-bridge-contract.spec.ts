@@ -1,10 +1,34 @@
 import { expect, test } from "@playwright/test";
 import { readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
+import { createRequire } from "node:module";
 import { AirtestPocoAdapter } from "../src/adapters/external-bridges.js";
 
 const root = resolve(import.meta.dirname, "..");
 const read = (path: string) => readFile(resolve(root, path), "utf8");
+
+test("dependency evidence v2 validates the recorded environment and rejects false success claims", async () => {
+  type Proof = {
+    status: string;
+    dependencyCheck: { status: string; checks: Array<{ status: string }> };
+    imports: Array<{ status: string; module: string }>;
+  };
+  const Ajv = createRequire(import.meta.url)("ajv/dist/2020").default as new (options: object) => {
+    compile(schema: object): (value: unknown) => boolean;
+  };
+  const validate = new Ajv({ strict: false }).compile(JSON.parse(await read("schemas/lakda-bridge-dependency-verification-v2.schema.json")) as object);
+  const record = JSON.parse(await read("tools/airtest-poco-bridge/compatibility/windows-amd64-py312-20260910-lock-verified.json")) as Proof;
+  expect(validate(record)).toBe(true);
+  const invalid = [
+    { ...record, schemaVersion: "lakda/bridge-dependency-verification/v1" },
+    { ...record, scope: "package-import-only" },
+    { ...record, lockSha256: null },
+    { ...record, dependencyCheck: { ...record.dependencyCheck, status: "failed" } },
+    { ...record, imports: record.imports.map((row, index) => index ? row : { ...row, status: "failed" }) },
+    { ...record, imports: record.imports.slice(1) },
+  ];
+  for (const value of invalid) expect(validate(value)).toBe(false);
+});
 
 test("Airtest template example is explicitly non-executable and has no bundled images", async () => {
   const corpus = JSON.parse(await read("examples/airtest-templates.json")) as {
@@ -57,7 +81,7 @@ test("Poco bridge candidates require explicit none mutation and fresh visual ide
   expect(source).toContain("resolved = candidate.resolve()");
   expect(source).toContain("if current.is_symlink()");
   expect(source).toContain("self._safe_artifact_path(staging, f\"artifacts/{name}\")");
-  expect(source).toContain('self._safe_artifact_path(staging, "artifacts/video/0001.webm")');
+  // Exact MP4 and legacy WebM output paths are exercised in test_capture_device_video.py.
   expect(source).toContain("def _artifact_ref(self, path: Path, staging: Path)");
   expect(source).toContain("def _validated_video_artifact");
   expect(source).toContain("path.is_symlink() or not path.is_file()");

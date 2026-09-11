@@ -27,7 +27,19 @@ last_updated: 2026-08-03
 - [TASK.20260802-59](TASK.20260802-59.md) — non-pass画面証跡・WebM保持policy
 - [TASK.20260802-60](TASK.20260802-60.md) — 自動・クロスプラットフォーム探索仕様正本化
 
-## 歴史的Task Seed
+## 改修実装 2026-09-10
+
+- [TASK.20260910-61](TASK.20260910-61.md) — 仕様正本化・セルフレビュー
+- [TASK.20260910-62](TASK.20260910-62.md) — Python bridge実行テスト・CI・依存検証
+- [TASK.20260910-63](TASK.20260910-63.md) — catalog・文書checker責務分割
+- [TASK.20260910-64](TASK.20260910-64.md) — report入力・schema・bundle検証
+- [TASK.20260910-65](TASK.20260910-65.md) — report viewer・CLI自動生成・画面検証
+- [TASK.20260910-66](TASK.20260910-66.md) — Legacy P6履歴化・M1受入記録
+- [TASK.20260910-67](TASK.20260910-67.md) — binary attestation受渡し実装
+- [TASK.20260910-68](TASK.20260910-68.md) — native identity実観測・照合
+- [TASK.20260910-69](TASK.20260910-69.md) — 統合Gate・package・実環境受入
+
+## 過去の基盤Task
 
 - TASK.20260712-* — v1 PoC / deterministic / LLM基盤
 - TASK.20260713-* — v0.2/v0.2.1 hardening

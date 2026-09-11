@@ -1,0 +1,367 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lakda/native-execution-evidence/v1",
+  "title": "native実行の観測・操作予定・終了の保存記録",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "binding",
+    "journalId",
+    "sequence",
+    "evidence"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "lakda/native-execution-evidence/v1"
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sessionId",
+        "charterDigest",
+        "configDigest",
+        "targetManifestSha256"
+      ],
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$"
+        },
+        "charterDigest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "configDigest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "targetManifestSha256": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+      }
+    },
+    "journalId": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20001
+    },
+    "evidence": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "targetManifestSha256",
+            "acquisition"
+          ],
+          "properties": {
+            "kind": {
+              "const": "observation"
+            },
+            "targetManifestSha256": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            },
+            "acquisition": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "observation",
+                "requestedAt",
+                "now",
+                "elapsedMs"
+              ],
+              "properties": {
+                "observation": {
+                  "type": "object"
+                },
+                "requestedAt": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 8640000000000000
+                },
+                "now": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 8640000000000000
+                },
+                "elapsedMs": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 300000
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "requestSha256",
+            "requestedAt",
+            "expectation"
+          ],
+          "properties": {
+            "kind": {
+              "const": "action-requested"
+            },
+            "requestSha256": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            },
+            "requestedAt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8640000000000000
+            },
+            "expectation": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "schemaVersion",
+                    "lease",
+                    "ordinal",
+                    "approvalWindow",
+                    "operation"
+                  ],
+                  "properties": {
+                    "schemaVersion": {
+                      "const": "lakda/native-action-request/v2"
+                    },
+                    "lease": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "observationId",
+                        "observationDigest",
+                        "connectionId",
+                        "challenge"
+                      ],
+                      "properties": {
+                        "observationId": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+                        },
+                        "observationDigest": {
+                          "type": "string",
+                          "pattern": "^sha256:[a-f0-9]{64}$"
+                        },
+                        "connectionId": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+                        },
+                        "challenge": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+                        }
+                      }
+                    },
+                    "ordinal": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 2147483647
+                    },
+                    "approvalWindow": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "targetManifestSha256",
+                        "validFrom",
+                        "validUntil"
+                      ],
+                      "properties": {
+                        "targetManifestSha256": {
+                          "type": "string",
+                          "pattern": "^sha256:[a-f0-9]{64}$"
+                        },
+                        "validFrom": {
+                          "type": "string"
+                        },
+                        "validUntil": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "operation": {
+                      "const": "recover"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "schemaVersion",
+                    "lease",
+                    "ordinal",
+                    "approvalWindow",
+                    "operation",
+                    "candidate"
+                  ],
+                  "properties": {
+                    "schemaVersion": {
+                      "const": "lakda/native-action-request/v2"
+                    },
+                    "lease": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "observationId",
+                        "observationDigest",
+                        "connectionId",
+                        "challenge"
+                      ],
+                      "properties": {
+                        "observationId": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+                        },
+                        "observationDigest": {
+                          "type": "string",
+                          "pattern": "^sha256:[a-f0-9]{64}$"
+                        },
+                        "connectionId": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+                        },
+                        "challenge": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+                        }
+                      }
+                    },
+                    "ordinal": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 2147483647
+                    },
+                    "approvalWindow": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "targetManifestSha256",
+                        "validFrom",
+                        "validUntil"
+                      ],
+                      "properties": {
+                        "targetManifestSha256": {
+                          "type": "string",
+                          "pattern": "^sha256:[a-f0-9]{64}$"
+                        },
+                        "validFrom": {
+                          "type": "string"
+                        },
+                        "validUntil": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "operation": {
+                      "const": "execute"
+                    },
+                    "candidate": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "candidateId",
+                        "sourceFingerprint"
+                      ],
+                      "properties": {
+                        "candidateId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 1024
+                        },
+                        "sourceFingerprint": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 1024
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "requestSha256",
+            "ordinal",
+            "startedAt",
+            "finishedAt",
+            "executionStatus",
+            "actionAttempted",
+            "receipt"
+          ],
+          "properties": {
+            "kind": {
+              "const": "action-finished"
+            },
+            "requestSha256": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            },
+            "ordinal": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2147483647
+            },
+            "startedAt": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 8640000000000000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "finishedAt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8640000000000000
+            },
+            "executionStatus": {
+              "enum": [
+                "completed",
+                "failed"
+              ]
+            },
+            "actionAttempted": {
+              "enum": [
+                true,
+                false,
+                "unknown"
+              ]
+            },
+            "receipt": {
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

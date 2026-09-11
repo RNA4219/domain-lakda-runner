@@ -1,10 +1,13 @@
 import { mkdir } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { join, resolve } from "node:path";
-import type { ActionPlan, ArtifactExpectations, ArtifactVideoMode, Failure, LakdaConfig, LlmEvidence, LlmStatus, RunOutcome, TerminationReason } from "./types.js";
+import type { Action, ActionPlan, ArtifactExpectations, ArtifactVideoMode, Failure, LakdaConfig, LlmEvidence, LlmStatus, RunOutcome, TerminationReason } from "./types.js";
 import { shouldRetainVideo } from "./browser-artifacts.js";
 import { redact } from "./redaction.js";
 import { writeCanonicalJson, writeJsonAtomic, writeText } from "./artifact-store.js";
+import { writeRunStartRecord } from "./run-start.js";
+import type { AttestationBinding } from "../exploration/attestation-evidence.js";
+import type { BinaryAttestationRunSummary } from "../exploration/attestation-run.js";
 
 export type RunMetadata = {
   schemaVersion: "lakda/run-metadata/v1";
@@ -24,13 +27,16 @@ export type RunMetadata = {
   exitCode?: number;
   terminationReason?: TerminationReason;
   llmStatus: LlmStatus;
-  artifactPolicy: { classification: LakdaConfig["artifacts"]["classification"]; maxRunBytes: number; expectations: ArtifactExpectations; binaryAttestationRequired?: boolean; attestationTrustStorePath?: string; artifactAttestorKeyIds?: string[] };
+  artifactPolicy: { classification: LakdaConfig["artifacts"]["classification"]; maxRunBytes: number; expectations: ArtifactExpectations; binaryAttestationRequired?: boolean; attestationTrustStorePath?: string; artifactAttestorKeyIds?: string[]; binaryAttestationBinding?: AttestationBinding };
+  operatorControl?: { command: "pause" | "kill"; requestId?: string };
+  binaryAttestation?: BinaryAttestationRunSummary;
   workerIndex: number;
   batchId?: string;
 };
 
 type CollectorContext = { workerIndex?: number; batchId?: string; clock?: () => number; requireBinaryAttestation?: boolean; attestationTrustStorePath?: string; artifactAttestorKeyIds?: readonly string[] };
 export type CaptureCapabilities = { screenshot?: boolean; trace?: boolean; video?: boolean };
+export type ActionExecutionRecord = { sequence: number; actionId: string; kind: Action["kind"]; startedAt: string; endedAt: string; durationMs: number; status: "completed" | "failed" };
 
 function commitSha(): string {
   try { return execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); }
@@ -47,15 +53,18 @@ export class ArtifactCollector {
   readonly failures: Failure[] = [];
   readonly consoleLines: string[] = [];
   readonly llmEvidence: LlmEvidence[] = [];
+  private readonly actionExecutions: ActionExecutionRecord[] = [];
   artifactFailure = false;
   executorFailure = false;
   findingDetected = false;
+  captureState: "not-started" | "active" | "stopped" = "not-started";
 
   private constructor(paths: ArtifactCollector["paths"], metadata: RunMetadata, private readonly videoRequested: ArtifactVideoMode, private readonly harRequested: boolean) { this.paths = paths; this.metadata = metadata; }
 
   private captureCapabilities: Required<CaptureCapabilities> = { screenshot: false, trace: false, video: false };
 
   markCaptureAvailable(capabilities: CaptureCapabilities = { screenshot: true, trace: true, video: true }): void {
+    this.markCaptureStarted();
     this.captureCapabilities = {
       screenshot: this.captureCapabilities.screenshot || capabilities.screenshot === true,
       trace: this.captureCapabilities.trace || capabilities.trace === true,
@@ -65,6 +74,10 @@ export class ArtifactCollector {
   }
 
   recordDomSnapshot(): void { this.metadata.artifactPolicy.expectations.domSnapshots += 1; }
+
+  markCaptureStarted(): void { this.captureState = "active"; }
+
+  markCaptureStopped(): void { if (this.captureState === "active") this.captureState = "stopped"; }
 
   setDomSnapshotCount(count: number): void {
     this.metadata.artifactPolicy.expectations.domSnapshots = count;
@@ -84,6 +97,11 @@ export class ArtifactCollector {
       producerVersion: "0.5.0-rc.1", commitSha: commitSha(), llmStatus: "not_requested", artifactPolicy: { classification: config.artifacts.classification, maxRunBytes: config.artifacts.maxRunBytes, expectations: { trace: false, screenshot: false, video: false, har: false, domSnapshots: 0 }, ...(context.requireBinaryAttestation ? { binaryAttestationRequired: true } : {}), ...(context.attestationTrustStorePath ? { attestationTrustStorePath: context.attestationTrustStorePath } : {}), ...(context.artifactAttestorKeyIds !== undefined ? { artifactAttestorKeyIds: [...context.artifactAttestorKeyIds] } : {}) }, workerIndex: context.workerIndex ?? 0,
       ...(context.batchId ? { batchId: context.batchId } : {}),
     };
+    await writeRunStartRecord(runDir, {
+      schemaVersion: "lakda/run-start/v1", runId, attempt: metadata.attempt, startedAt: metadata.startedAt,
+      mode, seed: metadata.seed, workerIndex: metadata.workerIndex, ...(metadata.batchId ? { batchId: metadata.batchId } : {}),
+      producerVersion: metadata.producerVersion, producerRevision: metadata.commitSha, classification: config.artifacts.classification,
+    });
     return new ArtifactCollector({ runDir, metadata: join(runDir, "run-metadata.json"), actionSequence: join(runDir, "action-sequence.json"), console: join(runDir, "console.jsonl"), failures: join(runDir, "failure-report.json"), trace: join(artifacts, "trace.zip"), screenshot: join(artifacts, "failure.png"), networkHar: join(artifacts, "network.har"), exports, manifest: join(exports, "artifact-manifest.json"), llm: join(artifacts, "llm-decisions.jsonl") }, metadata, config.artifacts.video, config.artifacts.har);
   }
 
@@ -104,6 +122,10 @@ export class ArtifactCollector {
 
   addLlmEvidence(evidence: LlmEvidence): void { this.llmEvidence.push(JSON.parse(redact(JSON.stringify(evidence))) as LlmEvidence); }
 
+  recordActionExecution(action: Pick<Action, "id" | "kind">, startedAt: string, endedAt: string, durationMs: number, status: ActionExecutionRecord["status"]): void {
+    this.actionExecutions.push({ sequence: this.actionExecutions.length + 1, actionId: redact(action.id), kind: action.kind, startedAt, endedAt, durationMs, status });
+  }
+
   async finalize(plan: ActionPlan, outcome: RunOutcome, exitCode: number, llmStatus: LlmStatus, terminationReason: TerminationReason): Promise<{ manifestPath: string; runDir: string }> {
     this.metadata.endedAt = new Date().toISOString();
     this.metadata.outcome = outcome;
@@ -115,6 +137,7 @@ export class ArtifactCollector {
     this.metadata.artifactPolicy.expectations.video = this.captureCapabilities.video && (shouldRetainVideo(this.videoRequested, outcome) || (this.findingDetected && this.videoRequested !== false));
     await writeJsonAtomic(this.paths.metadata, this.metadata);
     await writeCanonicalJson(this.paths.actionSequence, plan);
+    if (this.metadata.mode !== "adaptive-explore") await writeCanonicalJson(join(this.paths.runDir, "action-execution.json"), { schemaVersion: "lakda/action-execution/v1", runId: this.metadata.runId, attempt: this.metadata.attempt, executions: this.actionExecutions });
     await writeText(this.paths.console, this.consoleLines.join("\n"));
     await writeJsonAtomic(this.paths.failures, { failures: this.failures });
     await writeText(this.paths.llm, this.llmEvidence.map(value => JSON.stringify(value)).join("\n"));

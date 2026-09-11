@@ -4,6 +4,8 @@
 
 ## 1. 環境
 
+レポートの件数上限・表示性能は、repoで`npm run acceptance:reports`を実行して測定する。インストール済みWindows Chrome／Edgeを隔離profileで使い、100 run・履歴10,000件・failure 1,000件の人工保存入力を生成する。1366×768／390×844、browser zoom 100%／200%を検証し、全測定値・入力digest・bundle・画像・失敗理由を`.lakda/report-acceptance-<固有ID>/result.json`から参照できる。同じcommandで、画像の原寸表示とキー移動、参照対応・share除外、動画位置保持／停止、decode fallbackの媒体40ケースも実行する。媒体の詳細結果は`media/result.json`、移動後の閲覧用bundleは`media/images-moved`等へ保存する。外部targetへ接続しない。通常の`npm test`にはbrowser導入や性能閾値を要求しない。実機・手動受入・release Gateは別途実施する。測定条件は[SPEC-01](docs/spec/verification-reports/SPEC-01-REPORTING.md)を参照する。
+
 | 環境 | 用途 | LLM |
 |---|---|---|
 | local-deterministic | 開発、通常CI相当、headed/headless確認 | 不使用。`llm_status=unavailable`を記録 |
@@ -67,6 +69,40 @@ npx playwright show-trace .lakda/runs/<run-id>/artifacts/trace.zip
 
 `false`は録画なし、`true`は通常runの全run保持、既定の`"retain-on-non-pass"`は実行中録画してpassed時に削除し、`failed / partial / error`だけ`artifacts/video/0001.webm`からの連番で保持する。`regression-replay`、実LLMの`full` profile、`acceptance:fixture`のfull corpusは設定値にかかわらず`false`とし、failure screenshot／traceは維持する。Playwrightの録画はcontext終了時に確定するため、このモードは直前N秒の循環bufferではなくnon-pass run全体を残す。画面証跡は認証情報やPIIを含み得るので、承認済みtargetと適切なclassificationでのみ有効化し、Gitやsanitized release bundleへ入れない。
 
+### 保存結果のHTMLレポート
+
+概要の「操作件数・実行時間など」を開くと、観測した操作数と計画数、実行時間、除外媒体数を確認できます。結果一覧のメッセージは最大2行で、項目を開くと全文を表示します。詳細はスクロール中も「詳細を閉じる」またはEscapeで閉じ、元の行へフォーカスが戻ります。
+
+日本語は`--report-language ja`、英語は`--report-language en`で生成します。`run`／`replay`／`explore run`／`explore resume`の自動生成と`report generate`に共通です。レポート設定`lakda.report.json`の`language`にも保存でき、CLI指定＞設定＞`ja`の順に解決します。画面の見出し・説明・操作ラベルを切り替え、テスト由来のメッセージ・履歴・ID・コードは原文を保ちます。保存済みのレポートはそのまま保持し、別言語が必要なら新しい出力先へ再生成します。
+
+結果詳細では、手順一覧と選択した手順・画像をPCで並べ、狭幅では縦に表示します。「失敗した手順へ」で保存済みの失敗へ移動し、「前の手順」「次の手順」でページをまたいで確認できます。操作名・対象・状態・時間・判定メッセージは保存された範囲だけを表示し、「実行済み」と判定の「合格」を区別します。旧レポート等の未取得情報から失敗を推定しません。「履歴の選択を解除」で全体の証跡へ戻れます。
+
+findingでは「この項目の証跡」と「実行全体の証跡」を切り替えます。対応を確認できない参照には理由を表示し、画像を推定して割り当てません。動画は利用者が再生し、同じ詳細内では位置を保持します。表示切替や詳細closeでは一時停止します。ID・revision・coverage等は「技術情報・実行記録」、媒体の所属や検査の根拠は「媒体の詳細」で確認できます。
+
+失敗した手順を選んで画像が出ない場合でも、「実行全体の証跡を見る」があれば保存済みの画像・動画を確認できます。手順の選択を維持し、対応が未確認であることを表示します。前／次へ移ると手順別の表示に戻ります。
+
+WindowsでローカルHTMLを開く場合、保存先は既定の`.lakda/reports`程度の短い階層にしてください。深い保存先ではbundle verifyがvalidでもブラウザが画像を開けない場合があります。レポートフォルダー全体を短いパスへコピーして開き、`lakda report verify --report-dir <コピー先>`で整合性を確認できます。
+
+手順を移動すると履歴一覧も選択行へスクロールします。「状態」の「実行失敗」は失敗した実行、「失敗項目」は個別の失敗記録を表示します。キーワードは表示名でも元の`failed`／`failure`でも検索できます。
+
+```text
+lakda report generate --run-dir .lakda/runs/<run-directory> --out .lakda/reports/review-01
+lakda report generate --session .lakda/explorations/<session-id> --out .lakda/reports/session-review-01 --text-only
+lakda report verify --report-dir .lakda/reports/review-01
+```
+
+生成はtargetへ再接続せず、HATEと保存内容を読取り検証します。`--out`は未存在directoryで、入力の内側／祖先へは指定できません。生成時のstdoutはreceipt JSONだけです。書込可能な場合は出力directoryの親に`<reportId>.receipt.json`を保存します。`index.html`、CSS／JS、JSON、assetsは一式で保持してください。
+
+生成exitはready=0、degraded／入力不正=2、I/O／内部error／timeout=1です。元runの合否は変えません。verifyはbundleの一致性を検査し、現時点の元runや外部受入を保証する処理ではありません。`local`の未検査媒体は画面で明示し、`--text-only`では全媒体を除外します。`share`は署名検証と媒体policyの両方を満たす媒体だけを同梱します。未知／重複optionを拒否し、設定fileはtarget用設定と別の`lakda.report.json`（明示は`--report-config`）です。
+
+保存済みHATEに`attestations/binary-artifacts.jsonl`が含まれる場合は、report設定の`trustStorePath`へoperatorが管理する鍵一覧を指定します。相対pathは設定file基準です。鍵一覧は1〜64件のEd25519公開鍵（`keyId`と`publicKeyPem`）、配列または`{ "keys": [...] }`形式で、128 KiB以下にします。run内のtrust pathは採用しません。real sessionでは保存時点の署名済みtargetと許可鍵も必要です。媒体詳細の「検証に使った記録」に各digestを表示します。検査記録の不一致はwarning／degraded、HATEの改変やマスク前媒体の残存は入力errorとなります。既に確定したrunへ検査記録を追記・再exportする機能ではありません。
+
+`run`／`replay`／`explore run`／`explore resume`では、確定後に新しいHTML snapshotを自動生成します。`--report off`で停止でき、`--report-dir <output-root>`／`--report-profile local|share`で変更します。stdoutと終了codeは元の結果のまま、stderrの`report` objectにreceipt、`directory`に完成bundle、`receiptPath`に保存先を通知します。失敗・timeout・保存失敗も元の結果を変更しません。
+
+worker batchは全worker終了後に1 bundleを生成し、run作成前に失敗したworkerも表示します。stderrの`sourcesPath`は再生成用のprivate indexです。`lakda report generate --sources <sourcesPath> --out <new-report-dir>`で再生成できます。private indexとHTML bundleは別directoryで、indexは共有するHTMLへ含めません。
+
+単一runはtarget接続前に`run-start.json`を保存します。最終manifestが存在せず開始記録を検証できる場合、`local`では最小診断をdegradedとして生成します。状態は「結果未確定」で、実行中／異常終了の断定や合否・終了時刻・操作数の補完は行いません。未検証の結果file・媒体は使わず、shareは拒否します。旧runで開始記録もない場合や既存manifestが不正な場合は、入力不足／不正として拒否します。自動生成は元の終了codeを保ち、独立generateはdegradedのexit 2、生成したbundleのverifyは整合していればexit 0です。
+
 ### ヘッデッド回帰と任意の外部スモーク
 
 ローカルでブラウザ表示を伴う回帰確認を行う場合は、次を実行する。CIではこのテストをskipし、headlessの通常suiteを正本とする。
@@ -121,6 +157,8 @@ Playwright adapterはin-processで動作する。Airtest/PocoとSecurity adapter
 
 P6 RCのローカル納品Gateは`npm run check`、`npm run acceptance:fixture`、`npm run acceptance:adaptive`、`npm run check:hate`、`npm run pack:check`である。これはpackageの再現性とfixture受入を示すが、Airtest/Poco実機、認可済みSecurity target、manual-bb/QEG final Gateを代替しない。
 
+旧P6 workflowは[履歴archive](docs/release-gate/history/README.md)へ退避済みです。上記は当時の手順であり、現行releaseは[current profile](release-profiles/current.json)と[release-evidence.yml](.github/workflows/release-evidence.yml)を使います。
+
 ### 自動・クロスプラットフォーム探索MVP
 
 探索はversioned Charterから開始する。PC WebはPlaywright、mobile Webは390×844 touch profile、Windows／Android／iOSはoperatorが先に起動した127.0.0.1 Airtest/Poco bridgeへ接続する。Lakdaはbridgeやdevice serviceを起動しない。
@@ -148,6 +186,36 @@ python tools/airtest-poco-bridge/server.py --platform android --port 8765 --targ
 通常探索はcapture capabilityに応じてAndroid videoまたはWindows／iOSの`sampled-frames/v1`を開始し、finding／non-passだけを保持する。passかつfindingなしのcaptureは削除する。`regression-replay`と実LLM `full`は既存方針どおりvideo／連続frameを強制offする。pause／kill／bookmarkはcontrol request queueへatomic投入し、runnerがaction境界で受理したイベントだけをsessionへ反映する。resumeはcheckpointのaction timestamp、trace/replay-trace SHA-256、post-fingerprint、capabilityを再検証し、暗黙forkは行わない。session HATEはCharter、capability、events、checkpoint、findings、report、参照run manifestの実bytesを再照合する。五lane acceptance indexが揃うまで個別reportは`pending_external`であり、fixture／emulator成功で代替しない。
 
 real Charterでは署名済み`lakda/exploration-target-manifest/v1`、operator trust store、template corpus実bytes digest、bridge/capability bindingをtarget接続より前に検証する。Web revision probeまたはnative bridge報告revision・app／device digestの差分はexit 2で停止する。ただしreference bridgeのnative identity値はCLIで与えたoperator宣言であり、実機APIからの独立観測ではない。実機側の取得記録とmanual-bbを別証跡として残す。binary captureはtarget manifestの`artifactAttestorKeyIds`で許可した外部`lakda/binary-artifact-attestation/v1`のsource/output bytes、scan、tool policy、署名を検証してからHATEへ渡す。reference bridgeはattestationを生成しないため、外部scanner／attestorがfinalization前に署名済み記録を供給できないreal binary runはfail-closedとし、fixture成功で代替しない。
+
+nativeの独立観測を使う実行経路は`lakda/exploration-target-manifest/v2`で指定する。署名済みprovider／build mapping／device digestへ実観測を照合し、初回とresumeの操作をsession journalへ保存する。paused resumeは過去journalのcompleteを接続前に要求し、新しい観測を取得してからreplayする。相対`trustStorePath`は元`targetManifestPath`の親directoryを基準に解決する。CLIのJSON reportは同じoperator pathを使い、HTML reportはreport設定に明示したtrustを使う。
+
+現段階のnative v2 CLIは`capture.video="off"`かつ`capture.sampledFrames.enabled=false`を対象とする。連続撮影を含む設定は未対応理由を返して接続前に停止し、自動で設定を変えない。単発のfinding／non-pass画像は引き続き検証対象である。連続撮影とSDK接続世代の統合、Windows／iOS provider、実機受入は残る。詳細は[native仕様](docs/spec/verification-reports/SPEC-02-NATIVE-EVIDENCE.md)を参照する。
+
+新しいrequest／response v2の受渡しは、real Charterの`capture`へ次の設定を追加する。これは追加fieldの形を示す例で、policyDigestのplaceholderは実際の検査policyのSHA-256へ置き換える。既存Charterへ追加した場合は、そのCharter digestに対するtarget manifestの署名を更新し、許可attestor keyとtrust storeを揃える。
+
+```json
+{
+  "binaryAttestation": {
+    "stagingRoot": ".lakda/private-attestations",
+    "policyDigest": "sha256:<検査policyの実際の64桁hex>",
+    "timeoutMs": 30000
+  }
+}
+```
+
+stagingRootは実行時の作業directory基準で解決し、operatorが事前に作成する。run／sessionの公開保存root内や過去HATEの内側へ置かない。Lakdaはpreflightでrun専用`lakda-attestation-*` directoryを確保し、capture停止後に`sources/<sourcePath>`と`attestations/requests/<requestId>.json`を用意する。
+
+検査入力用の`sources/`とは別に、元の媒体fileを`originals/<requestId>/<sourcePath>`へ移管して保持する。`originals/`はscannerの出力先ではなく、HATEや共有HTMLにも含めない。元媒体、検査入力コピー、scanner出力の保管容量を確保する。使用中や異なるvolume等で移管できなければ`media-preservation-unavailable`で止まり、元媒体と作成済みコピーを残す。元fileを削除するfallbackや原本の自動pruneは行わない。停止・失敗時はrun内の未移動媒体とprivateの両方を確認し、移管途中のrunを完了済みとして再exportしない。現在の正常移管は同じvolumeで検証する。異なるvolumeでのhandoff成功は未受入である。
+
+operator管理のscannerはrequestに対応するsourceを検査する。sanitizedの場合は`outputs/<request.outputPath>`へ出力を確定し、requestとpolicyに対応する署名済みv2 responseを`attestations/responses/<requestId>.json`へatomicに配置する。request／responseはcanonical JSON＋LFのUTF-8、各64 KiB以下。共通期限は既定30秒、設定範囲1〜300秒である。Lakdaはscannerを起動しない。形式と署名対象は[SPEC-02](docs/spec/verification-reports/SPEC-02-NATIVE-EVIDENCE.md)を参照する。
+
+受領工程を終えたrunでは`run-metadata.json`の`binaryAttestation`へ要求数・採用数・受領statusを保存する。各要求の最終結果は`attestations/results/<requestId>.json`、受領recordは`attestations/receipts/<requestId>.json`へ保存し、metadataの全要求一覧と照合する。設定なしの旧runは従来のv1契約を維持する。
+
+timeout・検査不合格・採用失敗で媒体が隔離された場合も、全欠落を検証済みresultで説明できれば、outcomeをerrorに保ってHATEを確定する。生成レポートの「根拠・未確認事項」から媒体を保持できなかった理由を確認できる。必須媒体の期待値は解除しない。capture停止未確認、隔離途中の失敗、未記録の必須媒体欠落はHATE未確定のままとし、private sourceと未確定runを復旧・確認用に保持する。期限後の派生bundle、実scanner・実機の受入は継続中である。
+
+媒体の一覧作成前から共通の受渡し期限を数え、64 KiB以下の読書き単位で停止と期限を確認する。元データ・コピー先の再照合も対象とし、途中の停止で既存bytesを消さない。期限後の診断記録確定には、同じtimeoutMsを上限とする別の終了処理を使う。採用期限の延長や遅れた応答の採用には使わない。OSのfile I/Oが停止している間の強制打切りは行わず、そのI/Oが戻った時点で停止を確認する。
+
+履歴やfindingが元画像を参照していても、署名・媒体・適用target条件を確認でき、元path／容量／digestが一意に一致すれば、レポートの詳細からマスク後の画像を開ける。reportのtrust storeを指定し、v2では同じHATEに受領記録を保持する。対応表のない旧IDだけの記録、曖昧な出力、署名や対象を確認できない場合は「対応する証跡を確認できません」と表示する。元画像をレポートへ戻さず、表示profileと機密区分の制限を維持する。
 
 ```powershell
 npx playwright test tests/exploration.spec.ts --workers=1

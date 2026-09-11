@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/lakda/report-config/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion"],
+  "properties": {
+    "schemaVersion": { "const": "lakda/report-config/v1" },
+    "auto": { "enum": ["html", "off"] },
+    "outputRoot": { "type": "string", "minLength": 1, "maxLength": 4096 },
+    "profile": { "enum": ["local", "share"] },
+    "language": { "enum": ["ja", "en"] },
+    "timeoutMs": { "type": "integer", "minimum": 10000, "maximum": 600000 },
+    "trustStorePath": { "type": "string", "minLength": 1, "maxLength": 4096 }
+  }
+}

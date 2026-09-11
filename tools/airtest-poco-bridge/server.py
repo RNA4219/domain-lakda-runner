@@ -16,12 +16,15 @@ import mimetypes
 import os
 import shutil
 import threading
+from native_identity_capture_video import NativeCaptureVideo
 import time
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
+from native_identity import observe_android_identity
+from native_identity_exchange import NativeIdentityExchange, NativeIdentityExchangeError
 
 MAX_JSON_BYTES = 1_048_576
 SCHEMA = "lakda/adaptive-contracts/v1"
@@ -42,6 +45,10 @@ def digest_bytes(value: bytes) -> str:
 
 def digest_json(value: Any) -> str:
     return digest_bytes(json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
+
+
+def reject_json_constant(value: str) -> None:
+    raise ValueError("non-finite JSON number")
 
 
 class BridgeState:
@@ -66,8 +73,10 @@ class BridgeState:
         self.runtime_versions: dict[str, str] = {}
         self._recording: dict[str, Any] = {}
         self._recording_lock = threading.Lock()
+        self._capture_command_lock = threading.Lock()
         self._candidate_registry: dict[str, dict[str, Any]] = {}
         self._candidate_registry_lock = threading.Lock()
+        self.native_identity_exchange = NativeIdentityExchange(self)
         self._load_runtime(args.device_uri)
 
     def _remember_candidate(self, candidate: dict[str, Any], adapter_data_ref: str | None) -> None:
@@ -197,7 +206,20 @@ class BridgeState:
 
     @property
     def video_supported(self) -> bool:
-        return self.platform == "android" and self.airtest is not None and callable(getattr(self.airtest, "start_recording", None))
+        return self._video_backend() is not None
+
+    def _video_backend(self):
+        if self.platform != "android" or self.airtest is None or self.device is None:
+            return None
+        device_methods = tuple(getattr(self.device, name, None) for name in ("start_recording", "stop_recording"))
+        # Airtest 1.3.5 exposes Android recording on the connected device.
+        # Retain the legacy injected API only when the device has neither method.
+        if any(method is not None for method in device_methods):
+            methods, extension = device_methods, "mp4"
+        else:
+            methods = tuple(getattr(self.airtest, name, None) for name in ("start_recording", "stop_recording"))
+            extension = "webm"
+        return (*methods, extension) if all(callable(method) for method in methods) else None
 
     def capabilities(self) -> dict[str, Any]:
         connected = self.device is not None and self.airtest is not None
@@ -237,6 +259,16 @@ class BridgeState:
         if self.device is None or self.airtest is None:
             raise RuntimeError("Airtest device is not connected; start the bridge with --device-uri")
         return self.device
+
+    def native_identity_fields(self, timeout_ms: int = 5000) -> dict[str, Any]:
+        """Collect SDK facts for the versioned identity flow; this is not an approval."""
+        if self.platform != "android":
+            raise ValueError("native-identity: provider-unavailable")
+        device, runtime = self.device, self.airtest
+        result = observe_android_identity(device if runtime is not None else None, self.app_id, dict(self.runtime_versions), timeout_ms)
+        if self.device is not device or self.airtest is not runtime:
+            raise ValueError("native-identity: connection-changed")
+        return result
 
     def _resolution(self) -> tuple[int, int]:
         device = self._require_device()
@@ -301,11 +333,35 @@ class BridgeState:
             raise RuntimeError("video artifact exceeds maxBytes")
         return self._artifact_ref(path, staging)
 
-    def _snapshot(self, staging: Path, name: str = "screen.png") -> Path:
+    def _validated_frame_capture(self, active: dict[str, Any]) -> bool:
+        """Sealing requires the exact frames observed by the sampler."""
+        staging = active["staging"]
+        recorded = active.get("artifacts", [])
+        if len(recorded) != active.get("frames"):
+            return False
+        try:
+            directory = self._safe_artifact_path(staging, "artifacts/frames")
+            if not directory.is_dir() or len(list(directory.iterdir())) != len(recorded):
+                return False
+            for expected in recorded:
+                path = self._safe_artifact_path(staging, expected["path"])
+                if path.is_symlink() or not path.is_file():
+                    return False
+                actual = self._artifact_ref(path, staging)
+                if actual["sha256"] != expected["sha256"] or actual["size"] != expected["size"]:
+                    return False
+            return sum(item["size"] for item in recorded) == active.get("bytes")
+        except (OSError, RuntimeError, KeyError):
+            return False
+
+    def _snapshot(self, staging: Path, name: str = "screen.png", identity_guard=None) -> Path:
         target = self._safe_artifact_path(staging, f"artifacts/{name}")
         target.parent.mkdir(parents=True, exist_ok=True)
         self._require_device()
-        self.airtest.snapshot(filename=str(target))
+        if identity_guard is None:
+            self.airtest.snapshot(filename=str(target))
+        else:
+            identity_guard.snapshot(target)
         return target
 
     def _poco_nodes(self) -> list[dict[str, Any]]:
@@ -528,13 +584,15 @@ class BridgeState:
             raise CandidateDenied("stale_candidate")
         return current_observation
 
-    def execute(self, request: dict[str, Any]) -> dict[str, Any]:
+    def execute(self, request: dict[str, Any], identity_guard: Any = None) -> dict[str, Any]:
         candidate = request.get("candidate") or {}
         started = time.time()
         status = "executed"
         reason: str | None = None
         try:
             self._require_device()
+            if identity_guard is not None:
+                identity_guard.check()
             current_observation = self._assert_fresh_candidate(candidate)
             if candidate.get("actionKind") in ("tap", "poco-tap"):
                 visual = candidate.get("visual") or {}
@@ -550,12 +608,21 @@ class BridgeState:
                         raise CandidateDenied("mutation_not_allowed")
                     if self.poco is None:
                         raise RuntimeError("Poco hierarchy is unavailable")
-                    self.poco(name=template_id).click()
+                    if identity_guard is not None:
+                        identity_guard.poco_click(template_id)
+                    else:
+                        self.poco(name=template_id).click()
                 else:
                     width, height = self._observation_resolution(current_observation)
-                    self.airtest.touch((int((float(region["x"]) + float(region["width"]) / 2) * width), int((float(region["y"]) + float(region["height"]) / 2) * height)))
+                    position = (int((float(region["x"]) + float(region["width"]) / 2) * width), int((float(region["y"]) + float(region["height"]) / 2) * height))
+                    if identity_guard is not None:
+                        identity_guard.touch(position)
+                    else:
+                        self.airtest.touch(position)
             elif candidate.get("actionKind") == "back":
-                if self.platform == "android" and callable(getattr(self.airtest, "keyevent", None)):
+                if identity_guard is not None:
+                    identity_guard.back()
+                elif self.platform == "android" and callable(getattr(self.airtest, "keyevent", None)):
                     self.airtest.keyevent("BACK")
                 elif callable(getattr(self.device, "back", None)):
                     self.device.back()
@@ -566,17 +633,22 @@ class BridgeState:
         except CandidateDenied as exc:
             status, reason = "denied", exc.signature
         except Exception as exc:
-            status, reason = "infrastructure_error", type(exc).__name__
+            if identity_guard is not None and isinstance(exc, identity_guard.actions.error_type):
+                status, reason = "infrastructure_error" if identity_guard.attempted else "denied", exc.code
+            else:
+                status, reason = "infrastructure_error", type(exc).__name__
         elapsed = max(1, int((time.time() - started) * 1000))
         result: dict[str, Any] = {"schemaVersion": SCHEMA, "executionId": f"airtest-execution-{uuid.uuid4().hex[:12]}", "candidateId": candidate.get("candidateId", "unknown"), "preFingerprint": candidate.get("sourceFingerprint", ""), "startedAt": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()), "endedAt": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()), "status": status, "recoveryStatus": "not_required" if status == "executed" else "not_attempted", "targetChanges": [], "settleResult": {"policyVersion": "settle/v1", "status": "settled" if status == "executed" else "aborted", "elapsedMs": elapsed, "reasons": [] if status == "executed" else [reason or status]}, "evidenceRefs": []}
         if reason:
             result["failureSignature"] = reason
         return result
 
-    def recover(self, request: dict[str, Any]) -> dict[str, Any]:
+    def recover(self, request: dict[str, Any], identity_guard: Any = None) -> dict[str, Any]:
         try:
             if self.device is not None and self.airtest is not None:
-                if self.platform == "android" and callable(getattr(self.airtest, "keyevent", None)):
+                if identity_guard is not None:
+                    identity_guard.back()
+                elif self.platform == "android" and callable(getattr(self.airtest, "keyevent", None)):
                     self.airtest.keyevent("BACK")
                 elif callable(getattr(self.device, "back", None)):
                     self.device.back()
@@ -587,14 +659,47 @@ class BridgeState:
             pass
         return {"recovered": False, "strategy": "back", "evidenceRefs": []}
 
-    def capture_evidence(self, request: dict[str, Any]) -> list[dict[str, Any]]:
+    def capture_evidence(self, request: dict[str, Any], identity_guard=None) -> list[dict[str, Any]]:
         staging = self._safe_staging(request.get("request", {}).get("stagingDir"), request.get("request", {}).get("runId", "run"))
         refs: list[dict[str, Any]] = []
         if "screenshot" in request.get("request", {}).get("kinds", []):
-            refs.append(self._artifact_ref(self._snapshot(staging, f"screenshots/failure-{uuid.uuid4().hex[:12]}.png"), staging))
+            name = f"screenshots/failure-{uuid.uuid4().hex[:12]}.png"
+            path = self._snapshot(staging, name, identity_guard=identity_guard) if identity_guard else self._snapshot(staging, name)
+            refs.append(self._artifact_ref(path, staging))
+        if identity_guard:
+            identity_guard.check()
         return refs
 
-    def capture_control(self, request: dict[str, Any]) -> dict[str, Any]:
+    def capture_control(self, request: dict[str, Any], identity_guard=None) -> dict[str, Any]:
+        # A device recorder is shared by request threads.  Do not queue a
+        # second stop that could affect a later capture generation.
+        if not self._capture_command_lock.acquire(blocking=False):
+            mode = (request.get("request") or {}).get("mode", "sampled-frames/v1")
+            return {"accepted": False, "mode": mode, "artifactRefs": [], "reason": "capture command is already running"}
+        try:
+            return self._capture_control(request, identity_guard)
+        finally:
+            self._capture_command_lock.release()
+
+    def close_native_captures(self, timeout_ms: int) -> bool:
+        deadline = time.monotonic() + timeout_ms / 1000
+        if not self._recording_lock.acquire(timeout=max(0, deadline - time.monotonic())):
+            return False
+        try:
+            owned = [(key, value) for key, value in self._recording.items() if value.get("identityGuard") is not None]
+        finally:
+            self._recording_lock.release()
+        for key, active in owned:
+            remaining = int((deadline - time.monotonic()) * 1000)
+            if remaining < 1:
+                return False
+            result = self.capture_control({"request": {"runId": key, "stagingDir": str(active["staging"]),
+                "action": "stop", "mode": active["mode"], "stopTimeoutMs": remaining}}, identity_guard=active["identityGuard"])
+            if result.get("stopped") is not True:
+                return False
+        return True
+
+    def _capture_control(self, request: dict[str, Any], identity_guard=None) -> dict[str, Any]:
         value = request.get("request") or {}
         run_id = str(value.get("runId", "run"))
         staging = self._safe_staging(value.get("stagingDir"), run_id)
@@ -612,22 +717,46 @@ class BridgeState:
             if type(max_bytes) is not int or max_bytes <= 0:
                 return {"accepted": False, "mode": mode, "artifactRefs": [], "reason": "video maxBytes must be a positive integer"}
         if action == "start":
+            if identity_guard:
+                try:
+                    identity_guard.check()
+                except Exception:
+                    return {"accepted": False, "mode": mode, "artifactRefs": [], "reason": "native-capture-guard-failed"}
             with self._recording_lock:
-                if self._recording.get(key):
+                if self._recording:
                     return {"accepted": False, "mode": mode, "artifactRefs": [], "reason": "capture already active"}
-                if mode == "video" and self.video_supported:
-                    path = self._safe_artifact_path(staging, "artifacts/video/0001.webm")
+                capture_dir = self._safe_artifact_path(staging, "artifacts/video" if mode == "video" else "artifacts/frames")
+                if capture_dir.exists() and (not capture_dir.is_dir() or any(capture_dir.iterdir())):
+                    return {"accepted": False, "mode": mode, "artifactRefs": [], "reason": "capture output already exists"}
+                backend = self._video_backend() if mode == "video" else None
+                if mode == "video" and identity_guard:
+                    backend = (identity_guard.start_video, identity_guard.stop_video, "mp4")
+                if backend is not None:
+                    start_recording, stop_recording, extension = backend
+                    path = self._safe_artifact_path(staging, "artifacts/video/0001." + extension)
                     path.parent.mkdir(parents=True, exist_ok=True)
                     try:
-                        self.airtest.start_recording(output=str(path))
-                        self._recording[key] = {"mode": mode, "staging": staging, "path": path, "maxBytes": int(value.get("maxBytes", 1_073_741_824))}
+                        started = start_recording(output=str(path))
+                        if extension == "mp4" and started != str(path):
+                            return {"accepted": False, "mode": mode, "artifactRefs": [], "reason": "video start was not confirmed"}
+                        active = {"mode": mode, "staging": staging, "path": path, "maxBytes": int(value.get("maxBytes", 1_073_741_824)), "stopRecording": stop_recording, "confirmStop": extension == "mp4", "identityGuard": identity_guard}
+                        self._recording[key] = active
+                        if identity_guard:
+                            active["videoWatch"] = NativeCaptureVideo(identity_guard)
+                            identity_guard.check_video()
                         return {"accepted": True, "mode": mode, "artifactRefs": []}
                     except Exception as exc:
+                        if identity_guard and identity_guard.start_unconfirmed:
+                            self._recording[key] = {"mode": mode, "staging": staging, "path": path, "identityGuard": identity_guard, "failure": "native-capture-start-unconfirmed"}
+                            return {"accepted": False, "mode": mode, "artifactRefs": [], "reason": "native-capture-start-unconfirmed", "stopped": False}
+                        if identity_guard and key in self._recording and "videoWatch" not in self._recording[key]:
+                            self._recording[key]["failure"] = "native-capture-monitor-unavailable"
+                            return {"accepted": False, "mode": mode, "artifactRefs": [], "reason": "native-capture-monitor-unavailable", "stopped": False}
                         return {"accepted": False, "mode": mode, "artifactRefs": [], "reason": type(exc).__name__}
                 if mode == "video":
                     return {"accepted": False, "mode": mode, "artifactRefs": [], "reason": "video capability is unavailable"}
                 stop = threading.Event()
-                active = {"mode": "sampled-frames/v1", "staging": staging, "stop": stop, "maxFrames": int(value.get("maxFrames", 300)), "maxBytes": int(value.get("maxBytes", 1_073_741_824)), "frames": 0, "bytes": 0}
+                active = {"mode": "sampled-frames/v1", "staging": staging, "stop": stop, "maxFrames": int(value.get("maxFrames", 300)), "maxBytes": int(value.get("maxBytes", 1_073_741_824)), "frames": 0, "bytes": 0, "identityGuard": identity_guard}
                 active["thread"] = threading.Thread(target=self._sample, args=(stop, staging, int(value.get("intervalMs", 1000)), key), daemon=True)
                 self._recording[key] = active
                 active["thread"].start()
@@ -642,13 +771,22 @@ class BridgeState:
                 if mode == "sampled-frames/v1":
                     return {"accepted": action == "discard", "mode": mode, "artifactRefs": [], "frameCount": 0, "byteCount": 0, "stopped": True, **({"reason": "capture is not active"} if action == "stop" else {})}
                 return {"accepted": action == "discard", "mode": mode, "artifactRefs": [], "stopped": True, **({"reason": "capture is not active"} if action == "stop" else {})}
+            if active.get("staging") != staging:
+                return {"accepted": False, "mode": mode, "artifactRefs": [], "reason": "capture staging mismatch"}
             if active.get("mode") != mode:
                 return {"accepted": False, "mode": mode, "artifactRefs": [], "reason": "capture mode mismatch"}
+            if active.get("identityGuard") is not identity_guard:
+                return {"accepted": False, "mode": mode, "artifactRefs": [], "reason": "capture identity mismatch"}
             active_mode = str(active["mode"])
             sampler = active.get("thread") if active_mode == "sampled-frames/v1" else None
             if active_mode == "sampled-frames/v1":
                 active["stop"].set()
 
+        if active_mode == "video" and identity_guard and "videoWatch" not in active and not identity_guard.start_unconfirmed:
+            try:
+                active["videoWatch"] = NativeCaptureVideo(identity_guard, monitor=False)
+            except Exception:
+                return {"accepted": False, "mode": active_mode, "artifactRefs": [], "reason": "native-capture-stop-unconfirmed", "stopped": False}
         if sampler is not None:
             timeout_ms = value.get("stopTimeoutMs", 5_000)
             try:
@@ -658,9 +796,22 @@ class BridgeState:
             sampler.join(timeout=timeout)
             if sampler.is_alive():
                 return {"accepted": False, "mode": active_mode, "artifactRefs": [], "reason": "sampled-frame worker did not stop"}
-        elif active_mode == "video" and callable(getattr(self.airtest, "stop_recording", None)):
+        elif active_mode == "video" and "videoWatch" in active:
+            stopped = active["videoWatch"].stop(value.get("stopTimeoutMs", 5000))
+            if not stopped["stopped"]:
+                return {"accepted": False, "mode": active_mode, "artifactRefs": [], "reason": stopped["reason"], "stopped": False}
+            if stopped.get("failure"):
+                active["failure"] = stopped["failure"]
+        elif active_mode == "video" and identity_guard:
+            return {"accepted": False, "mode": active_mode, "artifactRefs": [], "reason": "native-capture-stop-unconfirmed", "stopped": False}
+        elif active_mode == "video":
             try:
-                self.airtest.stop_recording()
+                stop_recording = active.get("stopRecording")
+                if not callable(stop_recording):
+                    return {"accepted": False, "mode": active_mode, "artifactRefs": [], "reason": "video stop backend is unavailable"}
+                stopped = stop_recording()
+                if stopped is False or active.get("confirmStop") and stopped is not True:
+                    return {"accepted": False, "mode": active_mode, "artifactRefs": [], "reason": "video stop was not confirmed"}
             except Exception as exc:
                 return {"accepted": False, "mode": active_mode, "artifactRefs": [], "reason": type(exc).__name__}
 
@@ -670,13 +821,19 @@ class BridgeState:
                 return {"accepted": False, "mode": active_mode, "artifactRefs": [], "reason": "capture state changed during stop"}
             frame_count = int(active.get("frames", 0)) if active_mode == "sampled-frames/v1" else None
             byte_count = int(active.get("bytes", 0)) if active_mode == "sampled-frames/v1" else None
+            frame_failure = active.get("failure")
             self._recording.pop(key, None)
         if action == "discard":
-            shutil.rmtree(active["staging"] / "artifacts" / "video", ignore_errors=True)
-            shutil.rmtree(active["staging"] / "artifacts" / "frames", ignore_errors=True)
+            shutil.rmtree(active["staging"] / "artifacts" / ("video" if active_mode == "video" else "frames"), ignore_errors=True)
         if action == "stop" and active_mode == "sampled-frames/v1" and frame_count == 0:
             return {"accepted": False, "mode": active_mode, "artifactRefs": [], "reason": "sampled-frame capture produced zero frames", "frameCount": frame_count, "byteCount": byte_count, "stopped": True}
+        if action == "stop" and active_mode == "sampled-frames/v1":
+            if frame_failure or not self._validated_frame_capture(active):
+                reason = "sampled-frame capture failed" if frame_failure else "sampled-frame artifacts do not match capture"
+                return {"accepted": False, "mode": active_mode, "artifactRefs": [], "reason": reason, "frameCount": frame_count, "byteCount": byte_count, "stopped": True}
         if action == "stop" and active_mode == "video":
+            if frame_failure:
+                return {"accepted": False, "mode": active_mode, "artifactRefs": [], "reason": frame_failure, "stopped": True}
             try:
                 artifact_ref = self._validated_video_artifact(active)
             except RuntimeError as exc:
@@ -693,8 +850,15 @@ class BridgeState:
                     if not active or active.get("frames", 0) >= active.get("maxFrames", 300):
                         stop.set()
                         break
-                path = self._snapshot(staging, f"frames/frame-{index:04d}.png")
-                size = path.stat().st_size
+                guard = active.get("identityGuard")
+                name = f"frames/frame-{index:04d}.png"
+                path = self._snapshot(staging, name, identity_guard=guard) if guard else self._snapshot(staging, name)
+                artifact = self._artifact_ref(path, staging)
+                size = artifact["size"]
+                if size <= 0:
+                    raise RuntimeError("sampled frame is empty")
+                if guard:
+                    guard.check()
                 with self._recording_lock:
                     active = self._recording.get(key)
                     if active:
@@ -705,9 +869,14 @@ class BridgeState:
                         else:
                             active["frames"] = int(active.get("frames", 0)) + 1
                             active["bytes"] = int(active.get("bytes", 0)) + size
+                            active.setdefault("artifacts", []).append(artifact)
                             if active["bytes"] >= max_bytes:
                                 stop.set()
             except Exception:
+                with self._recording_lock:
+                    active = self._recording.get(key)
+                    if active:
+                        active["failure"] = "sampled-frame capture failed"
                 stop.set()
             index += 1
             stop.wait(max(0.1, interval_ms / 1000))
@@ -719,9 +888,21 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, format: str, *args: Any) -> None:
         return
 
-    def _send(self, value: Any, status: int = 200) -> None:
+    def _native_endpoint(self) -> str:
+        parsed = urlsplit(self.path)
+        host = self.headers.get("Host", "").lower()
+        port = self.server.server_address[1]
+        suffix = "" if port == 80 else ":" + str(port)
+        if len(self.headers.get_all("Host", [])) != 1 or host not in {"127.0.0.1" + suffix, "localhost" + suffix}:
+            raise NativeIdentityExchangeError("http-context-invalid", 400)
+        if parsed.scheme or parsed.netloc or parsed.query or parsed.fragment or not parsed.path.startswith("/"):
+            raise NativeIdentityExchangeError("http-context-invalid", 400)
+        path = parsed.path.rstrip("/")
+        return "http://" + host + path[:path.rfind("/") + 1]
+
+    def _send(self, value: Any, status: int = 200, limit: int = MAX_JSON_BYTES) -> None:
         data = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        if len(data) > MAX_JSON_BYTES:
+        if len(data) > limit:
             data = json.dumps({"error": "response exceeds size limit"}).encode("utf-8")
             status = 500
         self.send_response(status)
@@ -758,10 +939,26 @@ class Handler(BaseHTTPRequestHandler):
         if length <= 0 or length > MAX_JSON_BYTES:
             self._send({"error": "request exceeds size limit"}, 413)
             return
+        operation = self.path.rstrip("/").split("/")[-1]
+        if operation in ("native-identity-open", "native-identity-observe") and length > 4096:
+            self._send({"error": "native-identity: request-too-large"}, 413)
+            return
+        if operation in ("native-action", "native-capture") and length > 65536:
+            self._send({"error": "native-identity: request-too-large"}, 413)
+            return
         try:
-            request = json.loads(self.rfile.read(length).decode("utf-8"))
-            operation = self.path.rstrip("/").split("/")[-1]
+            request = json.loads(self.rfile.read(length).decode("utf-8"), parse_constant=reject_json_constant)
+            if not isinstance(request, dict):
+                raise ValueError("JSON request must be an object")
+        except (UnicodeDecodeError, ValueError):
+            self._send({"error": "request must be a valid JSON object"}, 400)
+            return
+        try:
             if operation == "capabilities": value = self.state.capabilities()
+            elif operation == "native-identity-open": value = self.state.native_identity_exchange.open(request, self._native_endpoint())
+            elif operation == "native-identity-observe": value = self.state.native_identity_exchange.observe(request, self._native_endpoint())
+            elif operation == "native-action": value = self.state.native_identity_exchange.actions.perform(request, self._native_endpoint())
+            elif operation == "native-capture": value = self.state.native_identity_exchange.captures.perform(request, self._native_endpoint())
             elif operation == "observe": value = self.state.observe(request)
             elif operation == "generate-candidates": value = self.state.generate_candidates(request)
             elif operation == "discover-candidates": value = self.state.discover_candidates(request)
@@ -770,7 +967,9 @@ class Handler(BaseHTTPRequestHandler):
             elif operation == "capture-evidence": value = self.state.capture_evidence(request)
             elif operation == "capture-control": value = self.state.capture_control(request)
             else: self._send({"error": "unsupported operation"}, 404); return
-            self._send(value)
+            self._send(value, limit=4 * 1024 * 1024 if operation == "native-capture" else MAX_JSON_BYTES)
+        except NativeIdentityExchangeError as exc:
+            self._send({"error": exc.code}, exc.status)
         except Exception as exc:
             self._send({"error": type(exc).__name__}, 500)
 
@@ -797,7 +996,16 @@ def main() -> None:
         raise SystemExit("bridge host must remain 127.0.0.1")
     state = BridgeState(args)
     Handler.state = state
-    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()
+    server = None
+    try:
+        server = ThreadingHTTPServer((args.host, args.port), Handler)
+        server.serve_forever()
+    finally:
+        try:
+            state.native_identity_exchange.close()
+        finally:
+            if server is not None:
+                server.server_close()
 
 
 if __name__ == "__main__":

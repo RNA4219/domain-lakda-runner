@@ -78,8 +78,8 @@ export async function writeAdaptiveEvidence(runDir: string, evidence: AdaptiveEv
     })))),
     writeText(join(root, "oracle-results.jsonl"), jsonLines(evidence.oracleResults)),
     writeCanonicalJson(join(root, "trace.json"), trace),
-    // Kept for v0.2.x consumers. The payload is the canonical adaptive-trace/v1 document.
-    writeCanonicalJson(join(root, "replay-trace.json"), trace),
+    // Operator requests remain evidence in trace.json; they are not replay instructions.
+    writeCanonicalJson(join(root, "replay-trace.json"), { ...trace, trace: evidence.trace.filter(entry => !["operator-control", "operator-bookmark", "operator-bookmark-error", "operator-control-error"].includes(String(entry.type))) }),
     writeCanonicalJson(join(root, "transition-graph.json"), evidence.graph),
     writeCanonicalJson(join(root, "coverage.json"), {
       schemaVersion: "lakda/coverage-report/v1",
