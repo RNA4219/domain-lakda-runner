@@ -93,6 +93,7 @@ export async function runAdaptiveExplore(
             const control = JSON.parse(readFileSync(controlPath, "utf8")) as { command?: string; reason?: string; requestId?: string };
             if (statSync(runtime.controlFile).isDirectory()) unlinkSync(controlPath);
             if (control.command === "pause" || control.command === "kill") {
+              collector.metadata.operatorControl = { command: control.command, ...(control.requestId === undefined ? {} : { requestId: control.requestId }) };
               killSwitch.request(control.reason ?? control.command);
               trace.push({ type: "operator-control", command: control.command, requestId: control.requestId, reason: killSwitch.reason, actionCount: actions });
               outcome = "partial";

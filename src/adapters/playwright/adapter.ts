@@ -447,9 +447,9 @@ export class PlaywrightAdaptiveAdapter implements AdaptiveAdapter {
       const returnEntry = targetClosed && this.topology.activeTargetId ? this.targets.get(this.topology.activeTargetId) : undefined;
       const after = targetClosed
         ? returnEntry && this.ref(returnEntry).lifecycle === "active"
-          ? await this.observe(this.ref(returnEntry), { runId: context.runId, scopeHosts: [...this.scopeHosts] })
+          ? await this.observe(this.ref(returnEntry), { runId: context.runId, ...(context.personaRef ? { personaRef: context.personaRef } : {}), scopeHosts: [...this.scopeHosts] })
           : undefined
-        : await this.observe(candidate.targetRef, { runId: context.runId, scopeHosts: [...this.scopeHosts] });
+        : await this.observe(candidate.targetRef, { runId: context.runId, ...(context.personaRef ? { personaRef: context.personaRef } : {}), scopeHosts: [...this.scopeHosts] });
       const postFingerprint = after ? fingerprintObservation(after).value : undefined;
       const dialogChange = dialogControl.event ? [{ ...dialogControl.event }] : [];
       const targetChanges = [...this.targetDetails(), ...this.topology.changes(), ...dialogChange];

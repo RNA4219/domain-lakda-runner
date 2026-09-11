@@ -12,6 +12,7 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
   const parsed = parseNodeArgs({
     args: argv,
     allowPositionals: true,
+    tokens: true,
     strict: true,
     options: {
       "base-url": { type: "string" }, mode: { type: "string" }, seed: { type: "string" }, headed: { type: "boolean" },
@@ -22,8 +23,32 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       "base-run-dir": { type: "string" }, "head-run-dir": { type: "string" },
       charter: { type: "string" }, session: { type: "string" }, reason: { type: "string" },
       index: { type: "string" }, "trust-store": { type: "string" },
+      sources: { type: "string" }, profile: { type: "string" }, "text-only": { type: "boolean" },
+      "report-config": { type: "string" }, "report-dir": { type: "string" },
+      report: { type: "string" }, "report-profile": { type: "string" }, "report-language": { type: "string" },
     },
   });
+  const automaticOptions = new Set(["report", "report-dir", "report-profile", "report-config", "report-language"]);
+  if (["run", "replay", "explore run", "explore resume"].includes(parsed.positionals.join(" "))) {
+    const seen = new Set<string>();
+    for (const token of parsed.tokens) {
+      if (token.kind !== "option" || !automaticOptions.has(token.name)) continue;
+      if (seen.has(token.name)) throw Object.assign(new Error("report optionを重複指定できません"), { exitCode: 2 });
+      seen.add(token.name);
+    }
+  }
+  if (parsed.positionals[0] === "report" && ["generate", "verify"].includes(parsed.positionals[1])) {
+    const command = parsed.positionals[1];
+    const allowed = new Set(command === "generate" ? ["run-dir", "session", "sources", "out", "profile", "text-only", "report-config", "report-language", "help", "version"] : ["report-dir", "help", "version"]);
+    const seen = new Set<string>();
+    const invalid = () => Object.assign(new Error("report commandの引数が不正です"), { exitCode: 2, reportCommand: command });
+    if (parsed.positionals.length !== 2) throw invalid();
+    for (const token of parsed.tokens) {
+      if (token.kind !== "option") continue;
+      if (!allowed.has(token.name) || seen.has(token.name)) throw invalid();
+      seen.add(token.name);
+    }
+  }
   return { positionals: parsed.positionals, flags: parsed.values };
 }
 

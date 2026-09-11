@@ -44,6 +44,7 @@ export type ExplorationCharter = {
   capture: {
     video: "retain-on-finding-or-non-pass" | "off";
     screenshot: "finding-non-pass-bookmark";
+    binaryAttestation?: { stagingRoot: string; policyDigest: string; timeoutMs?: number };
     sampledFrames: { enabled: boolean; intervalMs: number; maxFrames: number; maxBytes: number; source: "operator-bridge" | "playwright"; stopTimeoutMs: number };
   };
   templateCorpusVersion: string;

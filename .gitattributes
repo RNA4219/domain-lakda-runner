@@ -1,2 +1,5 @@
 vendor/hate/v1/artifact-manifest.schema.json text eol=lf
 docs/release-gate/qeg-*/** -text
+docs/release-gate/history/release-p6-rc.yml.txt -text
+tools/airtest-poco-bridge/locks/** text eol=lf
+tools/airtest-poco-bridge/compatibility/** text eol=lf

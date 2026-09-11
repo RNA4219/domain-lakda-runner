@@ -20,8 +20,12 @@ import { assertSafeAction, safeActions } from "./safety.js";
 import { applyVideoRetention, captureFailureScreenshot, finalizeVideoCapture, videoRecordingOptions } from "./browser-artifacts.js";
 import type { Action, ActionPlan, ExplorationCaptureRuntime, LakdaConfig, Locator, LlmStatus, RunBatchResult, RunOutcome, RunResult, WorkerRunEntry } from "./types.js";
 import type { ExternalToolBridge } from "../adapters/external-bridges.js";
+import { prepareBinaryAttestationRun, type BinaryAttestationRunOptions, type PreparedBinaryAttestationRun } from "../exploration/attestation-preflight.js";
+import { completeBinaryAttestationRun } from "../exploration/attestation-run.js";
+import { createAttestationStopCheck } from "../exploration/attestation-control.js";
+import { AttestationContractError } from "../exploration/attestation-contracts.js";
 
-export type RunRuntimeContext = { workerIndex?: number; batchId?: string; clock?: () => number; actionBudget?: ActionBudget; adaptiveReplayPrefixActions?: number; adaptiveExpectedFingerprint?: string; controlFile?: string; explorationCapture?: ExplorationCaptureRuntime; adaptiveBridge?: ExternalToolBridge; requireBinaryAttestation?: boolean; attestationTrustStorePath?: string; artifactAttestorKeyIds?: readonly string[]; explorationTargetRevisionProbe?: { kind: "response-header" | "dom-meta"; name: string; expected: string } };
+export type RunRuntimeContext = { workerIndex?: number; batchId?: string; clock?: () => number; actionBudget?: ActionBudget; adaptiveReplayPrefixActions?: number; adaptiveExpectedFingerprint?: string; controlFile?: string; explorationCapture?: ExplorationCaptureRuntime; adaptiveBridge?: ExternalToolBridge; requireBinaryAttestation?: boolean; attestationTrustStorePath?: string; artifactAttestorKeyIds?: readonly string[]; binaryAttestation?: BinaryAttestationRunOptions; explorationTargetRevisionProbe?: { kind: "response-header" | "dom-meta"; name: string; expected: string } };
 
 type LiveSelection = { kind: "action"; action: Action } | { kind: "stop" } | { kind: "hold" };
 type LiveSelector = (page: Page, priorAction: Action | undefined) => Promise<LiveSelection>;
@@ -178,6 +182,7 @@ async function executePlan(config: LakdaConfig, plan: ActionPlan, collector: Art
   try {
     if (requiresReset) await resetFixture(config);
     browser = await chromium.launch({ headless: !config.headed });
+    collector.markCaptureStarted();
     const storageState = configuredAuthStatePath(config);
     if (config.artifacts.har) { harTempDir = await mkdtemp(join(tmpdir(), "lakda-har-")); harTempPath = join(harTempDir, "network.har"); }
     context = await browser.newContext({ storageState: existsSync(storageState) ? storageState : undefined, recordVideo: videoRecordingOptions(config.artifacts.video, collector.paths.runDir), recordHar: harTempPath ? { path: harTempPath, content: "omit" } : undefined });
@@ -210,12 +215,18 @@ async function executePlan(config: LakdaConfig, plan: ActionPlan, collector: Art
       assertSafeAction(action, config);
       if (now() >= deadline) return finish({ outcome: "partial", terminationReason: "duration_limit" });
       if (runtime.actionBudget && !runtime.actionBudget.tryConsume()) return finish({ outcome: "partial", terminationReason: "rate_limit" });
+      const actionStartedAt = new Date().toISOString();
+      const actionStartedClock = performance.now();
+      let actionStatus: "completed" | "failed" = "completed";
       try {
         await executeAction(page, action, plan, config, Math.min(30_000, Math.max(1, deadline - now())));
         await verifyPersona(page, config, collector);
       } catch (error) {
+        actionStatus = "failed";
         collector.addFailure("UI-006", error instanceof Error ? error.message : "action timeout");
         break;
+      } finally {
+        collector.recordActionExecution(action, actionStartedAt, new Date().toISOString(), Math.max(0, Math.round((performance.now() - actionStartedClock) * 1000) / 1000), actionStatus);
       }
       if (config.artifacts.domSnapshots) {
         try { await writeDomSnapshot(page, collector, config, ++snapshotIndex, action.id); collector.recordDomSnapshot(); }
@@ -236,6 +247,7 @@ async function executePlan(config: LakdaConfig, plan: ActionPlan, collector: Art
     final = { outcome: "error", terminationReason: "executor_error" };
     return final;
   } finally {
+    let stopped = true;
     if (context) {
       const nonPass = final.outcome !== "passed" || collector.failures.length > 0;
       if (nonPass && page) {
@@ -244,11 +256,12 @@ async function executePlan(config: LakdaConfig, plan: ActionPlan, collector: Art
         try { await context.tracing.stop({ path: collector.paths.trace }); }
         catch (error) { collector.markArtifactFailure(); collector.addFailure("UI-008", error instanceof Error ? error.message : "trace failure"); }
       } else await context.tracing.stop().catch(() => undefined);
-      await context.close().catch(() => undefined);
+      await context.close().catch(() => { stopped = false; });
       try { await finalizeVideoCapture(config.artifacts.video, collector.paths.runDir); }
       catch (error) { collector.markArtifactFailure(); collector.addFailure("UI-008", error instanceof Error ? error.message : "video retention failure"); }
     }
-    await browser?.close().catch(() => undefined);
+    await browser?.close().catch(() => { stopped = false; });
+    if (stopped) collector.markCaptureStopped();
     if (harTempDir) {
       try { await writeSanitizedHar(harTempPath!, collector.paths.networkHar); }
       catch (error) { collector.markArtifactFailure(); collector.addFailure("UI-008", error instanceof Error ? error.message : "HAR sanitization failure"); }
@@ -268,7 +281,13 @@ export async function runLakda(config: LakdaConfig, replayInput?: string, runtim
   let plan: ActionPlan = { schemaVersion: "lakda/action-plan/v1", mode: config.mode === "adaptive-explore" ? "smoke" : config.mode, seed: config.seed, baseUrl: config.baseUrl ?? "", actions: [] };
   let llmStatus: LlmStatus = "not_requested";
   let execution!: ExecutionResult;
+  let binaryHandoff: PreparedBinaryAttestationRun | undefined;
   try {
+    if (resolvedRuntime.binaryAttestation) {
+      binaryHandoff = await prepareBinaryAttestationRun(resolvedRuntime.binaryAttestation, collector.paths.runDir, collector.metadata.runId,
+        resolvedRuntime.attestationTrustStorePath, resolvedRuntime.artifactAttestorKeyIds, resolvedRuntime.requireBinaryAttestation);
+      collector.metadata.artifactPolicy.binaryAttestationBinding = { ...binaryHandoff.binding };
+    }
     if (replayInput) {
       const replay = await readJson(replayInput);
       if (isAdaptiveReplayTrace(replay)) {
@@ -321,18 +340,39 @@ export async function runLakda(config: LakdaConfig, replayInput?: string, runtim
 
   if (execution.outcome !== "error" && collector.artifactFailure) execution = { outcome: "error", terminationReason: "artifact_failure" };
   if (execution.outcome !== "error" && collector.executorFailure) execution = { outcome: "error", terminationReason: "executor_error" };
-  try { await applyVideoRetention(config.artifacts.video, execution.outcome, collector.paths.runDir, collector.findingDetected); }
+  let handoffSafe = !(resolvedRuntime.binaryAttestation && collector.captureState === "active");
+  if (!handoffSafe) {
+    collector.markArtifactFailure(); collector.addFailure("UI-008", "binary-attestation: capture-not-stopped");
+    execution = { outcome: "error", terminationReason: "artifact_failure" };
+  }
+  try { if (handoffSafe) await applyVideoRetention(config.artifacts.video, execution.outcome, collector.paths.runDir, collector.findingDetected); }
   catch (error) {
     collector.markArtifactFailure();
     collector.addFailure("UI-008", error instanceof Error ? error.message : "video retention failure");
     execution = { outcome: "error", terminationReason: "artifact_failure" };
   }
 
+  if (binaryHandoff && handoffSafe) {
+    try {
+      const summary = await completeBinaryAttestationRun(binaryHandoff, config.artifacts.maxRunBytes, createAttestationStopCheck(collector, resolvedRuntime.controlFile));
+      collector.metadata.binaryAttestation = summary;
+      if (summary.adopted !== summary.requested) {
+        collector.markArtifactFailure(); collector.addFailure("UI-008", "binary-attestation: media-not-adopted");
+        execution = { outcome: "error", terminationReason: "artifact_failure" };
+      }
+    } catch (error) {
+      handoffSafe = false; collector.markArtifactFailure();
+      collector.addFailure("UI-008", error instanceof AttestationContractError ? error.message : "binary-attestation: run-handoff-failed");
+      execution = { outcome: "error", terminationReason: "artifact_failure" };
+    }
+  }
+
   let manifestPath: string | undefined;
   try {
     const finalized = await collector.finalize(plan, execution.outcome, exitCode(execution.outcome), llmStatus, execution.terminationReason);
+    if (!handoffSafe) throw new AttestationContractError("publication-blocked");
 
-    const binaryAttestation = { required: resolvedRuntime.requireBinaryAttestation === true, ...(resolvedRuntime.attestationTrustStorePath ? { trustStorePath: resolvedRuntime.attestationTrustStorePath } : {}), ...(resolvedRuntime.artifactAttestorKeyIds !== undefined ? { allowedKeyIds: resolvedRuntime.artifactAttestorKeyIds } : {}) };
+    const binaryAttestation = { required: resolvedRuntime.requireBinaryAttestation === true, summary: collector.metadata.binaryAttestation, ...(resolvedRuntime.attestationTrustStorePath ? { trustStorePath: resolvedRuntime.attestationTrustStorePath } : {}), ...(resolvedRuntime.artifactAttestorKeyIds !== undefined ? { allowedKeyIds: resolvedRuntime.artifactAttestorKeyIds } : {}), ...(collector.metadata.artifactPolicy.binaryAttestationBinding ? { binding: collector.metadata.artifactPolicy.binaryAttestationBinding } : {}) };
     let policy = await inspectArtifactPolicy(finalized.runDir, config, execution.outcome, collector.metadata.artifactPolicy.expectations, [], binaryAttestation);
     let resolved = applyArtifactPolicy(execution, policy);
     for (let pass = 0; pass < 3; pass += 1) {

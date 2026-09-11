@@ -23,6 +23,8 @@ next_review_due: 2026-08-22
 
 ## 現行実装順
 
+2026-09-10追加改修は[実装仕様](docs/spec/verification-reports/README.md)と[Task 61](docs/tasks/TASK.20260910-61.md)〜[Task 69](docs/tasks/TASK.20260910-69.md)を入口とする。既存計画のlocal_complete履歴は保持する。
+
 [Workflow-cookbook実装計画](docs/IMPLEMENTATION-PLAN-MAINTAINABILITY.md)を正本とする。
 
 - Phase 0: [TASK.20260722-43](docs/tasks/TASK.20260722-43.md) → [TASK.20260722-44](docs/tasks/TASK.20260722-44.md)

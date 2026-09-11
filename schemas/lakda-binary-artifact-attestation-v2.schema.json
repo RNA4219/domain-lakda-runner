@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/lakda/binary-artifact-attestation/v2",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "request", "requestSha256", "sourcePath", "sourceSha256", "sourceSize", "decision", "redactionRuleVersion", "secretScan", "piiScan", "tool", "completedAt", "signature"],
+  "properties": {
+    "schemaVersion": { "const": "lakda/binary-artifact-attestation/v2" },
+    "request": { "$ref": "https://local.invalid/lakda/binary-attestation-request/v1" },
+    "requestSha256": { "$ref": "#/$defs/digest" },
+    "sourcePath": { "$ref": "#/$defs/path" },
+    "sourceSha256": { "$ref": "#/$defs/digest" },
+    "sourceSize": { "$ref": "#/$defs/size" },
+    "outputPath": { "$ref": "#/$defs/path" },
+    "outputSha256": { "$ref": "#/$defs/digest" },
+    "outputSize": { "$ref": "#/$defs/size" },
+    "decision": { "enum": ["no-sensitive-content", "sanitized", "rejected"] },
+    "redactionRuleVersion": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "secretScan": { "enum": ["pass", "fail"] },
+    "piiScan": { "enum": ["pass", "fail"] },
+    "completedAt": { "$ref": "https://local.invalid/lakda/binary-attestation-request/v1#/$defs/time" },
+    "tool": {
+      "type": "object", "additionalProperties": false, "required": ["name", "version", "policyDigest"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "version": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "policyDigest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "signature": {
+      "type": "object", "additionalProperties": false, "required": ["algorithm", "keyId", "signedPayloadDigest", "valueBase64"],
+      "properties": {
+        "algorithm": { "const": "ed25519" },
+        "keyId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "signedPayloadDigest": { "$ref": "#/$defs/digest" },
+        "valueBase64": { "type": "string", "pattern": "^[A-Za-z0-9+/]{86}==$" }
+      }
+    }
+  },
+  "if": { "properties": { "decision": { "const": "sanitized" } } },
+  "then": { "required": ["outputPath", "outputSha256", "outputSize"] },
+  "else": { "not": { "anyOf": [{ "required": ["outputPath"] }, { "required": ["outputSha256"] }, { "required": ["outputSize"] }] } },
+  "$defs": {
+    "digest": { "$ref": "https://local.invalid/lakda/binary-attestation-request/v1#/$defs/digest" },
+    "path": { "$ref": "https://local.invalid/lakda/binary-attestation-request/v1#/$defs/path" },
+    "size": { "$ref": "https://local.invalid/lakda/binary-attestation-request/v1#/$defs/size" }
+  }
+}

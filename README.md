@@ -89,6 +89,47 @@ Lakda単体の成功をリリース成功とは呼びません。要件から最
 
 P8〜P11の契約は[拡張仕様書](docs/spec/lakda-extension/README.md)を正本とします。fixture成功を実環境受入へ昇格しません。reference stagingの実証も、実機や認可済みsecurity targetの代替にはしません。
 
+## テスト実行後のHTMLレポート
+
+テスト終了後に、結果の概要・失敗理由・保存済みの画像や動画を確認できます。基本の使い方は次の3手順です。
+
+1. 通常どおり`lakda run`などの対応CLIでテストを実行します。HTMLは既定で自動生成されます。
+2. 終了時の通知にある`directory`内の`index.html`をブラウザで開きます。既定の保存先は`.lakda/reports`配下です。
+3. 結果一覧のメッセージから気になる項目を開き、全文と画像・動画を確認します。動画は再生ボタンで再生します。
+
+概要では合否と主要な件数を確認できます。操作件数や実行時間は「操作件数・実行時間など」を開くと表示されます。結果が未確定の実行や未完了のワーカーがある場合は、概要に表示します。
+
+結果一覧は状態やキーワードで絞り込めます。「実行失敗」は失敗した実行、「失敗項目」は個別の失敗内容です。表示名でも保存記録のコード（`failed`／`failure`）でも検索でき、「絞り込みを全解除」で一覧に戻せます。
+
+詳細の「失敗した手順へ」と前／次のボタンから操作を確認できます。履歴一覧も選んだ手順までスクロールします。手順を選んで画像が出ない場合は、「実行全体の証跡を見る」で保存済みの画像・動画を開きます。手順との対応が未確認であることを表示し、画像は「画像を拡大」で細部を確認できます。
+
+出力言語は生成時に日本語（既定）と英語から選べます。対応CLIに`--report-language ja`または`--report-language en`を付けます。既定値を保存する場合は`lakda.report.json`に`{"schemaVersion":"lakda/report-config/v1","language":"en"}`を設定します。CLIの指定を優先し、テストのメッセージ・ID・記録上のコードは原文を保ちます。別の言語で読みたい場合は、保存済みの実行結果から再生成できます。
+
+保存済みrun／sessionから作り直す場合は、次のコマンドを使います。
+
+```text
+lakda report generate --run-dir .lakda/runs/<run-directory> --out .lakda/reports/review-01
+lakda report verify --report-dir .lakda/reports/review-01
+```
+
+英語で再生成する例:
+
+```text
+lakda report generate --run-dir .lakda/runs/<run-directory> --out .lakda/reports/review-en --report-language en
+```
+
+生成後は出力フォルダーの`index.html`を開きます。閲覧にはLakda・Node.js・Webサーバーは不要です。持ち運ぶときは画像・動画・表示用ファイルを含むフォルダー一式をコピーするか、ZIPにして展開してください。ファイル間の参照は相対パスで、外部通信なしで閲覧できます。`index.html`だけでは表示に必要なファイルが不足します。Windowsでは長すぎる保存パスで媒体を開けない場合があるため、展開先は短いパスを推奨します。確認範囲は[利用フローと持ち運びの検証記録](docs/spec/verification-reports/USER-FLOW-20260911.md)を参照してください。
+
+再生成先は未存在フォルダーを指定してください。`--session <session-directory>`／`--sources <report-sources.json>`にも対応します。元テストのfailedとレポート生成のreadyは別状態です。操作履歴のない旧runは計画と件数未取得を表示します。
+
+`run`／`replay`／`explore run`／`explore resume`は終了後に自動生成します。保存先の既定は`.lakda/reports`です。`--report off`で無効化し、`--report-dir`／`--report-profile`で保存先とprofileを指定できます。元のstdout／終了codeを維持し、生成結果とreceipt保存先はstderrに表示します。worker batchは全workerで1レポートとし、再生成用のprivate indexを`sources-<UUID>/sources.json`へ別保存します。indexにはローカル保存先が含まれるため、共有する場合はHTML bundleだけを選びます。
+
+新規runはtarget接続前に最小の開始記録を保存します。最終manifestが存在しない場合は、この記録から`local`の診断レポートを作り「結果未確定」と表示します。開始記録だけでは実行中と異常終了を区別できず、合否・終了時刻・操作数・媒体を推定しません。開始記録もないrunや既存manifestが不正なrunは拒否します。未確定runは`share`へ出力できません。
+
+`share`は、保存済みHATEに含まれる検査記録と媒体のbytesを、`lakda.report.json`の`trustStorePath`で指定した鍵一覧で検証できる場合に媒体を同梱します。real sessionとそのadaptive runでは対象manifestの許可鍵・capabilityも照合します。未検査媒体は除外し、採用した媒体の詳細から検証記録を確認できます。履歴やfindingに検証できる明示参照があれば、該当項目から画像・動画を選択できます。対応記録のない媒体は実行全体の証跡として確認できます。画像は原寸以上へ拡大し、画像枠内を矢印キーで移動できます。Chrome／Edge・100%／200%の[媒体40ケースと最大件数の測定](docs/spec/verification-reports/MEDIA-ACCEPTANCE-20260910.md)をlocalで確認済みです。容量の全境界と実環境・手動受入は[実装Task](docs/tasks/TASK.20260910-65.md)で継続中です。詳細は[レポート仕様](docs/spec/verification-reports/SPEC-01-REPORTING.md)を参照してください。
+
+native v2の保存sessionは、媒体なし・textOnlyを含め、report設定の`trustStorePath`と保存観測で対象の署名を検証します。現在の期限切れだけで過去の有効な証跡を拒否しません。操作結果が不明な記録は「結果未確定」と警告し、生成状態をdegradedにします。署名不正・観測欠落・証跡一覧との不一致は生成エラーになります。詳細は[native保存証跡の検証記録](docs/spec/verification-reports/NATIVE-IDENTITY-REPORT-20260911.md)を参照してください。
+
 ## 最短のローカル検証
 
 ```powershell
@@ -174,6 +215,8 @@ lakda explore acceptance --index <exploration-acceptance-index-v1.json> --trust-
 Airtest/Poco bridgeの起動例は[tools/airtest-poco-bridge/README.md](tools/airtest-poco-bridge/README.md)にあります。通常探索は録画を開始し、finding／non-passだけ保持します。回帰replay、実LLM `full` profile、full fixture acceptanceは録画を強制offします。各sessionは`exports/artifact-manifest.json`（HATE/v1）へCharter、capability、events、checkpoint、findings、report、参照run manifestを登録します。個別のfixture／real reportはlaneの技術結果であり、五laneの署名・SHA-256・HATEを`lakda explore acceptance`で集約するまで実機受入へ昇格しません。
 
 real Charterでは、署名済み`lakda/exploration-target-manifest/v1`とoperator trust storeをtarget接続前に検証します。Webはmanifest指定のrevision probe、nativeはbridgeが返したapp／target revision・device alias digest・serial digestを照合し、差分時はexit 2で操作0件とします。Airtest/Pocoのtemplate corpus実bytes、capability、bridge binding、revisionが一致しない場合も操作しません。ただし同梱reference bridgeのdevice identity値はCLIで与えるoperator宣言であり、実機APIによる独立観測ではありません。real acceptanceでは実機側の取得記録とmanual-bbを別途必要とし、reference bridgeだけで実観測済みとは扱いません。real artifactのbinaryは、target manifestで許可したattestorによる`lakda/binary-artifact-attestation/v1`のsource/output SHA-256、scan結果、署名が揃うまでHATEへ登録しません。reference bridge自身はこのattestationを生成しないため、外部scanner／attestorがないreal binary runはfail-closedです。`resume`はtrace／replay-trace／checkpoint／rate budgetを再検証し、分岐が必要な場合だけ明示的な`fork`を使います。
+
+nativeの独立観測と操作証跡は署名済みtarget manifest v2で扱い、CLIの初回・draft・paused resumeへ接続しています。現在は連続撮影offの設定が対象です。再開前の保存証跡照合と新しい実観測を必須にし、連続撮影の統合と実機受入は残作業として管理しています。[運用手順](RUNBOOK.md)と[native仕様](docs/spec/verification-reports/SPEC-02-NATIVE-EVIDENCE.md)を参照してください。
 
 ### Run catalogと比較
 

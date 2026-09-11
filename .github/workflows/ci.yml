@@ -13,6 +13,55 @@ defaults:
     shell: pwsh
 
 jobs:
+  python-bridge:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Execute Python bridge fixture contracts
+        run: |
+          $pythonPath = (Get-Command python).Source
+          npm run test:bridge:python -- --python $pythonPath
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: python-bridge-evidence
+          path: .lakda/qa/python/
+          if-no-files-found: error
+          retention-days: 14
+
+  python-bridge-dependencies:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.14"
+      - name: Clean install locked operator dependencies
+        run: |
+          python -m venv .lakda/dependency-env
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & .lakda/dependency-env/Scripts/python.exe -m pip install --require-hashes -r tools/airtest-poco-bridge/locks/windows-amd64-py312.txt
+      - name: Verify locked versions and imports without connecting a device
+        run: >-
+          .lakda/dependency-env/Scripts/python.exe -B tools/airtest-poco-bridge/verify_dependencies.py
+          --lock tools/airtest-poco-bridge/locks/windows-amd64-py312.txt
+          --out .lakda/qa/python-dependencies/windows-amd64-py312.json
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: python-bridge-dependency-evidence
+          path: .lakda/qa/python-dependencies/
+          if-no-files-found: error
+          retention-days: 14
+
   docs-contract:
     runs-on: windows-latest
     steps:

@@ -1,6 +1,9 @@
 import { assertAdaptiveContract } from "../adaptive/contracts.js";
 import type { ActionCandidate, AdapterCapabilities, EvidenceArtifactRef, ExecutionResult, Observation, TargetRef } from "../adaptive/contracts.js";
 import type { AdaptiveAdapter, AdapterFailure, EvidenceRequest, ExecuteContext, ObserveContext, RecoverContext, RecoveryResult } from "./types.js";
+import type { NativeIdentityAcquisition } from "../exploration/native-identity-exchange.js";
+import type { NativeActionRequest, NativeActionResult } from "../exploration/native-identity-actions.js";
+import type { NativeCaptureRequest, NativeCaptureResult } from "../exploration/native-identity-capture.js";
 
 export type SecurityControlRequest = { runId: string; killSwitchRef: string };
 export type SecurityControlResult = { triggered: boolean; evidenceRefs: EvidenceArtifactRef[] };
@@ -26,6 +29,9 @@ function assertCaptureControlRequest(request: CaptureControlRequest): void {
 export interface ExternalToolBridge {
   capabilities(): AdapterCapabilities;
   binding?(): { capabilityDigest: string; bridgeDigest: string };
+  observeNativeIdentity?(maxAgeMs?: number): Promise<NativeIdentityAcquisition>;
+  nativeAction?(request: NativeActionRequest): Promise<NativeActionResult>;
+  nativeCapture?(request: NativeCaptureRequest): Promise<NativeCaptureResult>;
   observe(target: TargetRef, context: ObserveContext): Promise<Observation>;
   generateCandidates(observation: Observation): Promise<ActionCandidate[]>;
   discoverCandidates?(observation: Observation, sourceFingerprint?: string): Promise<{ candidates: ActionCandidate[]; coverageDebt: import("../adaptive/contracts.js").CoverageDebt[]; classification?: import("../adaptive/contracts.js").CandidateClassification }>;

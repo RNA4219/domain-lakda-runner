@@ -109,10 +109,26 @@ async function withSessionLock<T>(paths: ExplorationSessionPaths, operation: () 
  */
 async function readSession(paths: ExplorationSessionPaths, repairProjection = false): Promise<ExplorationSession> {
   const value = await readJson(paths.session);
+  const raw = existsSync(paths.events) ? await readFile(paths.events, "utf8") : "";
+  const decoded = decodeSessionProjection(value, raw);
+  if (repairProjection && canonicalJson(value) !== canonicalJson(decoded.session)) await writeJsonAtomic(paths.session, decoded.session);
+  return decoded.session;
+}
+
+/** Validate a finalized projection from already bounded bytes, with no filesystem access or repair. */
+export function verifyExplorationSessionSnapshot(value: unknown, raw: string): { session: ExplorationSession; events: ExplorationSessionEvent[] } {
+  const decoded = decodeSessionProjection(value, raw);
+  const stored = value as ExplorationSession; // decodeSessionProjection validated the stored schema.
+  if (stored.eventCount !== decoded.session.eventCount || stored.eventHeadDigest !== decoded.session.eventHeadDigest) {
+    throw new Error("探索session snapshotは未確定です");
+  }
+  return decoded;
+}
+
+function decodeSessionProjection(value: unknown, raw: string): { session: ExplorationSession; events: ExplorationSessionEvent[] } {
   assertExplorationSession(value);
   const zeroDigest = `sha256:${"0".repeat(64)}`;
   if (value.eventCount === 0 && value.eventHeadDigest !== zeroDigest) throw new Error("探索sessionに新契約のevent hash chain headがありません。旧v1 sessionのmigrationは提供しません");
-  const raw = existsSync(paths.events) ? await readFile(paths.events, "utf8") : "";
   const lines = raw.split(/\r?\n/).filter(Boolean);
   let previousDigest = zeroDigest;
   const events: ExplorationSessionEvent[] = [];
@@ -127,18 +143,17 @@ async function readSession(paths: ExplorationSessionPaths, repairProjection = fa
     if (requiredStatus && event.status !== requiredStatus) throw new Error("探索session event type/statusが不一致です");
     events.push(event); previousDigest = eventDigest;
   }
-  if (events.length === 0 && value.eventCount === 0 && value.eventHeadDigest === zeroDigest) return value;
+  if (events.length === 0 && value.eventCount === 0 && value.eventHeadDigest === zeroDigest) return { session: value, events };
   if (events.length < value.eventCount) throw new Error("探索session projectionがevent logより先行しています。旧v1 sessionのmigrationは提供しません");
   if (events.length === value.eventCount && events.length > 0 && value.eventHeadDigest !== previousDigest) throw new Error("探索session projectionとevent logのhead digestが不一致です。旧v1 sessionのmigrationは提供しません");
   const prefix = events.slice(0, value.eventCount);
   const projectedPrefix = projectSession(value, prefix);
   assertExplorationSession(projectedPrefix);
   if (canonicalJson(projectedPrefix) !== canonicalJson(value)) throw new Error("探索session projectionがevent log由来の値と一致しません。旧v1 sessionのmigrationは提供しません");
-  if (events.length === value.eventCount) return value;
+  if (events.length === value.eventCount) return { session: value, events };
   const projected = projectSession(value, events);
   assertExplorationSession(projected);
-  if (repairProjection) await writeJsonAtomic(paths.session, projected);
-  return projected;
+  return { session: projected, events };
 }
 
 function projectSession(base: ExplorationSession, events: ExplorationSessionEvent[]): ExplorationSession {
@@ -398,7 +413,7 @@ async function listFiles(root: string): Promise<string[]> {
 function sessionArtifactKind(path: string): "trace" | "screenshot" | "video" | "log" | "report" | "other" {
   if (path.endsWith(".zip")) return "trace";
   if (/\.(png|jpg|jpeg)$/i.test(path)) return "screenshot";
-  if (path.endsWith(".webm")) return "video";
+  if (/\.(webm|mp4)$/i.test(path)) return "video";
   if (path.endsWith(".jsonl")) return "log";
   if (path.endsWith(".json")) return "report";
   return "other";
@@ -413,9 +428,16 @@ function repositoryCommitSha(): string {
 }
 
 /** session artifactを既存HATE/v1へ登録する。HATE exporterに別形式を導入しない。 */
-export async function buildSessionHateManifest(paths: ExplorationSessionPaths, session: ExplorationSession): Promise<object> {
+export async function buildSessionHateManifest(paths: ExplorationSessionPaths, session: ExplorationSession, options: { nativeTrustStorePath?: string } = {}): Promise<object> {
   const output = resolve(paths.hateManifest);
   const charter = await loadExplorationCharter(paths).catch(() => undefined);
+  const nativeApi = await import("./native-identity-evidence-target.js");
+  const nativeOptions = charter && { charter, configDigest: session.configDigest,
+    trustStorePath: options.nativeTrustStorePath ?? (charter.trustStorePath ? resolve(paths.root, charter.trustStorePath) : undefined) };
+  const nativeNeeded = await nativeApi.sessionHasNativeEvidence(paths);
+  if (nativeNeeded && !nativeOptions) throw new Error("native-evidence-charter-missing");
+  const native = nativeNeeded && nativeOptions ? await nativeApi.readSignedSessionNativeEvidence(paths, nativeOptions) : undefined;
+  if (native && native.records[0]?.binding.sessionId !== session.sessionId) throw new Error("native-evidence-session-mismatch");
   let artifactAttestorKeyIds: string[] | undefined;
   if (charter?.executionMode === "real") {
     try {
@@ -424,6 +446,7 @@ export async function buildSessionHateManifest(paths: ExplorationSessionPaths, s
       artifactAttestorKeyIds = loadedTarget.manifest.artifactAttestorKeyIds ? [...loadedTarget.manifest.artifactAttestorKeyIds] : [];
     } catch { artifactAttestorKeyIds = []; }
   }
+  if (native) artifactAttestorKeyIds = [...(native.target.manifest.artifactAttestorKeyIds ?? [])];
   const sessionAttestations = charter?.executionMode === "real" ? await readBinaryAttestations(paths.root) : new Map();
   const files = (await listFiles(paths.root)).filter(path => {
     const rel = portablePath(paths.root, path);
@@ -445,7 +468,7 @@ export async function buildSessionHateManifest(paths: ExplorationSessionPaths, s
     if (binary) {
       if (charter?.executionMode === "real") {
         const attestation = sessionAttestations.get(rel);
-        const verified = attestation ? await verifyBinaryAttestation(paths.root, rel, attestation, { requireSignature: true, trustStorePath: charter.trustStorePath ? resolve(charter.trustStorePath) : undefined, ...(artifactAttestorKeyIds !== undefined ? { allowedKeyIds: artifactAttestorKeyIds } : {}) }) : false;
+        const verified = attestation ? await verifyBinaryAttestation(paths.root, rel, attestation, { requireSignature: true, trustStorePath: options.nativeTrustStorePath ?? (charter.trustStorePath ? resolve(charter.trustStorePath) : undefined), ...(artifactAttestorKeyIds !== undefined ? { allowedKeyIds: artifactAttestorKeyIds } : {}) }) : false;
         if (verified) {
           redactionStatus = attestation?.decision === "sanitized" ? "redacted" : "not_required";
         } else {
@@ -478,6 +501,11 @@ export async function buildSessionHateManifest(paths: ExplorationSessionPaths, s
   const manifest = { schema_version: "HATE/v1", run_id: session.sessionId, run_attempt: 1, commit_sha: repositoryCommitSha(), artifacts };
   assertHateManifest(manifest);
   if (artifacts.some(artifact => artifact.security_checks && (artifact.security_checks as { secrets_scan?: string }).secrets_scan === "fail")) throw new Error("session artifactにsecret/PIIが含まれるためHATE manifestを確定できません");
+  if (native && nativeOptions) {
+    const current = await nativeApi.readSignedSessionNativeEvidence(paths, nativeOptions);
+    nativeApi.verifyNativeEvidenceArtifactIndex(current, artifacts as Array<{ path: string; sha256: string; size_bytes: number }>);
+    if (current.sourceDigest !== native.sourceDigest) throw new Error("native-evidence-source-changed");
+  }
   await mkdir(dirname(output), { recursive: true });
   await writeJsonAtomic(output, manifest);
   return manifest;
@@ -495,7 +523,7 @@ async function readAdaptiveCoverage(runDir: string | undefined, requireBinaryAtt
     const relative = (path: string) => path.slice(artifactRoot.length + 1).replaceAll("\\", "/");
     const image = /\.(png|jpg|jpeg)$/i;
     const screenshots = files.filter(path => image.test(path) && !relative(path).startsWith("frames/") && !relative(path).startsWith("video/")).length;
-    const videos = files.filter(path => relative(path).startsWith("video/") && /\.webm$/i.test(path)).length;
+    const videos = files.filter(path => relative(path).startsWith("video/") && /\.(webm|mp4)$/i.test(path)).length;
     const sampledFrames = files.filter(path => relative(path).startsWith("frames/") && image.test(path)).length;
     const snapshotPath = join(runDir, "adaptive", "candidate-snapshots.jsonl");
     if (!existsSync(snapshotPath)) throw new Error("coverage-debt evidence is missing");
@@ -508,7 +536,7 @@ async function readAdaptiveCoverage(runDir: string | undefined, requireBinaryAtt
       }
     }
     const attestations = requireBinaryAttestation ? await readBinaryAttestations(runDir) : new Map();
-    const binaryPaths = requireBinaryAttestation ? files.filter(path => /\.(png|jpg|jpeg|webm|zip)$/i.test(path)).map(relative) : [];
+    const binaryPaths = requireBinaryAttestation ? files.filter(path => /\.(png|jpg|jpeg|webm|mp4|zip)$/i.test(path)).map(relative) : [];
     const attestationFailures: string[] = [];
     if (requireBinaryAttestation && binaryPaths.length > 0) {
       const metadata = await readJson(join(runDir, "run-metadata.json")) as { artifactPolicy?: { artifactAttestorKeyIds?: unknown } };
@@ -525,10 +553,13 @@ async function readAdaptiveCoverage(runDir: string | undefined, requireBinaryAtt
   } catch { return { ...empty, capture: { ...empty.capture, failures: ["adaptive-coverage-invalid"] } }; }
 }
 
-export async function buildExplorationReport(paths: ExplorationSessionPaths): Promise<ExplorationReport> {
+export async function buildExplorationReport(paths: ExplorationSessionPaths, options: { nativeTrustStorePath?: string } = {}): Promise<ExplorationReport> {
   const session = (await loadExplorationSession(paths.root)).session;
   const charter = await loadExplorationCharter(paths);
   const findings = await readFindings(paths);
+  const nativeApi = await import("./native-identity-evidence-target.js");
+  const native = await nativeApi.sessionHasNativeEvidence(paths) ? await nativeApi.readSignedSessionNativeEvidence(paths,
+    { charter, configDigest: session.configDigest, trustStorePath: options.nativeTrustStorePath ?? (charter.trustStorePath ? resolve(paths.root, charter.trustStorePath) : undefined) }) : undefined;
   let artifactAttestorKeyIds: string[] | undefined;
   if (charter.executionMode === "real") {
     // The copied, signed target manifest is the source of truth for the
@@ -540,8 +571,10 @@ export async function buildExplorationReport(paths: ExplorationSessionPaths): Pr
       artifactAttestorKeyIds = loadedTarget.manifest.artifactAttestorKeyIds ? [...loadedTarget.manifest.artifactAttestorKeyIds] : [];
     } catch { artifactAttestorKeyIds = []; }
   }
-  const run = await readAdaptiveCoverage(session.lastRunDir ? resolveRunDirectoryReference(explorationRunRoot(charter), session.lastRunDir) : undefined, charter.executionMode === "real", charter.trustStorePath ? resolve(charter.trustStorePath) : undefined, artifactAttestorKeyIds);
+  if (native) artifactAttestorKeyIds = [...(native.target.manifest.artifactAttestorKeyIds ?? [])];
+  const run = await readAdaptiveCoverage(session.lastRunDir ? resolveRunDirectoryReference(explorationRunRoot(charter), session.lastRunDir) : undefined, charter.executionMode === "real", options.nativeTrustStorePath ?? (charter.trustStorePath ? resolve(charter.trustStorePath) : undefined), artifactAttestorKeyIds);
   const blockers = [...(session.blockers ?? []), ...run.capture.failures];
+  if (native && !native.complete && !blockers.includes("native-evidence-incomplete")) blockers.push("native-evidence-incomplete");
   if (session.technicalOutcome && session.technicalOutcome !== "passed" && !blockers.some(blocker => blocker.startsWith("technical-outcome:"))) blockers.push(`technical-outcome:${session.technicalOutcome}`);
   const report: ExplorationReport = {
     schemaVersion: "lakda/exploration-report/v1", sessionId: session.sessionId, status: session.status, charterDigest: session.charterDigest,
@@ -559,7 +592,7 @@ export async function buildExplorationReport(paths: ExplorationSessionPaths): Pr
   }
   assertExplorationReport(report);
   await writeJsonAtomic(paths.report, report);
-  await buildSessionHateManifest(paths, await readSession(paths));
+  await buildSessionHateManifest(paths, await readSession(paths), options);
   return report;
 }
 
@@ -577,7 +610,11 @@ export async function checkpointFromRun(paths: ExplorationSessionPaths, result: 
     const trace = await readJson(tracePath) as { schemaVersion?: string; trace?: Array<Record<string, unknown>> };
     if (trace.schemaVersion !== "lakda/adaptive-trace/v1" || !Array.isArray(trace.trace)) throw new Error("resume checkpointにはversioned adaptive traceが必要です");
     const entries = trace.trace ?? [];
-    const last = [...entries].reverse().find(entry => typeof entry.postFingerprint === "string");
+    const executionIndex = entries.findLastIndex(entry => entry.type === "execution");
+    const finalEntries = executionIndex >= 0 ? entries.slice(executionIndex) : entries;
+    const last = finalEntries.find(entry => typeof entry.postFingerprint === "string")
+      ?? finalEntries.filter(entry => entry.type === "observation" && entry.phase === "post-action" && typeof entry.fingerprint === "string")
+        .map(entry => ({ postFingerprint: entry.fingerprint }))[0];
     if (segmentActions > 0 && !last) throw new Error("resume checkpointにはaction後のpostFingerprintが必要です");
     if (typeof last?.postFingerprint === "string") lastFingerprint = last.postFingerprint;
     traceSha256 = `sha256:${(await fileDigest(tracePath)).sha256}`;

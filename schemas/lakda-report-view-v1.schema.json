@@ -1,0 +1,966 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/lakda/report-view/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "reportId",
+    "generatedAt",
+    "producerVersion",
+    "profile",
+    "generationStatus",
+    "classification",
+    "timeZone",
+    "inputSourceIds",
+    "sources",
+    "runs",
+    "sessions",
+    "rows",
+    "timeline",
+    "media",
+    "issues",
+    "counts"
+  ],
+  "properties": {
+    "language": { "enum": ["ja", "en"] },
+    "schemaVersion": {
+      "const": "lakda/report-view/v1"
+    },
+    "reportId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generatedAt": {
+      "type": "string",
+      "minLength": 1
+    },
+    "producerVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "profile": {
+      "enum": [
+        "local",
+        "share"
+      ]
+    },
+    "generationStatus": {
+      "enum": [
+        "ready",
+        "degraded",
+        "error"
+      ]
+    },
+    "classification": {
+      "enum": [
+        "public",
+        "internal",
+        "confidential",
+        "restricted"
+      ]
+    },
+    "timeZone": {
+      "const": "UTC"
+    },
+    "inputSourceIds": { "type": "array", "uniqueItems": true, "maxItems": 100, "items": { "type": "string", "minLength": 1 } },
+    "sources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/source"
+      }
+    },
+    "runs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/run"
+      },
+      "maxItems": 100
+    },
+    "sessions": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/session" } },
+    "batches": { "type": "array", "maxItems": 1, "items": { "$ref": "#/$defs/batch" } },
+    "incompleteRuns": { "type": "array", "minItems": 1, "maxItems": 100, "items": { "$ref": "#/$defs/incompleteRun" } },
+    "rows": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/row"
+      }
+    },
+    "timeline": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/timeline"
+      },
+      "maxItems": 10000
+    },
+    "media": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/media"
+      }
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/issue"
+      }
+    },
+    "counts": {
+      "$ref": "#/$defs/counts"
+    }
+  },
+  "$defs": {
+    "session": {
+      "type": "object", "additionalProperties": false,
+      "required": ["key", "sourceId", "sessionId", "status", "technicalOutcome", "terminationReason", "startedAt", "endedAt", "durationMs", "activeDurationMs", "platform", "executionMode", "seed", "producerVersion", "producerRevision", "targetRevision", "acceptanceStatus", "actionCount", "runKeys"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1 },
+        "sourceId": { "type": "string", "minLength": 1 },
+        "sessionId": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["paused", "completed", "aborted"] },
+        "technicalOutcome": { "enum": ["passed", "failed", "partial", "error", null] },
+        "terminationReason": { "type": ["string", "null"] },
+        "startedAt": { "type": "string", "minLength": 1 },
+        "endedAt": { "type": "string", "minLength": 1 },
+        "durationMs": { "type": ["number", "null"], "minimum": 0 },
+        "activeDurationMs": { "type": ["number", "null"], "minimum": 0 },
+        "platform": { "enum": ["pc-web", "mobile-web", "windows", "android", "ios"] },
+        "executionMode": { "enum": ["fixture", "real", "emulator", "mock"] },
+        "seed": { "type": "integer" },
+        "producerVersion": { "type": ["string", "null"] },
+        "producerRevision": { "type": "string", "pattern": "^[a-fA-F0-9]{7,64}$" },
+        "targetRevision": { "type": "string", "minLength": 1 },
+        "acceptanceStatus": { "enum": ["fixture_only", "pending_external", "eligible", "rejected", null] },
+        "actionCount": { "type": "integer", "minimum": 0 },
+        "runKeys": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "portable": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(/|$))(?!.*[:\\\\\\u0000-\\u001f])[^/]+(?:/[^/]+)*$"
+    },
+    "incompleteRun": {
+      "type": "object", "additionalProperties": false,
+      "required": ["key", "sourceId", "status", "runId", "attempt", "startedAt", "mode", "seed", "workerIndex", "producerVersion", "producerRevision"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1 },
+        "sourceId": { "type": "string", "minLength": 1 },
+        "status": { "const": "unfinalized" },
+        "runId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9:._-]{0,255}$" },
+        "attempt": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "startedAt": { "type": "string", "format": "date-time", "pattern": "Z$" },
+        "mode": { "enum": ["smoke", "seeded-random", "regression-replay", "llm-explore", "adaptive-explore"] },
+        "seed": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+        "workerIndex": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "batchId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9:._-]{0,255}$" },
+        "producerVersion": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$" },
+        "producerRevision": { "type": "string", "pattern": "^[a-f0-9]{40}$" }
+      }
+    },
+    "batch": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sourceId", "batchId", "recordedAt", "outcome", "exitCode", "requestedWorkers", "completedWorkers", "workers"],
+      "properties": {
+        "sourceId": { "type": "string", "minLength": 1 },
+        "batchId": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "recordedAt": { "type": "string", "format": "date-time" },
+        "outcome": { "enum": ["passed", "failed", "partial", "error"] },
+        "exitCode": { "enum": [0, 1, 2] },
+        "requestedWorkers": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "completedWorkers": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "workers": {
+          "type": "array", "minItems": 1, "maxItems": 4,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["id", "workerIndex", "seed", "status", "runKey", "runUnavailable"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "workerIndex": { "type": "integer", "minimum": 0, "maximum": 3 },
+              "seed": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+              "status": { "enum": ["completed", "error"] },
+              "runKey": { "type": ["string", "null"], "minLength": 1 },
+              "runUnavailable": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "classification": {
+      "enum": [
+        "public",
+        "internal",
+        "confidential",
+        "restricted"
+      ]
+    },
+    "profile": {
+      "enum": [
+        "local",
+        "share"
+      ]
+    },
+    "generationStatus": {
+      "enum": [
+        "ready",
+        "degraded",
+        "error"
+      ]
+    },
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "severity",
+        "sourceId",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "error"
+          ]
+        },
+        "sourceId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "status",
+        "manifestSha256",
+        "eventHeadDigest",
+        "producerRevision",
+        "targetRevision",
+        "classification"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "run",
+            "session",
+            "batch"
+          ]
+        },
+        "indexSha256": { "$ref": "#/$defs/digest" },
+        "startRecordSha256": { "$ref": "#/$defs/digest" },
+        "status": {
+          "enum": [
+            "verified",
+            "unverified",
+            "restricted"
+          ]
+        },
+        "manifestSha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "eventHeadDigest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "producerRevision": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "targetRevision": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "classification": {
+          "enum": [
+            "public",
+            "internal",
+            "confidential",
+            "restricted"
+          ]
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "definition",
+        "scope",
+        "status",
+        "numerator",
+        "denominator",
+        "ratio"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "definition": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "recorded",
+            "not-applicable",
+            "unavailable"
+          ]
+        },
+        "numerator": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "denominator": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ratio": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "sourceId",
+        "runId",
+        "attempt",
+        "mode",
+        "platform",
+        "executionMode",
+        "outcome",
+        "terminationReason",
+        "startedAt",
+        "endedAt",
+        "durationMs",
+        "seed",
+        "producerVersion",
+        "producerRevision",
+        "targetRevision",
+        "acceptanceStatus",
+        "actionCount",
+        "plannedActionCount",
+        "coverage"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "mode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "platform": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "executionMode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "outcome": {
+          "enum": [
+            "passed",
+            "failed",
+            "partial",
+            "error"
+          ]
+        },
+        "terminationReason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "startedAt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "endedAt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "durationMs": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "producerVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "producerRevision": {
+          "type": "string",
+          "minLength": 1
+        },
+        "targetRevision": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "acceptanceStatus": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "actionCount": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "plannedActionCount": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "coverage": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/coverage"
+          }
+        }
+      }
+    },
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "sourceId",
+        "runKey",
+        "kind",
+        "status",
+        "severity",
+        "title",
+        "message",
+        "at",
+        "ruleId",
+        "relatedIds",
+        "evidenceIds"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "enum": [
+            "run",
+            "worker",
+            "failure",
+            "warning",
+            "finding",
+            "session",
+            "promotion"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "minLength": 1
+        },
+        "severity": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ruleId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "relatedIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "evidenceIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "evidenceNotes": { "$ref": "#/$defs/evidenceNotes" }
+      }
+    },
+    "timeline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "sourceId",
+        "runKey",
+        "sequence",
+        "at",
+        "kind",
+        "label",
+        "relatedIds",
+        "evidenceIds"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string"
+        },
+        "step": {
+          "type": "object", "additionalProperties": false,
+          "required": ["operation", "target", "status", "durationMs", "message"],
+          "properties": {
+            "operation": { "type": ["string", "null"] },
+            "target": { "type": ["string", "null"] },
+            "status": { "type": ["string", "null"] },
+            "durationMs": { "type": ["number", "null"], "minimum": 0 },
+            "message": { "type": ["string", "null"] }
+          }
+        },
+        "relatedIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "evidenceIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "evidenceNotes": { "$ref": "#/$defs/evidenceNotes" }
+      }
+    },
+    "evidenceNotes": {
+      "type": "array", "minItems": 1, "maxItems": 2, "uniqueItems": true,
+      "items": { "enum": ["unavailable", "not-media"] }
+    },
+    "mediaProof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "decision", "attestationSha256", "signedPayloadDigest", "trustStoreSha256", "keyIdDigest", "policyDigest", "targetManifestSha256s"],
+      "properties": {
+        "schemaVersion": { "enum": ["lakda/binary-artifact-attestation/v1", "lakda/binary-artifact-attestation/v2"] },
+        "requestSha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "receiptSha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "decision": { "enum": ["no-sensitive-content", "sanitized"] },
+        "attestationSha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "signedPayloadDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "trustStoreSha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "keyIdDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "policyDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "targetManifestSha256s": { "type": "array", "maxItems": 100, "uniqueItems": true, "items": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" } }
+      },
+      "allOf": [{
+        "if": { "properties": { "schemaVersion": { "const": "lakda/binary-artifact-attestation/v2" } } },
+        "then": { "required": ["requestSha256", "receiptSha256"], "properties": { "targetManifestSha256s": { "minItems": 1 } } },
+        "else": { "not": { "anyOf": [{ "required": ["requestSha256"] }, { "required": ["receiptSha256"] }] } }
+      }]
+    },
+    "media": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "sourceId",
+        "runKey",
+        "kind",
+        "path",
+        "classification",
+        "verification",
+        "reason",
+        "scope",
+        "recordIds",
+        "sequence"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "enum": [
+            "screenshot",
+            "video",
+            "sampled-frame",
+            "trace",
+            "unsupported"
+          ]
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(/|$))(?!.*[:\\\\\\u0000-\\u001f])[^/]+(?:/[^/]+)*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "classification": {
+          "enum": [
+            "public",
+            "internal",
+            "confidential",
+            "restricted"
+          ]
+        },
+        "verification": {
+          "enum": [
+            "verified",
+            "pending",
+            "excluded"
+          ]
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scope": {
+          "enum": [
+            "run",
+            "record"
+          ]
+        },
+        "proof": { "$ref": "#/$defs/mediaProof" },
+        "sequence": { "type": ["integer", "null"], "minimum": 0 },
+        "recordIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sources",
+        "duplicateSources",
+        "runs",
+        "workerIncomplete",
+        "failures",
+        "warnings",
+        "findings",
+        "actions",
+        "events",
+        "plannedActions",
+        "unknownActionRuns",
+        "excludedMedia",
+        "outcomes"
+      ],
+      "properties": {
+        "sources": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "duplicateSources": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "runs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "incompleteRuns": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "workerIncomplete": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failures": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "warnings": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "findings": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "actions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "events": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "plannedActions": { "type": "integer", "minimum": 0 },
+        "unknownActionRuns": { "type": "integer", "minimum": 0 },
+        "excludedMedia": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "outcomes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "passed",
+            "failed",
+            "partial",
+            "error"
+          ],
+          "properties": {
+            "passed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "failed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "partial": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "error": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    }
+  }
+}

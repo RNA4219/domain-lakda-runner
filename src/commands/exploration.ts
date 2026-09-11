@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { runLakda } from "../core/runner.js";
+import { validateBinaryAttestationSetup } from "../exploration/attestation-preflight.js";
 import { loadConfig } from "../core/config.js";
 import { LoopbackJsonBridge } from "../adapters/loopback-json.js";
 import type { ExternalToolBridge } from "../adapters/external-bridges.js";
@@ -40,6 +41,9 @@ import { stringFlag, type Flags } from "../cli/parser.js";
 import { fileDigest, writeJsonAtomic } from "../core/artifact-store.js";
 import { ActionBudget } from "../core/action-budget.js";
 import { aggregateExplorationAcceptance } from "../exploration/acceptance.js";
+import { resolveReportConfig } from "../reporting/config.js";
+import { generateAutomaticReport } from "../reporting/automatic.js";
+import { prepareNativeIdentityRuntime } from "../exploration/native-identity-runtime.js";
 
 const playwrightRuntimeRevision = `playwright-${(createRequire(import.meta.url)("playwright/package.json") as { version: string }).version}`;
 
@@ -170,7 +174,11 @@ async function preflightTarget(charter: ExplorationCharter, config: ReturnType<t
     if (`sha256:${templateDigest.sha256}` !== charter.templateCorpus.sha256) throw new Error("探索template corpusのSHA-256が不一致です");
     if (templateDigest.size < 1) throw new Error("探索template corpusが空です");
   }
-  const loaded = await loadSignedExplorationTargetManifest(charter.targetManifestPath, charter, explorationDigest(config));
+  const loaded = await loadSignedExplorationTargetManifest(charter.targetManifestPath, charter, explorationDigest(config), { nativeIdentityPolicy: "validate-only" });
+  if (loaded.manifest.schemaVersion === "lakda/exploration-target-manifest/v2" && (charter.capture.video !== "off" || charter.capture.sampledFrames.enabled)) throw new Error("native identity v2の連続撮影と接続世代の照合は未接続です");
+  const trustStorePath = loaded.manifest.schemaVersion === "lakda/exploration-target-manifest/v2" && charter.trustStorePath
+    ? resolve(dirname(resolve(charter.targetManifestPath)), charter.trustStorePath) : charter.trustStorePath;
+  if (charter.capture.binaryAttestation) await validateBinaryAttestationSetup({ ...charter.capture.binaryAttestation, targetManifestSha256: loaded.sha256 }, trustStorePath, loaded.manifest.artifactAttestorKeyIds, [config.outputDir, sessionRoot(charter)]);
   if ((charter.platform === "pc-web" || charter.platform === "mobile-web") && !loaded.manifest.target.identity.revisionProbe) throw new Error("real Web探索target manifestにはrevisionProbeが必要です");
   return { manifest: loaded.manifest, manifestDigest: loaded.sha256 };
 }
@@ -201,7 +209,7 @@ async function persistRunFindings(paths: ExplorationSessionPaths, charter: Explo
   }
 }
 
-async function executeSession(paths: ExplorationSessionPaths, charter: ExplorationCharter, resumed: boolean, bridge?: ExternalToolBridge, manifest?: ExplorationTargetManifest, manifestDigest?: string): Promise<number> {
+async function executeSession(paths: ExplorationSessionPaths, charter: ExplorationCharter, resumed: boolean, bridge?: ExternalToolBridge, manifest?: ExplorationTargetManifest, manifestDigest?: string, nativeTrustStorePath?: string): Promise<number> {
   const loaded = await loadExplorationSession(paths.root);
   const replayPrefix = resumed ? loaded.session.actionCount : 0;
   const config = configForCharter(charter, outputRoot(charter));
@@ -212,12 +220,13 @@ async function executeSession(paths: ExplorationSessionPaths, charter: Explorati
   const current = await appendSessionEvent(paths, { type: resumed ? "session-resumed" : "session-started", status: "running", payload: { configDigest: explorationDigest(config), ...(manifestDigest ? { targetManifestDigest: manifestDigest } : {}) } });
   const startedAt = Date.now();
   try {
-    const replayInput = resumed && loaded.session.lastRunDir ? join(resolveRunDirectoryReference(outputRoot(charter), loaded.session.lastRunDir), "adaptive", "replay-trace.json") : undefined;
+    const replayInput = resumed && replayPrefix > 0 && loaded.session.lastRunDir ? join(resolveRunDirectoryReference(outputRoot(charter), loaded.session.lastRunDir), "adaptive", "replay-trace.json") : undefined;
     const runtime = {
       controlFile: paths.control,
       explorationCapture: { sampledFrames: charter.capture.sampledFrames },
+      ...(charter.capture.binaryAttestation ? { binaryAttestation: { ...charter.capture.binaryAttestation, targetManifestSha256: manifestDigest ?? "", sessionId: current.sessionId } } : {}),
       actionBudget,
-      ...(charter.executionMode === "real" ? { requireBinaryAttestation: true, ...(charter.trustStorePath ? { attestationTrustStorePath: resolve(charter.trustStorePath) } : {}), artifactAttestorKeyIds: manifest?.artifactAttestorKeyIds ?? [] } : {}),
+      ...(charter.executionMode === "real" ? { requireBinaryAttestation: true, ...(charter.trustStorePath ? { attestationTrustStorePath: nativeTrustStorePath ?? resolve(charter.trustStorePath) } : {}), artifactAttestorKeyIds: manifest?.artifactAttestorKeyIds ?? [] } : {}),
       ...(manifest?.target.identity.revisionProbe ? { explorationTargetRevisionProbe: { ...manifest.target.identity.revisionProbe, expected: charter.targetRevision } } : {}),
       ...(bridge ? { adaptiveBridge: bridge } : {}),
       ...(resumed ? { adaptiveReplayPrefixActions: replayPrefix, ...(loaded.session.lastFingerprint ? { adaptiveExpectedFingerprint: loaded.session.lastFingerprint } : {}) } : {}),
@@ -236,48 +245,60 @@ async function executeSession(paths: ExplorationSessionPaths, charter: Explorati
         operatorCommand = control?.command as "pause" | "kill" | undefined;
         for (const entry of trace.trace ?? []) if (entry.type === "operator-bookmark") await appendSessionEvent(paths, { type: "bookmark", payload: { runId: result.runId, ...(typeof entry.requestId === "string" ? { requestId: entry.requestId } : {}), ...(typeof entry.actionCount === "number" ? { actionCount: entry.actionCount } : {}) } });
       } catch { /* trace integrity is reported by checkpoint/report validation */ }
+      try {
+        const metadata = JSON.parse(await readFile(join(runDir, "run-metadata.json"), "utf8")) as { runId?: unknown; operatorControl?: { command?: unknown } };
+        const command = metadata.operatorControl?.command;
+        if (metadata.runId === result.runId && (command === "pause" || command === "kill")) operatorCommand = command;
+      } catch { /* Missing final metadata cannot supply an operator command. */ }
     }
     if (operatorCommand === "kill") {
       await appendSessionEvent(paths, { type: "kill-switch", status: "aborted", payload: { runId: result.runId, activeDurationMs, terminationReason: "operator-kill-switch", technicalOutcome: result.outcome, ...(runDirectoryRef ? { lastRunDir: runDirectoryRef } : {}) } });
-      const report = await buildExplorationReport(paths);
+      const report = await buildExplorationReport(paths, { nativeTrustStorePath });
       console.log(JSON.stringify({ ...result, sessionId: current.sessionId, reportPath: paths.report, report }, null, 2));
       return result.exitCode;
     }
     const paused = operatorCommand === "pause" || result.terminationReason === "hold";
     const errored = result.outcome === "error" || result.terminationReason === "executor_error";
     await appendSessionEvent(paths, { type: errored ? "session-aborted" : paused ? "session-paused" : "session-completed", status: errored ? "aborted" : paused ? "paused" : "completed", payload: { runId: result.runId, ...(runDirectoryRef ? { lastRunDir: runDirectoryRef } : {}), actionCount: (await loadExplorationSession(paths.root)).session.actionCount, activeDurationMs, technicalOutcome: result.outcome, terminationReason: result.terminationReason, ...(errored ? { blockers: ["adaptive-executor-error"] } : {}) } });
-    const report = await buildExplorationReport(paths);
+    const report = await buildExplorationReport(paths, { nativeTrustStorePath });
     console.log(JSON.stringify({ ...result, sessionId: current.sessionId, reportPath: paths.report, report }, null, 2));
     return result.exitCode;
   } catch (error) {
     await appendSessionEvent(paths, { type: "session-aborted", status: "aborted", payload: { blockers: [error instanceof Error ? error.message : String(error)] } });
-    await buildExplorationReport(paths).catch(() => undefined);
+    await buildExplorationReport(paths, { nativeTrustStorePath }).catch(() => undefined);
     throw error;
   }
 }
 
 export async function exploreRunCommand(flags: Flags): Promise<number> {
+  const reporting = await resolveReportConfig(flags);
   const charter = await readCharter(stringFlag(flags, "charter", true)!);
   const config = configForCharter(charter, outputRoot(charter));
   const created = await createExplorationSession(charter, config, sessionRoot(charter));
   let preflight: { manifest?: ExplorationTargetManifest; manifestDigest?: string };
   let capability: ExplorationCapabilityResult;
+  let native: Awaited<ReturnType<typeof prepareNativeIdentityRuntime>> | undefined;
   try {
     preflight = await preflightTarget(charter, config);
     if (preflight.manifestDigest && charter.targetManifestPath) await copyTargetManifest(created.paths, charter.targetManifestPath, preflight.manifestDigest);
+    if (preflight.manifestDigest) await appendSessionEvent(created.paths, { type: "capability-snapshot", payload: { targetManifestDigest: preflight.manifestDigest } });
+    if (preflight.manifest?.schemaVersion === "lakda/exploration-target-manifest/v2") native = await prepareNativeIdentityRuntime(created.paths, charter, explorationDigest(config), { manifest: preflight.manifest, sha256: preflight.manifestDigest! }, false);
     capability = await capabilityForCharter(charter, preflight.manifest);
     await writeCapabilitySnapshot(created.paths, capability.snapshot);
-    if (preflight.manifestDigest) await appendSessionEvent(created.paths, { type: "capability-snapshot", payload: { targetManifestDigest: preflight.manifestDigest } });
     assertTargetManifestBinding(preflight.manifest, capability);
+    if (native && capability.bridge) capability.bridge = await native.connect(capability.bridge);
   } catch (error) {
     await appendSessionEvent(created.paths, { type: "session-aborted", status: "aborted", payload: { blockers: [error instanceof Error ? error.message : String(error)] } }).catch(() => undefined);
-    await buildExplorationReport(created.paths).catch(() => undefined);
+    await buildExplorationReport(created.paths, { nativeTrustStorePath: native?.trustStorePath }).catch(() => undefined);
+    await generateAutomaticReport(reporting, { session: created.paths.root });
     throw error instanceof ExplorationPreflightError ? error : new ExplorationPreflightError(error instanceof Error ? error.message : String(error), error);
   }
-  return await executeSession(created.paths, charter, false, capability.bridge, preflight.manifest, preflight.manifestDigest);
+  try { return await executeSession(created.paths, charter, false, capability.bridge, preflight.manifest, preflight.manifestDigest, native?.trustStorePath); }
+  finally { await generateAutomaticReport(reporting, { session: created.paths.root }); }
 }
 
 export async function exploreResumeCommand(flags: Flags): Promise<number> {
+  const reporting = await resolveReportConfig(flags);
   const loaded = await loadExplorationSession(stringFlag(flags, "session", true)!);
   const charter = await loadExplorationCharter(loaded.paths);
   if (explorationDigest(charter) !== loaded.session.charterDigest) throw new Error("sessionのCharter digestが一致しません");
@@ -303,21 +324,28 @@ export async function exploreResumeCommand(flags: Flags): Promise<number> {
   if (!loaded.session.capabilityDigest || loaded.session.capabilityDigest !== storedDigest) throw new Error("session capability digestがsnapshotと一致しません");
   let preflight: { manifest?: ExplorationTargetManifest; manifestDigest?: string };
   let currentCapability: ExplorationCapabilityResult;
+  let native: Awaited<ReturnType<typeof prepareNativeIdentityRuntime>> | undefined;
   try {
     preflight = await preflightTarget(charter, configForCharter(charter, outputRoot(charter)));
     if (preflight.manifestDigest && charter.targetManifestPath) await copyTargetManifest(loaded.paths, charter.targetManifestPath, preflight.manifestDigest);
+    if (preflight.manifest?.schemaVersion === "lakda/exploration-target-manifest/v2") native = await prepareNativeIdentityRuntime(loaded.paths, charter, preflight.manifest.configDigest, { manifest: preflight.manifest, sha256: preflight.manifestDigest! }, loaded.session.status === "paused");
     currentCapability = await capabilityForCharter(charter, preflight.manifest);
     assertResumeCapabilityBinding(capability, currentCapability.snapshot);
     assertTargetManifestBinding(preflight.manifest, currentCapability);
+    if (native && currentCapability.bridge) currentCapability.bridge = await native.connect(currentCapability.bridge);
   } catch (error) {
     throw error instanceof ExplorationPreflightError ? error : new ExplorationPreflightError(error instanceof Error ? error.message : String(error), error);
   }
-  return await executeSession(loaded.paths, charter, loaded.session.status === "paused", currentCapability.bridge, preflight.manifest, preflight.manifestDigest);
+  try { return await executeSession(loaded.paths, charter, loaded.session.status === "paused", currentCapability.bridge, preflight.manifest, preflight.manifestDigest, native?.trustStorePath); }
+  finally { await generateAutomaticReport(reporting, { session: loaded.paths.root }); }
 }
 
 export async function exploreReportCommand(flags: Flags): Promise<number> {
   const loaded = await loadExplorationSession(stringFlag(flags, "session", true)!);
-  const report = await buildExplorationReport(loaded.paths);
+  const nativeApi = await import("../exploration/native-identity-evidence-target.js");
+  const charter = await nativeApi.sessionHasNativeEvidence(loaded.paths) ? await loadExplorationCharter(loaded.paths) : undefined;
+  const nativeTrustStorePath = charter?.targetManifestPath && charter.trustStorePath ? resolve(dirname(resolve(charter.targetManifestPath)), charter.trustStorePath) : undefined;
+  const report = await buildExplorationReport(loaded.paths, { nativeTrustStorePath });
   const out = stringFlag(flags, "out", true)!;
   await mkdir(dirname(resolve(out)), { recursive: true });
   await writeFile(resolve(out), `${JSON.stringify(report, null, 2)}\n`, "utf8");

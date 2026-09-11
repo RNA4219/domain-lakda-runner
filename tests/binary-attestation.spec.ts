@@ -6,6 +6,8 @@ import { expect, test } from "@playwright/test";
 import { canonicalJson } from "../src/core/plan.js";
 import { sha256 } from "../src/core/redaction.js";
 import { inspectArtifactPolicy } from "../src/core/artifact-policy.js";
+import { buildAndValidateManifest } from "../src/core/hate.js";
+import { inventoryAttestationSources } from "../src/exploration/attestation-inventory.js";
 import { buildSessionHateManifest, createExplorationSession } from "../src/exploration/session.js";
 import { readBinaryAttestations, verifyBinaryAttestation, type BinaryArtifactAttestation } from "../src/exploration/binary-attestation.js";
 import type { ExplorationCharter } from "../src/exploration/contracts.js";
@@ -27,6 +29,43 @@ async function writeAttestations(root: string, values: BinaryArtifactAttestation
   await mkdir(join(root, "attestations"), { recursive: true });
   await writeFile(join(root, "attestations", "binary-artifacts.jsonl"), values.map(value => JSON.stringify(value)).join("\n") + "\n", "utf8");
 }
+
+test("MP4 retains binary policy, inventory MIME and video HATE kind without claiming a scan", async () => {
+  const root = await mkdtemp(join(tmpdir(), "lakda-mp4-policy-"));
+  try {
+    const path = "artifacts/video/0001.mp4", bytes = Buffer.from("fixture-mp4-container");
+    await mkdir(join(root, "artifacts/video"), { recursive: true });
+    await writeFile(join(root, path), bytes);
+    const config = { artifacts: { maxRunBytes: 1_000_000, classification: "internal" } } as never;
+    const expected = { trace: false, screenshot: false, video: true, har: false, domSnapshots: 0 };
+    const policy = await inspectArtifactPolicy(root, config, "passed", expected);
+    expect(policy.unsupportedPaths).toEqual([]);
+    expect(policy.profileMissingPaths).toEqual([]);
+    expect(policy.securityByPath[path]).toEqual({ redactionStatus: "pending", secretsScan: "not_applicable", piiScan: "not_applicable" });
+    const manifest = await buildAndValidateManifest(root, "fixture-mp4", 1, "a".repeat(40), "internal", undefined, policy.securityByPath);
+    expect(manifest).toMatchObject({ artifacts: [{ path, kind: "video", safe_for_summary: false }] });
+    const strict = await inspectArtifactPolicy(root, config, "passed", expected, [], { required: true });
+    expect(strict.residualSensitivePaths).toEqual([path]);
+    expect(strict.securityByPath[path]?.secretsScan).toBe("fail");
+    expect(await inventoryAttestationSources(root, 1024, async () => {})).toEqual([
+      { path, mediaType: "video/mp4", size: bytes.length, sha256: "sha256:" + sha256(bytes) },
+    ]);
+    const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+    const base = unsignedAttestation(path, await digest(join(root, path)), "no-sensitive-content");
+    const payload = canonicalJson(base), trustStorePath = join(root, "trust.json");
+    await writeAttestations(root, [{ ...base, signature: { algorithm: "ed25519", keyId: "fixture",
+      signedPayloadDigest: "sha256:" + sha256(payload), valueBase64: sign(null, Buffer.from(payload), privateKey).toString("base64") } }]);
+    await writeFile(trustStorePath, JSON.stringify({ keys: [{ keyId: "fixture", publicKeyPem: publicKey.export({ type: "spki", format: "pem" }).toString() }] }));
+    const options = { required: true, trustStorePath, allowedKeyIds: ["fixture"] };
+    const verified = await inspectArtifactPolicy(root, config, "passed", expected, [], options);
+    expect(verified.residualSensitivePaths).toEqual([]);
+    expect(verified.securityByPath[path]).toMatchObject({ secretsScan: "pass", piiScan: "pass" });
+    await writeFile(join(root, path), Buffer.alloc(bytes.length, 1));
+    expect((await inspectArtifactPolicy(root, config, "passed", expected, [], options)).residualSensitivePaths).toContain(path);
+    await writeFile(join(root, "artifacts/video/unknown.avi"), bytes);
+    expect((await inspectArtifactPolicy(root, config, "passed", expected)).unsupportedPaths).toEqual(["artifacts/video/unknown.avi"]);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
 
 test("sanitized attestation retains only outputPath and never deputizes raw source", async () => {
   const root = await mkdtemp(join(tmpdir(), "lakda-binary-attestation-sanitized-"));
@@ -96,9 +135,13 @@ test("fixture session HATE marks binary scans not_applicable instead of UTF-8 pa
     const created = await createExplorationSession(charter, { mode: "adaptive-explore", seed: 1 }, root);
     await mkdir(join(created.paths.root, "artifacts"), { recursive: true });
     await writeFile(join(created.paths.root, "artifacts", "failure.png"), Buffer.from([0, 255, 1, 254]));
+    await writeFile(join(created.paths.root, "artifacts", "capture.mp4"), Buffer.from("fixture-video"));
     const manifest = await buildSessionHateManifest(created.paths, created.session) as { artifacts: Array<{ path: string; security_checks: { secrets_scan: string; pii_scan: string }; redaction_status: string }> };
     const binary = manifest.artifacts.find(artifact => artifact.path === "artifacts/failure.png");
     expect(binary?.security_checks).toEqual({ secrets_scan: "not_applicable", pii_scan: "not_applicable" });
     expect(binary?.redaction_status).toBe("pending");
+    expect(manifest.artifacts.find(artifact => artifact.path === "artifacts/capture.mp4")).toMatchObject({
+      kind: "video", redaction_status: "pending", security_checks: { secrets_scan: "not_applicable", pii_scan: "not_applicable" },
+    });
   } finally { await rm(root, { recursive: true, force: true }); }
 });

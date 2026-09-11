@@ -42,14 +42,47 @@ if (records[0].version !== packageJson.version) {
   throw new Error(`npm pack version mismatch: expected ${packageJson.version}, got ${records[0].version}`);
 }
 const files = new Set(records[0].files.map(entry => String(entry.path).replaceAll("\\", "/")));
+for (const path of files) {
+  if (/(^|\/)__pycache__(\/|$)|\.py[co]$/i.test(path)) throw new Error("runtime package contains Python cache: " + path);
+}
 const requiredRuntimeFiles = [
   "dist/cli.js",
   "dist/core/hate.js",
+  "dist/exploration/native-identity-executor.js",
+  "dist/exploration/native-identity-capture.js",
+  "dist/exploration/native-identity-capture-executor.js",
+  "dist/exploration/native-identity-capture-evidence.js",
+  "dist/exploration/native-identity-capture-verifier.js",
+  "dist/exploration/native-identity-bridge.js",
+  "dist/exploration/native-identity-runtime.js",
+  "dist/exploration/native-identity-evidence.js",
+  "dist/exploration/native-identity-evidence-io.js",
+  "dist/exploration/native-identity-evidence-store.js",
+  "dist/exploration/native-identity-evidence-target.js",
+  "dist/reporting/native-evidence.js",
+  "schemas/lakda-native-execution-evidence-v1.schema.json",
+  "schemas/lakda-native-execution-evidence-v2.schema.json",
+  "schemas/lakda-native-capture-evidence-v1.schema.json",
+  "schemas/lakda-native-action-v2.schema.json",
+  "schemas/lakda-native-capture-v1.schema.json",
   "schemas/lakda-config-v1.schema.json",
   "tools/airtest-poco-bridge/README.md",
   "tools/airtest-poco-bridge/requirements.top-level-attestation.txt",
   "tools/airtest-poco-bridge/requirements.txt",
   "tools/airtest-poco-bridge/server.py",
+  "tools/airtest-poco-bridge/native_identity.py",
+  "tools/airtest-poco-bridge/native_identity_exchange.py",
+  "tools/airtest-poco-bridge/native_identity_actions.py",
+  "tools/airtest-poco-bridge/native_identity_capture.py",
+  "tools/airtest-poco-bridge/native_identity_capture_video.py",
+  "tools/airtest-poco-bridge/native_identity_capture_contract.py",
+  "tools/airtest-poco-bridge/native_identity_capture_exchange.py",
+  "tools/airtest-poco-bridge/native_identity_clock.py",
+  "tools/airtest-poco-bridge/native_identity_transport.py",
+  "tools/airtest-poco-bridge/native_identity_transport_protocol.py",
+  "tools/airtest-poco-bridge/verify_dependencies.py",
+  "tools/airtest-poco-bridge/dependency_lock.py",
+  "tools/airtest-poco-bridge/locks/windows-amd64-py312.txt",
   "vendor/hate/v1/artifact-manifest.schema.json",
 ];
 for (const path of requiredRuntimeFiles) {

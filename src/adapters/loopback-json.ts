@@ -38,6 +38,27 @@ export class LoopbackJsonBridge implements ExternalToolBridge {
   }
 
   capabilities(): AdapterCapabilities { return this.capabilityValue; }
+  async nativeCapture(request: import("../exploration/native-identity-capture.js").NativeCaptureRequest): Promise<import("../exploration/native-identity-capture.js").NativeCaptureResult> {
+    if (this.capabilityValue.adapterId !== "airtest-poco" || !this.capabilityValue.platform) throw new Error("native capture requires an Airtest/Poco platform");
+    let input: import("../exploration/native-identity-capture.js").NativeCaptureRequest;
+    try { input = structuredClone(request); }
+    catch { throw new Error("native-identity: capture-request-invalid"); }
+    const { requestNativeCapture } = await import("../exploration/native-identity-capture.js");
+    return requestNativeCapture(this.endpoint, input);
+  }
+  async nativeAction(request: import("../exploration/native-identity-actions.js").NativeActionRequest): Promise<import("../exploration/native-identity-actions.js").NativeActionResult> {
+    if (this.capabilityValue.adapterId !== "airtest-poco" || !this.capabilityValue.platform) throw new Error("native action requires an Airtest/Poco platform");
+    let input: import("../exploration/native-identity-actions.js").NativeActionRequest;
+    try { input = structuredClone(request); }
+    catch { throw new Error("native-identity: action-request-invalid"); }
+    const { requestNativeAction } = await import("../exploration/native-identity-actions.js");
+    return requestNativeAction(this.endpoint, input);
+  }
+  async observeNativeIdentity(maxAgeMs = 60000): Promise<import("../exploration/native-identity-exchange.js").NativeIdentityAcquisition> {
+    if (this.capabilityValue.adapterId !== "airtest-poco" || !this.capabilityValue.platform) throw new Error("native identity requires an Airtest/Poco platform");
+    const { requestNativeIdentity } = await import("../exploration/native-identity-exchange.js");
+    return requestNativeIdentity(this.endpoint, this.binding(), this.capabilityValue.platform, maxAgeMs);
+  }
   binding(): { capabilityDigest: string; bridgeDigest: string } {
     return {
       capabilityDigest: securityBindingDigest(this.capabilityValue),

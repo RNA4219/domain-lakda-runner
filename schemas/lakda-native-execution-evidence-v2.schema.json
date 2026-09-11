@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lakda/native-execution-evidence/v2",
+  "title": "native実行の観測・操作・撮影を同じ順序で保存する記録",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "binding", "journalId", "sequence", "evidence"],
+  "properties": {
+    "schemaVersion": { "const": "lakda/native-execution-evidence/v2" },
+    "binding": { "$ref": "v1#/properties/binding" },
+    "journalId": { "$ref": "v1#/properties/journalId" },
+    "sequence": { "$ref": "v1#/properties/sequence" },
+    "evidence": { "oneOf": [{ "$ref": "v1#/properties/evidence" }, { "$ref": "../native-capture-evidence/v1" }] }
+  }
+}

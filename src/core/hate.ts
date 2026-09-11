@@ -1,5 +1,6 @@
 import { createRequire } from "node:module";
 import { inspectArtifactPolicy, isGeneratedExportPath } from "./artifact-policy.js";
+import type { AttestationBinding } from "../exploration/attestation-evidence.js";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,7 +19,7 @@ const validate = new Ajv({ allErrors: true, strict: false }).compile(schema);
 function kind(path: string): "trace" | "screenshot" | "video" | "log" | "report" | "static" | "other" {
   if (path.endsWith(".zip")) return "trace";
   if (/\.(png|jpg|jpeg)$/i.test(path)) return "screenshot";
-  if (path.endsWith(".webm")) return "video";
+  if (/\.(webm|mp4)$/i.test(path)) return "video";
   if (path.endsWith(".jsonl")) return "log";
   if (path.endsWith(".json")) return "report";
   if (path.endsWith(".html")) return "static";
@@ -74,10 +75,13 @@ export async function exportHate(runDir: string, out: string, securityByPath: Re
   // Security status is always recomputed from the final bytes. Keep the
   // parameter for API compatibility, but never let a caller override policy.
   void securityByPath;
-  const metadata = await readJson(join(runDir, "run-metadata.json")) as { runId: string; attempt: number; commitSha: string; startedAt?: string; endedAt?: string; producerVersion?: string; outcome?: import("./types.js").RunOutcome; artifactPolicy?: { classification: "public" | "internal" | "confidential" | "restricted"; maxRunBytes: number; expectations: import("./types.js").ArtifactExpectations; binaryAttestationRequired?: boolean; attestationTrustStorePath?: string; artifactAttestorKeyIds?: string[] } };
+  const metadata = await readJson(join(runDir, "run-metadata.json")) as { runId: string; attempt: number; commitSha: string; startedAt?: string; endedAt?: string; producerVersion?: string; outcome?: import("./types.js").RunOutcome; binaryAttestation?: unknown; artifactPolicy?: { classification: "public" | "internal" | "confidential" | "restricted"; maxRunBytes: number; expectations: import("./types.js").ArtifactExpectations; binaryAttestationRequired?: boolean; attestationTrustStorePath?: string; artifactAttestorKeyIds?: string[]; binaryAttestationBinding?: AttestationBinding } };
+  const binding = metadata.artifactPolicy?.binaryAttestationBinding;
+  if (binding !== undefined && (!binding || binding.runId !== metadata.runId)) throw new Error("artifact policyのrun bindingが一致しません");
   const excluded = [resolve(out)];
-  const policy = await inspectArtifactPolicy(runDir, { artifacts: { maxRunBytes: metadata.artifactPolicy?.maxRunBytes ?? 1_073_741_824, classification: metadata.artifactPolicy?.classification ?? "internal" } } as import("./types.js").LakdaConfig, metadata.outcome ?? "passed", metadata.artifactPolicy?.expectations ?? { trace: false, screenshot: false, video: false, har: false, domSnapshots: 0 }, excluded, { required: metadata.artifactPolicy?.binaryAttestationRequired === true, ...(metadata.artifactPolicy?.attestationTrustStorePath ? { trustStorePath: metadata.artifactPolicy.attestationTrustStorePath } : {}), ...(metadata.artifactPolicy?.artifactAttestorKeyIds !== undefined ? { allowedKeyIds: metadata.artifactPolicy.artifactAttestorKeyIds } : {}) });
-  if (policy.residualSensitivePaths.length || policy.missingPaths.length || policy.profileMissingPaths.length || policy.unsupportedPaths.length || (metadata.outcome === "passed" && policy.sizeExceeded)) throw new Error("artifact policy検査に失敗しました");
+  const policy = await inspectArtifactPolicy(runDir, { artifacts: { maxRunBytes: metadata.artifactPolicy?.maxRunBytes ?? 1_073_741_824, classification: metadata.artifactPolicy?.classification ?? "internal" } } as import("./types.js").LakdaConfig, metadata.outcome ?? "passed", metadata.artifactPolicy?.expectations ?? { trace: false, screenshot: false, video: false, har: false, domSnapshots: 0 }, excluded, { required: metadata.artifactPolicy?.binaryAttestationRequired === true, summary: metadata.binaryAttestation, ...(metadata.artifactPolicy?.attestationTrustStorePath ? { trustStorePath: metadata.artifactPolicy.attestationTrustStorePath } : {}), ...(metadata.artifactPolicy?.artifactAttestorKeyIds !== undefined ? { allowedKeyIds: metadata.artifactPolicy.artifactAttestorKeyIds } : {}), ...(binding !== undefined ? { binding } : {}) });
+  const unexplainedMissing = policy.profileMissingPaths.filter(path => metadata.outcome !== "error" || !policy.documentedMissingPaths?.includes(path));
+  if (policy.residualSensitivePaths.length || policy.missingPaths.length || unexplainedMissing.length || policy.unsupportedPaths.length || (metadata.outcome === "passed" && policy.sizeExceeded)) throw new Error("artifact policy検査に失敗しました");
   const manifest = await buildAndValidateManifest(runDir, metadata.runId, metadata.attempt, metadata.commitSha, metadata.artifactPolicy?.classification ?? "internal", { producerVersion: metadata.producerVersion ?? "0.5.0-rc.1", createdAt: metadata.endedAt ?? metadata.startedAt ?? "1970-01-01T00:00:00.000Z" }, policy.securityByPath, excluded, policy.verifiedArtifacts);
   await writeJsonAtomic(out, manifest);
   return manifest;

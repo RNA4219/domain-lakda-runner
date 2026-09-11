@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/lakda/run-start/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "runId", "attempt", "startedAt", "mode", "seed", "workerIndex", "producerVersion", "producerRevision", "classification"],
+  "properties": {
+    "schemaVersion": { "const": "lakda/run-start/v1" },
+    "runId": { "$ref": "#/$defs/id" },
+    "attempt": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "startedAt": { "type": "string", "format": "date-time", "pattern": "Z$" },
+    "mode": { "enum": ["smoke", "seeded-random", "regression-replay", "llm-explore", "adaptive-explore"] },
+    "seed": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+    "workerIndex": { "type": "integer", "minimum": 0, "maximum": 3 },
+    "batchId": { "$ref": "#/$defs/id" },
+    "producerVersion": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$" },
+    "producerRevision": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "classification": { "enum": ["public", "internal", "confidential", "restricted"] }
+  },
+  "$defs": { "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9:._-]{0,255}$" } }
+}

@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/lakda/binary-attestation-receipt/v1",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "requestId", "requestSha256", "runId", "targetManifestSha256", "status", "reason", "responseSha256", "receivedAt", "finishedAt"],
+  "properties": {
+    "schemaVersion": { "const": "lakda/binary-attestation-receipt/v1" },
+    "requestId": { "$ref": "https://local.invalid/lakda/binary-attestation-request/v1#/$defs/uuid" },
+    "requestSha256": { "$ref": "#/$defs/digest" },
+    "runId": { "$ref": "https://local.invalid/lakda/binary-attestation-request/v1#/$defs/id" },
+    "targetManifestSha256": { "$ref": "#/$defs/digest" },
+    "status": { "enum": ["response-verified", "rejected", "timeout", "cancelled", "error"] },
+    "reason": { "anyOf": [{ "type": "null" }, { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-z][a-z0-9-]*$" }] },
+    "responseSha256": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/digest" }] },
+    "receivedAt": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/time" }] },
+    "finishedAt": { "$ref": "#/$defs/time" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "response-verified" } } },
+      "then": { "properties": { "reason": { "type": "null" }, "responseSha256": { "$ref": "#/$defs/digest" }, "receivedAt": { "$ref": "#/$defs/time" } } },
+      "else": { "properties": { "reason": { "type": "string" } } }
+    },
+    {
+      "if": { "properties": { "responseSha256": { "type": "null" } } },
+      "then": { "properties": { "receivedAt": { "type": "null" } } },
+      "else": { "properties": { "receivedAt": { "$ref": "#/$defs/time" } } }
+    }
+  ],
+  "$defs": {
+    "digest": { "$ref": "https://local.invalid/lakda/binary-attestation-request/v1#/$defs/digest" },
+    "time": { "$ref": "https://local.invalid/lakda/binary-attestation-request/v1#/$defs/time" }
+  }
+}

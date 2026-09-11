@@ -1,7 +1,8 @@
-# Operator install input (not a complete transitive lock).
-# Review and freeze the resolved transitive environment in the operator venv
-# before connecting an approved target.  requirements.top-level-attestation.txt
-# is a top-level source attestation only and must not be passed to pip as a
-# constraints file.
+# Source input for operator dependencies; use the environment-specific
+# hash-locked file under locks/ after checking RUNTIME-MATRIX.md.
+# requirements.top-level-attestation.txt is historical top-level attestation,
+# not a pip constraints file or a complete dependency lock.
 airtest==1.3.5
 pocoui==1.0.94
+# Airtest 1.3.5 imports distutils at runtime; Python 3.12+ needs its provider.
+setuptools==84.0.0; python_version >= "3.12"

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/lakda/report-sources/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "root", "entries"],
+  "properties": {
+    "schemaVersion": { "const": "lakda/report-sources/v1" },
+    "root": { "type": "string", "minLength": 1, "maxLength": 4096 },
+    "entries": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["kind", "path"],
+        "properties": {
+          "kind": { "enum": ["run", "session"] },
+          "path": { "type": "string", "minLength": 1, "maxLength": 4096 }
+        }
+      }
+    }
+  }
+}

@@ -23,6 +23,7 @@ export async function setupAdaptiveEnvironment(config: LakdaConfig, collector: A
   if (config.adaptive.adapter.id === "playwright") {
     if (!config.baseUrl) throw new Error("Playwright adaptive-explore requires baseUrl");
     const browser = await chromium.launch({ headless: !config.headed });
+    collector.markCaptureStarted();
     const context = await browser.newContext({
       recordVideo: videoRecordingOptions(config.artifacts.video, collector.paths.runDir),
       ...(config.explorationPlatform === "mobile-web" ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } : {}),
@@ -99,28 +100,31 @@ export async function startAdaptiveEnvironment(config: LakdaConfig, environment:
 
 export async function closeAdaptiveEnvironment(config: LakdaConfig, environment: AdaptiveEnvironment | undefined, outcome: RunOutcome, collector: ArtifactCollector): Promise<void> {
   if (!environment) return;
+  let stopped = true;
   const needsFailureEvidence = outcome !== "passed" || collector.findingDetected;
   if (!environment.context && needsFailureEvidence && environment.screenshotAvailable === true) {
     await environment.adapter.captureEvidence({ runId: collector.metadata.runId, kinds: ["screenshot"], stagingDir: collector.paths.runDir })
       .then(refs => verifyEvidenceArtifactRefs(refs, collector.paths.runDir, { requireScreenshot: true }))
-      .catch(error => { collector.markArtifactFailure(); collector.addFailure("UI-008", error instanceof Error ? error.message : "operator screenshot capture failure"); });
+      .catch(error => { stopped = false; collector.markArtifactFailure(); collector.addFailure("UI-008", error instanceof Error ? error.message : "operator screenshot capture failure"); });
   }
   if (environment.capture) {
     try {
       const captureResult = await environment.capture.control({ runId: collector.metadata.runId, stagingDir: collector.paths.runDir, action: outcome === "passed" && !collector.findingDetected ? "discard" : "stop", mode: environment.capture.mode, ...(environment.capture.mode === "sampled-frames/v1" ? { stopTimeoutMs: environment.capture.stopTimeoutMs ?? 5_000 } : {}) });
+      if (!captureResult.accepted) stopped = false;
       if (captureResult.artifactRefs.length) await verifyEvidenceArtifactRefs(captureResult.artifactRefs, collector.paths.runDir);
       if (!captureResult.accepted || (environment.capture.mode === "sampled-frames/v1" && outcome !== "passed" && captureResult.frameCount === 0)) {
         collector.markArtifactFailure();
         collector.addFailure("UI-008", captureResult.reason ?? "operator capture produced no usable artifact");
       }
-    } catch (error) { collector.markArtifactFailure(); collector.addFailure("UI-008", error instanceof Error ? error.message : "operator capture finalization failure"); }
+    } catch (error) { stopped = false; collector.markArtifactFailure(); collector.addFailure("UI-008", error instanceof Error ? error.message : "operator capture finalization failure"); }
   }
   if (environment.context) {
     if (needsFailureEvidence) await captureFailureScreenshot(environment.context, environment.page, collector.paths.screenshot).catch(error => { collector.markArtifactFailure(); collector.addFailure("UI-008", error instanceof Error ? error.message : "screenshot failure"); });
     if (needsFailureEvidence) await environment.context.tracing.stop({ path: collector.paths.trace }).catch(() => collector.markArtifactFailure());
     else await environment.context.tracing.stop().catch(() => collector.markArtifactFailure());
-    await environment.context.close().catch(() => undefined);
+    await environment.context.close().catch(() => { stopped = false; });
     await finalizeVideoCapture(config.artifacts.video, collector.paths.runDir).catch(error => { collector.markArtifactFailure(); collector.addFailure("UI-008", error instanceof Error ? error.message : "video finalization failure"); });
   }
-  await environment.browser?.close().catch(() => undefined);
+  await environment.browser?.close().catch(() => { stopped = false; });
+  if (stopped) collector.markCaptureStopped();
 }

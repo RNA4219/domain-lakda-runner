@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/lakda/report-receipt/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "reportId",
+    "generationStatus",
+    "profile",
+    "sourceIds",
+    "issues",
+    "output",
+    "startedAt",
+    "endedAt",
+    "producerVersion",
+    "manifestSha256",
+    "workDir"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "lakda/report-receipt/v1"
+    },
+    "reportId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generationStatus": {
+      "enum": [
+        "ready",
+        "degraded",
+        "error"
+      ]
+    },
+    "profile": {
+      "enum": [
+        "local",
+        "share"
+      ]
+    },
+    "sourceIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "$ref": "https://local.invalid/lakda/report-view/v1#/$defs/issue"
+      }
+    },
+    "output": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(/|$))(?!.*[:\\\\\\u0000-\\u001f])[^/]+(?:/[^/]+)*$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "startedAt": {
+      "type": "string",
+      "minLength": 1
+    },
+    "endedAt": {
+      "type": "string",
+      "minLength": 1
+    },
+    "producerVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "manifestSha256": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "workDir": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(/|$))(?!.*[:\\\\\\u0000-\\u001f])[^/]+(?:/[^/]+)*$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  }
+}

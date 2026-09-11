@@ -128,7 +128,7 @@ test("real evidence chain prepares QEG input without producing a verdict", async
       path: "src/file-" + index + ".ts",
       disposition: "planned-refactor",
       owner: "RNA4219",
-      dueDate: "2026-08-31",
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
       rationale: "Scheduled responsibility split",
     })),
   });
