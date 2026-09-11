@@ -44,7 +44,7 @@ class Recorder:
 class BridgeTestCase(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="lakda-bridge-test-")
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
         args = argparse.Namespace(
             platform="android", target_revision="fixture-build", app_id="fixture-app",
             app_revision=None, platform_version=None, serial_digest=None,

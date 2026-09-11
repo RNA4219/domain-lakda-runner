@@ -5,7 +5,7 @@ specification: ../spec/verification-reports/README.md
 status: in_progress
 owner: RNA4219
 created_at: 2026-09-10
-updated_at: 2026-09-10
+updated_at: 2026-09-11
 ---
 
 # Task Seed: 統合Gate・package・実環境受入
@@ -18,11 +18,14 @@ updated_at: 2026-09-10
 
 ## Scope
 
+2026-09-11のPR #17のCI対応として、Git管理外のローカル生成物へのリンク表記、Python fixtureの短縮パス比較、依存CIのPython導入方法を修正する。PlaywrightのWindows fixture用TEMPを実パスへ揃え、正規pathを要求する既存I/O契約を維持して全テストを再実行する。本体のパス検証条件・署名・hash付きlockは変更しない。
+
 対象path:
 - `package.json`
 - `package-lock.json`
 - `.github/workflows/ci.yml`
 - `.github/workflows/release-evidence.yml`
+- `playwright.config.ts`（Windowsのfixture用TEMPを実パスへ揃える前処理のみ）
 - `release-profiles/**`
 - `scripts/validate-release-profile.mjs`
 - `scripts/docs-checks/**`
@@ -63,6 +66,9 @@ updated_at: 2026-09-10
 `npm run check:docs`、`npm run typecheck`、変更領域のtest、必要に応じて`npm run check`／`npm run pack:check`、`git diff --check`。
 
 ## Evidence
+
+- [PR #17の初回CI](https://github.com/RNA4219/domain-lakda-runner/actions/runs/34583789813)（`0956085`）ではqualityとpackage-smokeが成功した。文書のローカル生成物リンク、WindowsのTEMP短縮名、Python 3.12.14のWindows配布方法で失敗したため、上記Scopeの範囲で修正した。本体のI/O検証、署名、依存lockの条件は変更していない。
+- 2026-09-11の短縮TEMPによる再現では、`realpathSync()`が8.3形式を展開せず、CIと同じ106件が失敗した（`.lakda/ci-17-check-short-temp.log`）。`realpathSync.native()`へ補正した全体検査はdocs／型／lint／buildと579件が成功し、媒体応答待ちの1件とローカルheadedの1件が失敗した（`.lakda/ci-17-check-native-temp.log`）。この2件は同じ短縮TEMPで個別再実行し、変更なしで2件成功、9.2秒（`.lakda/ci-17-targeted-recheck.log`）。失敗した全体結果も保持する。Python fixtureは短縮TEMPで175件成功、skip 0（`.lakda/ci-17-python-path-fix.log`）。GitHubの最終成否はPRの対象commitに対応するCIで確認する。
 
 - Task 64の先行回帰として`npm run check`を実行した。docs／型／lint／buildはpass、Playwrightは289/290 pass。唯一の失敗は既存release-gate fixtureのtriage dueDateが2026-08-31固定で期限切れだった。対象test／runtime scriptに今回の差分がないことを確認した。fixtureの期限を実行日＋7日へ変更し、`npx playwright test tests/release-gate-evidence.spec.js --reporter=line`の4件がpassした。runtimeの期限判定やhistorical evidenceは変更していない。
 - bundle／offline viewer追加後の`npm run check`はdocs／型／lint／build／303 testsすべてpass（Playwright 1.4分、exit 0）。`test-results/.last-run.json`もpassed／failedTests空を確認した。対象はb027b6b＋dirty差分であり、固定SHAの受入ではない。

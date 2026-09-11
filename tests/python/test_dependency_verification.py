@@ -16,7 +16,7 @@ class DependencyVerificationTests(unittest.TestCase):
     def run_verifier(self, version="1.2.3", content=None, missing=False, shadow=False,
                      import_error=False, existing=False):
         with tempfile.TemporaryDirectory(prefix="lakda-dependency-") as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             lock, output = root / "lock.txt", root / "verification.json"
             if not missing:
                 lock.write_bytes(pin().encode() if content is None else content)

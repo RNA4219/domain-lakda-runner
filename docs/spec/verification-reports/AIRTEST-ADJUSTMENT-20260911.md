@@ -24,11 +24,11 @@ last_updated: 2026-09-11
 - 1366×900で通った後、1366×768を追加すると画像が下にはみ出したため、画像の初期高さを画面高へ合わせた。拡大時は元の画素を確認できる。
 - 195 CSS pxではdialogの既定幅制限と余白が重なり、画像が約87pxへ縮んだ。dialog幅と内側の余白を調整し、既存の最小幅検査も通した。
 - 新しい開閉配置に合わせ、coverage・媒体の検査根拠を開く既存テストを更新した。履歴から媒体の欠落理由が消えた回帰も修正した。
-- 全体検査でworkerの「実行未完了」「確定済みrunなし」が折り畳まれる問題を検出した。これらとrunの「未確定」は初期表示に戻し、[保存画面](../../../.lakda/report-steps-final-ui2-20260911/results/report-runtime-all-workers-b21e7-e-a-diagnostic-batch-report/worker-status.png)を確認した。
+- 全体検査でworkerの「実行未完了」「確定済みrunなし」が折り畳まれる問題を検出した。これらとrunの「未確定」は初期表示に戻し、保存画面（`.lakda/report-steps-final-ui2-20260911/results/report-runtime-all-workers-b21e7-e-a-diagnostic-batch-report/worker-status.png`）を確認した。
 
-日本語の[PC画面](../../../.lakda/report-steps-final-ui2-20260911/results/report-viewer-step-workspa-fa09c-ts-screenshot-prominent-ja-/step-desktop-768.png)・[狭幅画面](../../../.lakda/report-steps-final-ui2-20260911/results/report-viewer-step-workspa-fa09c-ts-screenshot-prominent-ja-/step-390.png)、英語の[PC画面](../../../.lakda/report-steps-final-ui2-20260911/results/report-viewer-step-workspa-24bb0-ts-screenshot-prominent-en-/step-desktop-768.png)・[195px画面](../../../.lakda/report-steps-final-ui2-20260911/results/report-viewer-step-workspa-24bb0-ts-screenshot-prominent-en-/step-195.png)を保存した。最初の配置調整後に日英PC・狭幅を目視し、worker状態の復帰後に日本語PC・英語195pxを再確認した。英語出力でも保存された日本語messageや対象名は原文のまま表示する。
+日本語のPC画面・狭幅画面、英語のPC画面・195px画面を保存した。最初の配置調整後に日英PC・狭幅を目視し、worker状態の復帰後に日本語PC・英語195pxを再確認した。英語出力でも保存された日本語messageや対象名は原文のまま表示する。
 
-生成した人工サンプルは[日本語](../../../.lakda/report-steps-final-ui2-20260911/results/report-viewer-step-workspa-fa09c-ts-screenshot-prominent-ja-/report/index.html)・[英語](../../../.lakda/report-steps-final-ui2-20260911/results/report-viewer-step-workspa-24bb0-ts-screenshot-prominent-en-/report/index.html)。結果の「入力境界」を開き、「失敗した手順へ」から表示を確認できる。
+保存先は`.lakda/report-steps-final-ui2-20260911/results/`内の`report-viewer-step-workspa-fa09c-ts-screenshot-prominent-ja-/`（日本語）と`report-viewer-step-workspa-24bb0-ts-screenshot-prominent-en-/`（英語）。それぞれに`step-desktop-768.png`と、`step-390.png`／`step-195.png`、人工サンプルの`report/index.html`がある。これらはローカル検証用の生成物で、Gitには同梱しない。サンプルの結果「入力境界」を開き、「失敗した手順へ」から表示を確認できる。
 
 ## 検証記録
 

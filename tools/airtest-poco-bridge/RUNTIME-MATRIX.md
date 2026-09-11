@@ -9,7 +9,7 @@
 | Linux／x86_64 | 未検証 | 未検証 | pending_external：対象hostとPython実行環境が未提供 | pending_external |
 | Windows／arm64、他Python version | 未検証 | 未検証 | pending_external：互換性を本行へ流用しない | pending_external |
 
-Python 3.13のCI fixture jobはstdlibのbridge動作検査であり、この依存matrixとは別。CI jobの定義は追加済みだが、GitHub上の実行結果は未取得。
+Python 3.13のCI fixture jobはstdlibのbridge動作検査であり、この依存matrixとは別。依存CIはuv 0.12.13でPython 3.12.14を導入し、同じhash付きlockを空のvenvへ同期して検証する。2026-09-11の初回CIでは`actions/setup-python`にWindows用3.12.14の配布がなく、検証前に失敗したため導入方法を変更した。lockと検証条件は維持し、CIの成否は[PR #17](https://github.com/RNA4219/domain-lakda-runner/pull/17)の対象commitに対応する実行結果で確認する。
 
 ## 実測と再実行
 

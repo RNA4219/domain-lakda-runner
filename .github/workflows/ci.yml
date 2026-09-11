@@ -41,14 +41,17 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
-          python-version: "3.12.14"
+          version: "0.12.13"
+          enable-cache: false
+      - name: Install the verified Python patch version
+        run: uv python install 3.12.14
       - name: Clean install locked operator dependencies
         run: |
-          python -m venv .lakda/dependency-env
+          uv venv .lakda/dependency-env --python 3.12.14
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & .lakda/dependency-env/Scripts/python.exe -m pip install --require-hashes -r tools/airtest-poco-bridge/locks/windows-amd64-py312.txt
+          uv pip sync tools/airtest-poco-bridge/locks/windows-amd64-py312.txt --python .lakda/dependency-env/Scripts/python.exe --require-hashes
       - name: Verify locked versions and imports without connecting a device
         run: >-
           .lakda/dependency-env/Scripts/python.exe -B tools/airtest-poco-bridge/verify_dependencies.py

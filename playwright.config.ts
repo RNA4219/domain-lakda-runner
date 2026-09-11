@@ -1,4 +1,13 @@
 import { defineConfig } from "@playwright/test";
+import { realpathSync } from "node:fs";
+import { tmpdir } from "node:os";
+
+// WindowsのTEMPは8.3形式の場合がある。正規pathを前提とするfixtureへ実パスを渡す。
+if (process.platform === "win32") {
+  const temporaryDirectory = realpathSync.native(tmpdir());
+  process.env.TEMP = temporaryDirectory;
+  process.env.TMP = temporaryDirectory;
+}
 
 export default defineConfig({
   testDir: "./tests",
