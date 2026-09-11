@@ -94,7 +94,7 @@ export class ArtifactCollector {
     const metadata: RunMetadata = {
       schemaVersion: "lakda/run-metadata/v1", runId, attempt: 1, startedAt: now.toISOString(), mode,
       seed: config.seed, persona: config.persona, browser: "chromium", baseUrl: config.baseUrl ?? "", headed: config.headed,
-      producerVersion: "0.5.0-rc.1", commitSha: commitSha(), llmStatus: "not_requested", artifactPolicy: { classification: config.artifacts.classification, maxRunBytes: config.artifacts.maxRunBytes, expectations: { trace: false, screenshot: false, video: false, har: false, domSnapshots: 0 }, ...(context.requireBinaryAttestation ? { binaryAttestationRequired: true } : {}), ...(context.attestationTrustStorePath ? { attestationTrustStorePath: context.attestationTrustStorePath } : {}), ...(context.artifactAttestorKeyIds !== undefined ? { artifactAttestorKeyIds: [...context.artifactAttestorKeyIds] } : {}) }, workerIndex: context.workerIndex ?? 0,
+      producerVersion: "0.5.0-rc.2", commitSha: commitSha(), llmStatus: "not_requested", artifactPolicy: { classification: config.artifacts.classification, maxRunBytes: config.artifacts.maxRunBytes, expectations: { trace: false, screenshot: false, video: false, har: false, domSnapshots: 0 }, ...(context.requireBinaryAttestation ? { binaryAttestationRequired: true } : {}), ...(context.attestationTrustStorePath ? { attestationTrustStorePath: context.attestationTrustStorePath } : {}), ...(context.artifactAttestorKeyIds !== undefined ? { artifactAttestorKeyIds: [...context.artifactAttestorKeyIds] } : {}) }, workerIndex: context.workerIndex ?? 0,
       ...(context.batchId ? { batchId: context.batchId } : {}),
     };
     await writeRunStartRecord(runDir, {
