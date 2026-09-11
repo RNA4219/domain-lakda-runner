@@ -2,7 +2,30 @@
 
 ## Unreleased
 
-## 0.5.0-rc.1 - Unreleased
+## 0.5.0-rc.2 - 2026-09-12 (Release candidate)
+
+### Added
+
+- 保存したテスト結果から、単一run・batch・未完了runのHTMLレポートを生成・検証できるようにした。日本語／英語を選択できる。
+- オフラインで閲覧できるreport bundle、履歴と画像・動画の相互参照、検索・結果の絞り込み、媒体の検証記録を追加した。
+- native identityとcaptureの証跡、binary attestation v2、Airtest/Poco bridgeの依存lockと検証手順を追加した。
+
+### Changed
+
+- 結果・履歴・媒体を確認する画面と操作文言を調整し、bundle全体を別フォルダへ移しても参照できる相対path構成にした。
+- package、公開version、runtime／exploration producer、README、current release profileを`0.5.0-rc.2`へ同期した。旧版のprofileと保存済みrunは保持する。
+- release候補の設計入力へ、日英レポート・履歴と媒体の対応・移動後の参照と独立verifyの確認項目を追加した。
+
+### Fixed
+
+- Windows CIの一時フォルダ短縮名を正規化し、Python 3.12.14の依存検証環境を固定した。
+- レポートの媒体表示・画面遷移・説明文を調整し、生成物への文書リンクを修正した。
+
+### Release Status
+
+- インストール用npm packageの候補版。実target・実機・manual-bb・外部QEGの受入状態は`pending_external`のまま維持する。
+
+## 0.5.0-rc.1 - Superseded candidate
 
 ### Added
 

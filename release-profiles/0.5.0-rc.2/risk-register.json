@@ -1,0 +1,90 @@
+{
+  "feature_id": "LAKDA-RC-502",
+  "risks": [
+    {
+      "id": "RISK-RC502-01",
+      "scenario": "stale release profile、旧producer version、または過去revisionのGate結果をcurrent sourceへ引用する",
+      "impact": 5,
+      "likelihood": 3,
+      "score": 80,
+      "priority": "P0",
+      "rationale": "package、runtime、source、設計入力、release tagのidentityが乖離する",
+      "trace_to": [
+        "TC-LAKDA-RC502-001",
+        "TC-LAKDA-RC502-006"
+      ]
+    },
+    {
+      "id": "RISK-RC502-02",
+      "scenario": "通常runのnon-pass captureが欠落するか、regression／full laneで録画が有効になる",
+      "impact": 4,
+      "likelihood": 3,
+      "score": 72,
+      "priority": "P0",
+      "rationale": "失敗解析証跡の欠落、CI時間増加、artifact容量超過を招く",
+      "trace_to": [
+        "TC-LAKDA-RC502-002"
+      ]
+    },
+    {
+      "id": "RISK-RC502-03",
+      "scenario": "stale visual candidate、曖昧座標、未知mutation、resume fingerprint不一致を実行する",
+      "impact": 5,
+      "likelihood": 3,
+      "score": 84,
+      "priority": "P0",
+      "rationale": "未承認操作、誤ったfinding、再現不能な探索結果を生む",
+      "trace_to": [
+        "TC-LAKDA-RC502-003"
+      ]
+    },
+    {
+      "id": "RISK-RC502-04",
+      "scenario": "Airtest/Pocoのoperator宣言identity、template corpus、bridge binding、binary artifactを独立観測またはattest済みと誤認する",
+      "impact": 5,
+      "likelihood": 3,
+      "score": 82,
+      "priority": "P0",
+      "rationale": "別device、別app revision、改ざんbinaryをreal evidenceへ混入させる",
+      "trace_to": [
+        "TC-LAKDA-RC502-004"
+      ]
+    },
+    {
+      "id": "RISK-RC502-05",
+      "scenario": "個別lane reportまたは改ざんartifactを五lane acceptance完了として集約する",
+      "impact": 5,
+      "likelihood": 2,
+      "score": 76,
+      "priority": "P0",
+      "rationale": "欠落lane、SHA-256不一致、HATE未検証を実機受入へ昇格する",
+      "trace_to": [
+        "TC-LAKDA-RC502-005"
+      ]
+    },
+    {
+      "id": "RISK-RC502-06",
+      "scenario": "RanD、Code-to-gate、HATE、manual-bb、QEGの欠落または非QEGのGo主張を見逃す",
+      "impact": 5,
+      "likelihood": 2,
+      "score": 72,
+      "priority": "P0",
+      "rationale": "独立Gateと最終権限の境界が崩れる",
+      "trace_to": [
+        "TC-LAKDA-RC502-006"
+      ]
+    },
+    {
+      "id": "RISK-RC502-07",
+      "scenario": "表示言語やbundleの移動によって結果と媒体の対応が崩れ、未検証の情報を検証済みと誤認する",
+      "impact": 4,
+      "likelihood": 3,
+      "score": 72,
+      "priority": "P1",
+      "rationale": "テスト結果の読み違い、共有後の参照切れ、証跡の信頼性の誤認を招く",
+      "trace_to": [
+        "TC-LAKDA-RC502-007"
+      ]
+    }
+  ]
+}

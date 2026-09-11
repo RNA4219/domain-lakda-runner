@@ -1,0 +1,83 @@
+{
+  "feature_id": "LAKDA-RC-502",
+  "title": "domain-lakda-runner 0.5.0-rc.2 portable test reports release candidate",
+  "summary": "自動探索、PC／mobile Web、Windows／Android／iOSのAirtest/Poco lane、non-pass capture、session-level HATE、五lane acceptanceをrevision-bound release evidenceへ接続する。 日英HTMLレポート、相対pathによる持ち運び、媒体と履歴の対応、native証跡の検証結果を含める。",
+  "actors": [
+    "release_operator",
+    "reference_staging_operator",
+    "device_operator",
+    "manual_bb_reviewer",
+    "qeg_reviewer"
+  ],
+  "acceptance_criteria": [
+    "AC-RC502-001: current release profile、package、runtime producer、exploration producerが0.5.0-rc.2で一致し、必須local checkが対象SHAで成功する",
+    "AC-RC502-002: 通常runのnon-pass captureとregression／fullのvideo off境界を決定的fixtureで再検証できる",
+    "AC-RC502-003: Web／mobile／Airtest-Poco探索のcandidate、visual oracle、resume、binary attestation、五lane集約が改ざんと曖昧入力をfail-closedで拒否する",
+    "AC-RC502-004: real target、実機、実Qwen、manual-bb、five-tool chainを対象SHAへ結び、QEG以外が最終Goを生成しない",
+    "AC-RC502-005: 保存runから日本語／英語レポートを生成し、元の結果を変えずに履歴・媒体・絞り込みを確認でき、bundleの移動後も相対path参照と独立verifyが成立する"
+  ],
+  "business_rules": [
+    "Lakdaはrun outcomeとHATE/v1証跡までを担当し、最終verdictは外部QEGだけが決定する",
+    "fixture、mock、operator宣言identity、loopback bridgeをreal-targetまたは実機の独立観測へ昇格しない",
+    "regression-replay、実LLM full profile、full fixture acceptanceでは設定値にかかわらずvideoを無効化する",
+    "認証値、raw prompt、storageState、絶対path、未attest binaryをrelease evidenceへ含めない",
+    "freeze後にsource、release profile、target manifest、corpus、config digestが変化した場合はGateを最初から再実行する"
+  ],
+  "changed_areas": [
+    "release profile",
+    "autonomous exploration",
+    "visual oracle",
+    "Airtest/Poco bridge",
+    "artifact retention",
+    "binary attestation",
+    "session HATE",
+    "five-lane acceptance",
+    "HTML reports",
+    "portable report bundle",
+    "native identity and attestation handoff"
+  ],
+  "devices": [
+    "Windows Chromium PC Web",
+    "Chromium mobile Web emulation",
+    "Windows Airtest/Poco",
+    "Android Airtest/Poco",
+    "iOS Airtest/Poco",
+    "self-hosted Windows Qwen runner"
+  ],
+  "source_refs": [
+    {
+      "id": "AC-RC502-001",
+      "kind": "ac",
+      "excerpt": "version and release-profile identity"
+    },
+    {
+      "id": "AC-RC502-002",
+      "kind": "ac",
+      "excerpt": "non-pass capture and no-video full lanes"
+    },
+    {
+      "id": "AC-RC502-003",
+      "kind": "ac",
+      "excerpt": "cross-platform exploration fail-closed contracts"
+    },
+    {
+      "id": "AC-RC502-004",
+      "kind": "ac",
+      "excerpt": "real evidence and external QEG authority"
+    },
+    {
+      "id": "AC-RC502-005",
+      "kind": "ac",
+      "excerpt": "Japanese/English reports, media/history links, portability and independent verification"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "ASM-RC502-01",
+      "text": "実targetと実機への接続は承認済み非本番manifest、operator trust store、allowlist、mutation policy、kill switchのscope内だけに限定する。",
+      "severity": "high",
+      "impact_on_coverage": "Windows／Android／iOS実機、別SaaS、security targetは個別の承認とreal acceptanceがない限りpending_externalである。",
+      "resolution_status": "accepted"
+    }
+  ]
+}

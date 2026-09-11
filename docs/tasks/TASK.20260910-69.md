@@ -5,7 +5,7 @@ specification: ../spec/verification-reports/README.md
 status: in_progress
 owner: RNA4219
 created_at: 2026-09-10
-updated_at: 2026-09-11
+updated_at: 2026-09-12
 ---
 
 # Task Seed: 統合Gate・package・実環境受入
@@ -18,11 +18,17 @@ updated_at: 2026-09-11
 
 ## Scope
 
+2026-09-12の追加指示: 現行候補を`0.5.0-rc.2`へ更新し、配布用npm packageとSHA-256を作成する。package／lock、公開version、artifact／HATE／exploration producer、README／CHANGELOG、current profileと新しい版別の設計入力を同期する。旧profile・保存済みrunの版番号は保持し、package構成・隔離install・CLI／report生成と全体検証を確認する。
+
 2026-09-11のPR #17のCI対応として、Git管理外のローカル生成物へのリンク表記、Python fixtureの短縮パス比較、依存CIのPython導入方法を修正する。PlaywrightのWindows fixture用TEMPを実パスへ揃え、正規pathを要求する既存I/O契約を維持して全テストを再実行する。本体のパス検証条件・署名・hash付きlockは変更しない。
 
 対象path:
 - `package.json`
 - `package-lock.json`
+- `src/index.ts`、`src/core/artifacts.ts`、`src/core/hate.ts`、`src/exploration/session.ts`（producer versionの更新のみ）
+- `tests/runs.spec.ts`（現行producerを使うfixtureのversion同期）
+- `tests/release-package-security.spec.js`（current release profileと照合するpackage fixtureのversion同期）
+- `CHANGELOG.md`
 - `.github/workflows/ci.yml`
 - `.github/workflows/release-evidence.yml`
 - `playwright.config.ts`（Windowsのfixture用TEMPを実パスへ揃える前処理のみ）
@@ -66,6 +72,9 @@ updated_at: 2026-09-11
 `npm run check:docs`、`npm run typecheck`、変更領域のtest、必要に応じて`npm run check`／`npm run pack:check`、`git diff --check`。
 
 ## Evidence
+
+- 2026-09-12、`0.5.0-rc.2`の版更新: `release:validate-profile`がvalid、旧`0.5.0-rc.1` profileは差分なし。初回`npm run check`はdocs／型／lint／buildと579件が成功し、Chromiumのスクリーンショット取得エラーとpackage scanner fixtureの旧versionで2件失敗した（`.lakda/rc2-check.log`）。current profileと照合するfixtureを新版へ同期し、この2件を単独で再実行して2件成功、2.6秒（`.lakda/rc2-targeted-recheck.log`）。画面取得の実装・testは変更していない。初回の失敗結果も保持する。
+- 同変更のoffline `npm run pack:check`は成功し、595file／65schema、隔離install、CLI／公開version／native module import、日英レポート、batch／未完了run／署名済み媒体／履歴と媒体対応の生成・独立verifyを確認した（`.lakda/rc2-pack-check.log`）。対象は`e690f39`＋本変更、Node 24.11.0／npm 11.6.1。指定runtimeとの差によるengine警告があり、固定SHA・実機・manual-bb／外部QEGの受入完了は示さない。
 
 - [PR #17の初回CI](https://github.com/RNA4219/domain-lakda-runner/actions/runs/34583789813)（`0956085`）ではqualityとpackage-smokeが成功した。文書のローカル生成物リンク、WindowsのTEMP短縮名、Python 3.12.14のWindows配布方法で失敗したため、上記Scopeの範囲で修正した。本体のI/O検証、署名、依存lockの条件は変更していない。
 - 2026-09-11の短縮TEMPによる再現では、`realpathSync()`が8.3形式を展開せず、CIと同じ106件が失敗した（`.lakda/ci-17-check-short-temp.log`）。`realpathSync.native()`へ補正した全体検査はdocs／型／lint／buildと579件が成功し、媒体応答待ちの1件とローカルheadedの1件が失敗した（`.lakda/ci-17-check-native-temp.log`）。この2件は同じ短縮TEMPで個別再実行し、変更なしで2件成功、9.2秒（`.lakda/ci-17-targeted-recheck.log`）。失敗した全体結果も保持する。Python fixtureは短縮TEMPで175件成功、skip 0（`.lakda/ci-17-python-path-fix.log`）。GitHubの最終成否はPRの対象commitに対応するCIで確認する。

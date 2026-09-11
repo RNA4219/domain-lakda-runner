@@ -1,0 +1,302 @@
+{
+  "feature_id": "LAKDA-RC-502",
+  "manual_cases": [
+    {
+      "tc_id": "TC-LAKDA-RC502-001",
+      "title": "current profile、version、freeze済みcandidate identityを照合する",
+      "priority": "P0",
+      "primary_view": "gray",
+      "techniques": [
+        "independent_reverification",
+        "state_transition"
+      ],
+      "preconditions": [
+        "candidate SHAとpackage versionがfreeze済み",
+        "current profileと全design inputが存在する"
+      ],
+      "steps": [
+        "package、runtime producer、exploration producer、profile versionを照合する",
+        "design inputとrequired checkを確認する",
+        "prepared evidenceのrevision/profile digestを確認する"
+      ],
+      "expected_results": [
+        "全versionが0.5.0-rc.2で一致する",
+        "全参照がportableで対象SHAに存在する",
+        "stale profileまたは変更後sourceはGateを通らない"
+      ],
+      "oracle": {
+        "type": "specified",
+        "refs": [
+          "AC-RC502-001"
+        ]
+      },
+      "source_ref": {
+        "type": "acceptance",
+        "refs": [
+          "AC-RC502-001"
+        ]
+      },
+      "estimate_minutes": 20,
+      "trace_to": [
+        "RISK-RC502-01",
+        "OBS-GOV-01"
+      ]
+    },
+    {
+      "tc_id": "TC-LAKDA-RC502-002",
+      "title": "non-pass captureとno-video full laneを確認する",
+      "priority": "P0",
+      "primary_view": "gray",
+      "techniques": [
+        "decision_table",
+        "regression_testing",
+        "negative_testing"
+      ],
+      "preconditions": [
+        "決定的Playwright fixture",
+        "artifact出力先が空である"
+      ],
+      "steps": [
+        "通常passedとnon-passをretain-on-non-passで実行する",
+        "video=trueの通常passedを実行する",
+        "regression-replay、実LLM full、full fixture acceptanceへvideo=trueを指定する"
+      ],
+      "expected_results": [
+        "通常passedではWebMを破棄しnon-passではscreenshot、trace、連番WebMを保持する",
+        "video=trueの通常runは全WebMを保持する",
+        "regression／fullはWebM 0件でfailure screenshot／traceを維持する"
+      ],
+      "oracle": {
+        "type": "specified",
+        "refs": [
+          "AC-RC502-002"
+        ]
+      },
+      "source_ref": {
+        "type": "acceptance",
+        "refs": [
+          "AC-RC502-002"
+        ]
+      },
+      "estimate_minutes": 25,
+      "trace_to": [
+        "RISK-RC502-02",
+        "OBS-ARTIFACT-01"
+      ]
+    },
+    {
+      "tc_id": "TC-LAKDA-RC502-003",
+      "title": "Web／mobile自動探索、visual oracle、resumeのfail-closed境界を確認する",
+      "priority": "P0",
+      "primary_view": "black",
+      "techniques": [
+        "state_transition",
+        "negative_testing",
+        "regression_testing"
+      ],
+      "preconditions": [
+        "固定Charter、seed、PC/mobile fixture",
+        "session event hash chainとcheckpointが存在する"
+      ],
+      "steps": [
+        "同一seedを100回実行してcandidate選択を比較する",
+        "5分類visual oracleとoperator bookmark/forkを実行する",
+        "candidate fingerprint、checkpoint、trace、post-fingerprintを各1件改ざんしてresumeする"
+      ],
+      "expected_results": [
+        "選択とreportが決定的である",
+        "crash／freeze／no-visual-change／unknown-screen／visual-anomalyを区別する",
+        "全tamperを操作0件かつ非0終了で拒否する"
+      ],
+      "oracle": {
+        "type": "specified",
+        "refs": [
+          "AC-RC502-003"
+        ]
+      },
+      "source_ref": {
+        "type": "acceptance",
+        "refs": [
+          "AC-RC502-003"
+        ]
+      },
+      "estimate_minutes": 30,
+      "trace_to": [
+        "RISK-RC502-03",
+        "OBS-EXPLORATION-01"
+      ]
+    },
+    {
+      "tc_id": "TC-LAKDA-RC502-004",
+      "title": "Airtest/Poco bridge、device scope、binary attestation境界を確認する",
+      "priority": "P0",
+      "primary_view": "gray",
+      "techniques": [
+        "decision_table",
+        "negative_testing",
+        "tamper_testing"
+      ],
+      "preconditions": [
+        "operator管理loopback bridge",
+        "固定template corpus",
+        "署名済みtarget manifestとattestor trust store"
+      ],
+      "steps": [
+        "Windows／Android／iOS capabilityを照合する",
+        "template bytes、app revision、surface、deny zone、bridge digestを各1件改ざんする",
+        "未署名・未知key・source/output digest不一致binaryをHATE登録する"
+      ],
+      "expected_results": [
+        "完全一致時だけ候補を実行する",
+        "bridgeは外部processを起動せず全scope不一致を操作0件で拒否する",
+        "有効な外部attestationがないbinaryをHATEへ登録しない"
+      ],
+      "oracle": {
+        "type": "specified",
+        "refs": [
+          "AC-RC502-003",
+          "AC-RC502-004"
+        ]
+      },
+      "source_ref": {
+        "type": "acceptance",
+        "refs": [
+          "AC-RC502-003"
+        ]
+      },
+      "estimate_minutes": 35,
+      "trace_to": [
+        "RISK-RC502-04",
+        "OBS-AIRTEST-01"
+      ]
+    },
+    {
+      "tc_id": "TC-LAKDA-RC502-005",
+      "title": "session HATEと五lane acceptanceの独立再検証を確認する",
+      "priority": "P0",
+      "primary_view": "gray",
+      "techniques": [
+        "independent_reverification",
+        "tamper_testing"
+      ],
+      "preconditions": [
+        "PC Web、mobile Web、Windows、Android、iOSのlane report",
+        "各session HATE manifest"
+      ],
+      "steps": [
+        "全laneのrevision、capability、report、artifact SHA-256、HATEを集約する",
+        "lane欠落、重複、path traversal、symlink、digest不一致を各1件投入する",
+        "fixture reportをreal indexへ混在させる"
+      ],
+      "expected_results": [
+        "正常時だけcanonical indexを生成する",
+        "全tamperとfixture／real混在を非0で拒否する",
+        "個別lane成功を全体real acceptanceとして扱わない"
+      ],
+      "oracle": {
+        "type": "specified",
+        "refs": [
+          "AC-RC502-003",
+          "AC-RC502-004"
+        ]
+      },
+      "source_ref": {
+        "type": "acceptance",
+        "refs": [
+          "AC-RC502-003"
+        ]
+      },
+      "estimate_minutes": 30,
+      "trace_to": [
+        "RISK-RC502-05",
+        "OBS-EVIDENCE-01"
+      ]
+    },
+    {
+      "tc_id": "TC-LAKDA-RC502-006",
+      "title": "five-tool chainと外部QEG最終権限を確認する",
+      "priority": "P0",
+      "primary_view": "gray",
+      "techniques": [
+        "decision_table",
+        "independent_reverification"
+      ],
+      "preconditions": [
+        "RanD、Code-to-gate、HATE、manual-bb、QEG artifactが対象SHAに揃う"
+      ],
+      "steps": [
+        "各tool revisionとartifact hashを照合する",
+        "QEG schema/evidence/gate/recordを確認する",
+        "QEG go以外のrelease阻止を確認する"
+      ],
+      "expected_results": [
+        "five-tool順序と対象SHAを追跡できる",
+        "非QEG toolが最終Goを主張しない",
+        "QEG goとP0/P1 blockerなしの場合だけpublish可能である"
+      ],
+      "oracle": {
+        "type": "specified",
+        "refs": [
+          "AC-RC502-004"
+        ]
+      },
+      "source_ref": {
+        "type": "acceptance",
+        "refs": [
+          "AC-RC502-004"
+        ]
+      },
+      "estimate_minutes": 30,
+      "trace_to": [
+        "RISK-RC502-01",
+        "RISK-RC502-06",
+        "OBS-GATE-01"
+      ]
+    },
+    {
+      "tc_id": "TC-LAKDA-RC502-007",
+      "title": "日英レポートとbundleの持ち運びを確認する",
+      "priority": "P1",
+      "primary_view": "black",
+      "techniques": [
+        "state_transition",
+        "regression_testing",
+        "independent_reverification"
+      ],
+      "preconditions": [
+        "結果・履歴・媒体を含む保存runとreport生成設定",
+        "検証用の入力digestと媒体の対応表"
+      ],
+      "steps": [
+        "日本語と英語を指定してレポートを生成する",
+        "結果を絞り込み、履歴を選択して対応する画像・動画を確認する",
+        "bundle全体を別directoryへ移動してHTMLを開き、リンク・媒体・verifyを確認する",
+        "生成前後の入力digestと元のrun outcomeを照合する"
+      ],
+      "expected_results": [
+        "指定した言語で主要操作と結果を読み取れる",
+        "選択した履歴に対応する媒体が表示される",
+        "移動後も相対path参照が成立し、bundleの独立verifyが成功する",
+        "元の入力と結果が変わらず、表示だけで未検証情報を検証済みへ昇格しない"
+      ],
+      "oracle": {
+        "type": "specified",
+        "refs": [
+          "AC-RC502-005"
+        ]
+      },
+      "source_ref": {
+        "type": "acceptance",
+        "refs": [
+          "AC-RC502-005"
+        ]
+      },
+      "estimate_minutes": 20,
+      "trace_to": [
+        "RISK-RC502-07",
+        "OBS-REPORT-01"
+      ]
+    }
+  ],
+  "exploratory_charters": []
+}
