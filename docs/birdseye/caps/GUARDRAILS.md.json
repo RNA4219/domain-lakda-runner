@@ -3,9 +3,12 @@
   "role": "policy",
   "public_api": [],
   "summary": "GUARDRAILS.md",
-  "deps_out": [],
+  "deps_out": [
+    "HUB.codex.md"
+  ],
   "deps_in": [
-    "README.md"
+    "README.md",
+    "docs/SANKAI-FOLLOWUP-20261113.md"
   ],
   "risks": [],
   "tests": [],

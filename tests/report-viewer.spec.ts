@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -107,17 +107,8 @@ for (const language of ["ja", "en"] as const) test("narrow video controls suppor
   const label = (ja: string, en: string) => language === "en" ? en : ja;
   const root = await mkdtemp(join(tmpdir(), "lakda-report-narrow-video-"));
   try {
-    const bytes = Buffer.from(await page.evaluate(async () => {
-      const canvas = document.createElement("canvas"); canvas.width = 320; canvas.height = 180;
-      const context = canvas.getContext("2d")!; const stream = canvas.captureStream(10);
-      const recorder = new MediaRecorder(stream, { mimeType: "video/webm;codecs=vp8" }); const chunks: Blob[] = [];
-      recorder.ondataavailable = event => chunks.push(event.data);
-      const stopped = new Promise<void>((resolve, reject) => { recorder.onstop = () => resolve(); recorder.onerror = () => reject(new Error("fixture recording failed")); });
-      let frame = 0; const paint = setInterval(() => { context.fillStyle = ++frame % 2 ? "#20344b" : "#325570"; context.fillRect(0, 0, 320, 180); context.fillStyle = "white"; context.font = "24px sans-serif"; context.fillText("FRAME " + frame, 24, 95); }, 100);
-      recorder.start(); await new Promise(resolve => setTimeout(resolve, 2200)); recorder.stop(); await stopped;
-      clearInterval(paint); stream.getTracks().forEach(track => track.stop());
-      return Array.from(new Uint8Array(await new Blob(chunks).arrayBuffer()));
-    }));
+    // Deterministic VP8/WebM test fixture (3 s); avoid MediaRecorder/canvas CI renderer crashes.
+    const bytes = await readFile(join(import.meta.dirname, "fixtures", "report-3s.webm"));
     const view = { ...viewFixture(), language }; const inputRoot = join(root, "input"); const path = "artifacts/recording.webm";
     await mkdir(dirname(join(inputRoot, path)), { recursive: true }); await writeFile(join(inputRoot, path), bytes);
     const snapshot = await readArtifactSnapshot(inputRoot, path);

@@ -101,7 +101,7 @@ Artifact保存先は次で固定する。
 1. DEC-LX-001〜006をDecision Record化する。
 2. 追加Schema、CLI help、終了code、artifact pathをfreezeする。
 3. 各Task SeedのChecklist Aを完了させる。
-4. Task SeedはWorkflow-cookbookの原則に従い、原則0.5 engineer-day・2 source files・100行以内で分割する。
+4. Task SeedはWorkflow-cookbookの原則に従い、原則0.5 engineer-dayで分割する。
 
 ### P8: 組み合わせ生成
 

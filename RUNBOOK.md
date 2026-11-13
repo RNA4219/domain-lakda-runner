@@ -4,8 +4,6 @@
 
 ## 1. 環境
 
-レポートの件数上限・表示性能は、repoで`npm run acceptance:reports`を実行して測定する。インストール済みWindows Chrome／Edgeを隔離profileで使い、100 run・履歴10,000件・failure 1,000件の人工保存入力を生成する。1366×768／390×844、browser zoom 100%／200%を検証し、全測定値・入力digest・bundle・画像・失敗理由を`.lakda/report-acceptance-<固有ID>/result.json`から参照できる。同じcommandで、画像の原寸表示とキー移動、参照対応・share除外、動画位置保持／停止、decode fallbackの媒体40ケースも実行する。媒体の詳細結果は`media/result.json`、移動後の閲覧用bundleは`media/images-moved`等へ保存する。外部targetへ接続しない。通常の`npm test`にはbrowser導入や性能閾値を要求しない。実機・手動受入・release Gateは別途実施する。測定条件は[SPEC-01](docs/spec/verification-reports/SPEC-01-REPORTING.md)を参照する。
-
 | 環境 | 用途 | LLM |
 |---|---|---|
 | local-deterministic | 開発、通常CI相当、headed/headless確認 | 不使用。`llm_status=unavailable`を記録 |
@@ -71,19 +69,21 @@ npx playwright show-trace .lakda/runs/<run-id>/artifacts/trace.zip
 
 ### 保存結果のHTMLレポート
 
-概要の「操作件数・実行時間など」を開くと、観測した操作数と計画数、実行時間、除外媒体数を確認できます。結果一覧のメッセージは最大2行で、項目を開くと全文を表示します。詳細はスクロール中も「詳細を閉じる」またはEscapeで閉じ、元の行へフォーカスが戻ります。
+概要では合否と主要な件数を確認できます。概要の「操作件数・実行時間など」を開くと、観測した操作数と計画数、実行時間、除外媒体数を確認できます。結果が未確定の実行や未完了のワーカーがある場合は、概要に表示します。結果一覧のメッセージは最大2行で、項目を開くと全文を表示します。詳細はスクロール中も「詳細を閉じる」またはEscapeで閉じ、元の行へフォーカスが戻ります。
 
-日本語は`--report-language ja`、英語は`--report-language en`で生成します。`run`／`replay`／`explore run`／`explore resume`の自動生成と`report generate`に共通です。レポート設定`lakda.report.json`の`language`にも保存でき、CLI指定＞設定＞`ja`の順に解決します。画面の見出し・説明・操作ラベルを切り替え、テスト由来のメッセージ・履歴・ID・コードは原文を保ちます。保存済みのレポートはそのまま保持し、別言語が必要なら新しい出力先へ再生成します。
+日本語は`--report-language ja`、英語は`--report-language en`で生成します。`run`／`replay`／`explore run`／`explore resume`の自動生成と`report generate`に共通です。レポート設定`lakda.report.json`の`language`にも保存でき（例: `{"schemaVersion":"lakda/report-config/v1","language":"en"}`）、CLI指定＞設定＞`ja`の順に解決します。画面の見出し・説明・操作ラベルを切り替え、テスト由来のメッセージ・履歴・ID・コードは原文を保ちます。保存済みのレポートはそのまま保持し、別言語が必要なら新しい出力先へ再生成します。
 
 結果詳細では、手順一覧と選択した手順・画像をPCで並べ、狭幅では縦に表示します。「失敗した手順へ」で保存済みの失敗へ移動し、「前の手順」「次の手順」でページをまたいで確認できます。操作名・対象・状態・時間・判定メッセージは保存された範囲だけを表示し、「実行済み」と判定の「合格」を区別します。旧レポート等の未取得情報から失敗を推定しません。「履歴の選択を解除」で全体の証跡へ戻れます。
 
 findingでは「この項目の証跡」と「実行全体の証跡」を切り替えます。対応を確認できない参照には理由を表示し、画像を推定して割り当てません。動画は利用者が再生し、同じ詳細内では位置を保持します。表示切替や詳細closeでは一時停止します。ID・revision・coverage等は「技術情報・実行記録」、媒体の所属や検査の根拠は「媒体の詳細」で確認できます。
 
-失敗した手順を選んで画像が出ない場合でも、「実行全体の証跡を見る」があれば保存済みの画像・動画を確認できます。手順の選択を維持し、対応が未確認であることを表示します。前／次へ移ると手順別の表示に戻ります。
+失敗した手順を選んで画像が出ない場合でも、「実行全体の証跡を見る」があれば保存済みの画像・動画を確認できます。手順の選択を維持し、対応が未確認であることを表示します。前／次へ移ると手順別の表示に戻ります。画像は「画像を拡大」で細部を確認できます。
+
+生成後は出力フォルダーの`index.html`を開きます。閲覧にはLakda・Node.js・Webサーバーは不要です。持ち運ぶときは画像・動画・表示用ファイルを含むフォルダー一式をコピーするか、ZIPにして展開してください。ファイル間の参照は相対パスで、外部通信なしで閲覧できます。`index.html`だけでは表示に必要なファイルが不足します。確認範囲は[利用フローと持ち運びの検証記録](docs/spec/verification-reports/USER-FLOW-20260911.md)を参照してください。
 
 WindowsでローカルHTMLを開く場合、保存先は既定の`.lakda/reports`程度の短い階層にしてください。深い保存先ではbundle verifyがvalidでもブラウザが画像を開けない場合があります。レポートフォルダー全体を短いパスへコピーして開き、`lakda report verify --report-dir <コピー先>`で整合性を確認できます。
 
-手順を移動すると履歴一覧も選択行へスクロールします。「状態」の「実行失敗」は失敗した実行、「失敗項目」は個別の失敗記録を表示します。キーワードは表示名でも元の`failed`／`failure`でも検索できます。
+手順を移動すると履歴一覧も選択行へスクロールします。結果一覧は状態やキーワードで絞り込めます。「状態」の「実行失敗」は失敗した実行、「失敗項目」は個別の失敗記録を表示します。キーワードは表示名でも元の`failed`／`failure`でも検索できます。「絞り込みを全解除」で一覧に戻せます。
 
 ```text
 lakda report generate --run-dir .lakda/runs/<run-directory> --out .lakda/reports/review-01
@@ -91,17 +91,25 @@ lakda report generate --session .lakda/explorations/<session-id> --out .lakda/re
 lakda report verify --report-dir .lakda/reports/review-01
 ```
 
-生成はtargetへ再接続せず、HATEと保存内容を読取り検証します。`--out`は未存在directoryで、入力の内側／祖先へは指定できません。生成時のstdoutはreceipt JSONだけです。書込可能な場合は出力directoryの親に`<reportId>.receipt.json`を保存します。`index.html`、CSS／JS、JSON、assetsは一式で保持してください。
+生成はtargetへ再接続せず、HATEと保存内容を読取り検証します。`--out`は未存在directoryで、入力の内側／祖先へは指定できません。生成時のstdoutはreceipt JSONだけです。書込可能な場合は出力directoryの親に`<reportId>.receipt.json`を保存します。`index.html`、CSS／JS、JSON、assetsは一式で保持してください。操作履歴のない旧runは計画と件数未取得を表示します。
 
 生成exitはready=0、degraded／入力不正=2、I/O／内部error／timeout=1です。元runの合否は変えません。verifyはbundleの一致性を検査し、現時点の元runや外部受入を保証する処理ではありません。`local`の未検査媒体は画面で明示し、`--text-only`では全媒体を除外します。`share`は署名検証と媒体policyの両方を満たす媒体だけを同梱します。未知／重複optionを拒否し、設定fileはtarget用設定と別の`lakda.report.json`（明示は`--report-config`）です。
 
 保存済みHATEに`attestations/binary-artifacts.jsonl`が含まれる場合は、report設定の`trustStorePath`へoperatorが管理する鍵一覧を指定します。相対pathは設定file基準です。鍵一覧は1〜64件のEd25519公開鍵（`keyId`と`publicKeyPem`）、配列または`{ "keys": [...] }`形式で、128 KiB以下にします。run内のtrust pathは採用しません。real sessionでは保存時点の署名済みtargetと許可鍵も必要です。媒体詳細の「検証に使った記録」に各digestを表示します。検査記録の不一致はwarning／degraded、HATEの改変やマスク前媒体の残存は入力errorとなります。既に確定したrunへ検査記録を追記・再exportする機能ではありません。
 
+`share`は、保存済みHATEに含まれる検査記録と媒体のbytesを、`lakda.report.json`の`trustStorePath`で指定した鍵一覧で検証できる場合に媒体を同梱します。real sessionとそのadaptive runでは対象manifestの許可鍵・capabilityも照合します。未検査媒体は除外し、採用した媒体の詳細から検証記録を確認できます。履歴やfindingに検証できる明示参照があれば、該当項目から画像・動画を選択できます。対応記録のない媒体は実行全体の証跡として確認できます。画像は原寸以上へ拡大し、画像枠内を矢印キーで移動できます。Chrome／Edge・100%／200%の[媒体40ケースと最大件数の測定](docs/spec/verification-reports/MEDIA-ACCEPTANCE-20260910.md)をlocalで確認済みです。容量の全境界と実環境・手動受入は[実装Task](docs/tasks/TASK.20260910-65.md)で継続中です。詳細は[レポート仕様](docs/spec/verification-reports/SPEC-01-REPORTING.md)を参照してください。
+
+native v2の保存sessionは、媒体なし・textOnlyを含め、report設定の`trustStorePath`と保存観測で対象の署名を検証します。現在の期限切れだけで過去の有効な証跡を拒否しません。操作結果が不明な記録は「結果未確定」と警告し、生成状態をdegradedにします。署名不正・観測欠落・証跡一覧との不一致は生成エラーになります。詳細は[native保存証跡の検証記録](docs/spec/verification-reports/NATIVE-IDENTITY-REPORT-20260911.md)を参照してください。
+
 `run`／`replay`／`explore run`／`explore resume`では、確定後に新しいHTML snapshotを自動生成します。`--report off`で停止でき、`--report-dir <output-root>`／`--report-profile local|share`で変更します。stdoutと終了codeは元の結果のまま、stderrの`report` objectにreceipt、`directory`に完成bundle、`receiptPath`に保存先を通知します。失敗・timeout・保存失敗も元の結果を変更しません。
 
-worker batchは全worker終了後に1 bundleを生成し、run作成前に失敗したworkerも表示します。stderrの`sourcesPath`は再生成用のprivate indexです。`lakda report generate --sources <sourcesPath> --out <new-report-dir>`で再生成できます。private indexとHTML bundleは別directoryで、indexは共有するHTMLへ含めません。
+worker batchは全worker終了後に1 bundleを生成し、run作成前に失敗したworkerも表示します。stderrの`sourcesPath`は再生成用のprivate index（`sources-<UUID>/sources.json`）です。`lakda report generate --sources <sourcesPath> --out <new-report-dir>`で再生成できます。private indexとHTML bundleは別directoryで、indexは共有するHTMLへ含めません。indexにはローカル保存先が含まれるため、共有する場合はHTML bundleだけを選びます。
 
 単一runはtarget接続前に`run-start.json`を保存します。最終manifestが存在せず開始記録を検証できる場合、`local`では最小診断をdegradedとして生成します。状態は「結果未確定」で、実行中／異常終了の断定や合否・終了時刻・操作数の補完は行いません。未検証の結果file・媒体は使わず、shareは拒否します。旧runで開始記録もない場合や既存manifestが不正な場合は、入力不足／不正として拒否します。自動生成は元の終了codeを保ち、独立generateはdegradedのexit 2、生成したbundleのverifyは整合していればexit 0です。
+
+### レポートの件数上限・表示性能の測定
+
+レポートの件数上限・表示性能は、repoで`npm run acceptance:reports`を実行して測定する。インストール済みWindows Chrome／Edgeを隔離profileで使い、100 run・履歴10,000件・failure 1,000件の人工保存入力を生成する。1366×768／390×844、browser zoom 100%／200%を検証し、全測定値・入力digest・bundle・画像・失敗理由を`.lakda/report-acceptance-<固有ID>/result.json`から参照できる。同じcommandで、画像の原寸表示とキー移動、参照対応・share除外、動画位置保持／停止、decode fallbackの媒体40ケースも実行する。媒体の詳細結果は`media/result.json`、移動後の閲覧用bundleは`media/images-moved`等へ保存する。外部targetへ接続しない。通常の`npm test`にはbrowser導入や性能閾値を要求しない。実機・手動受入・release Gateは別途実施する。測定条件は[SPEC-01](docs/spec/verification-reports/SPEC-01-REPORTING.md)を参照する。
 
 ### ヘッデッド回帰と任意の外部スモーク
 
@@ -139,26 +147,6 @@ npm run acceptance:verify -- --report=.lakda/reports/worker-smoke.json --bundle=
 
 bundleにはdecision JSONL、action sequence、HATE manifest、bundle manifestだけを含める。DOM、trace、screenshot、video、auth state、raw prompt、絶対pathは含めず、Gitへcommitしない。report summary、検証結果、bundle SHAだけをGit文書へ記録する。
 
-### Historical / Legacy: v0.2.1 worker batch / artifact確認
-
-`workers=1`は従来どおり単一の`RunResult`をstdoutへ返す。`workers=2..4`の`run`/`replay`は`lakda/run-batch/v1`の`RunBatchResult`を返し、child runごとに独立run directoryとHATE manifestを保存する。workerは逐次実行し、1件の失敗や基盤error後も残りを実行する。seedは`baseSeed + workerIndex`、batch共有Action Budgetは60秒sliding windowで、上限到達時は待機せず`partial/rate_limit`でworkerを終了する。
-
-`artifacts.domSnapshots=true`を指定したrunでは、成功action後の`artifacts/dom/0001-<action-id>.html`を確認する。保存内容はredacted HTMLのみで、script本文、form値、password/token/secret要素、`data-lakda-sensitive`要素の内容と全属性を含めない。保存前は実際に保存するUTF-8 bytesで容量判定し、metadataなど最終必須artifactの保存後に上限超過となった場合は、任意artifactであるDOM snapshotを削除して`partial/artifact_limit`とする。HAR指定時は`artifacts/network.har`だけを確認し、一時raw HARが残っていないこと、すべてのheader値、cookie、Set-Cookie、query値、bodyにsecret/PIIがないことを確認する。
-### Historical / Legacy: v0.3.0-rc.1 適応型探索 / P6
-
-`lakda.config.json`で`mode=adaptive-explore`と`adaptive`契約を明示し、対象host、target kind、mutation kind、停止条件、recovery budgetを固定して実行する。
-
-```powershell
-lakda run --base-url <approved-base-url> --mode adaptive-explore --persona <persona> --seed <seed>
-npm run acceptance:adaptive
-```
-
-Playwright adapterはin-processで動作する。Airtest/PocoとSecurity adapterはoperator管理のloopback JSON serviceへ接続し、Lakdaは外部processを起動しない。endpoint/capability/initialTargetが欠ける場合はfail-closedとする。Security active操作では認可record、scope、rate/concurrency、kill switch、cleanupを必須とし、scanner/LLMの結果はcandidateから自動昇格させない。
-
-P6 RCのローカル納品Gateは`npm run check`、`npm run acceptance:fixture`、`npm run acceptance:adaptive`、`npm run check:hate`、`npm run pack:check`である。これはpackageの再現性とfixture受入を示すが、Airtest/Poco実機、認可済みSecurity target、manual-bb/QEG final Gateを代替しない。
-
-旧P6 workflowは[履歴archive](docs/release-gate/history/README.md)へ退避済みです。上記は当時の手順であり、現行releaseは[current profile](release-profiles/current.json)と[release-evidence.yml](.github/workflows/release-evidence.yml)を使います。
-
 ### 自動・クロスプラットフォーム探索MVP
 
 探索はversioned Charterから開始する。PC WebはPlaywright、mobile Webは390×844 touch profile、Windows／Android／iOSはoperatorが先に起動した127.0.0.1 Airtest/Poco bridgeへ接続する。Lakdaはbridgeやdevice serviceを起動しない。
@@ -174,14 +162,14 @@ lakda explore fork --session .lakda/explorations/<session-id>
 lakda explore acceptance --index <exploration-acceptance-index-v1.json> --trust-store <operator-trust-store.json>
 ```
 
-Airtest/Pocoの参照bridgeは、Python 3.10+を運用想定とするoperator管理venvへ依存を導入し、承認済み画像corpusを用意した端末接続済み環境で起動する。このPython／Airtest組合せは現在のローカルGateでは実行できておらず、実機Acceptance Recordでversionと動作結果を固定する。`--allowed-staging-root`はLakdaのrun artifact staging配下に限定し、外部processの自動起動やredirectは行わない。
+Airtest/Pocoの参照bridgeは、operator管理venvへhash付きlockから依存を導入し、承認済み画像corpusを用意した端末接続済み環境で起動する。lockのclean installとimportを確認した環境はWindows／AMD64／Python 3.12.14だけで、他の環境と、device操作・撮影の実機受入は`pending_external`である（[runtime matrix](tools/airtest-poco-bridge/RUNTIME-MATRIX.md)）。実機での動作は実機Acceptance Recordでversionと動作結果を固定する。`--allowed-staging-root`はLakdaのrun artifact staging配下に限定し、外部processの自動起動やredirectは行わない。
 
 ```powershell
-python -m pip install -r tools/airtest-poco-bridge/requirements.txt
+python -m pip install --require-hashes -r tools/airtest-poco-bridge/locks/windows-amd64-py312.txt
 python tools/airtest-poco-bridge/server.py --platform android --port 8765 --target-revision approved-app-build --app-id com.example.approved --app-revision approved-app-build --device-uri Android:/// --templates .lakda/operator/airtest-templates.json --templates-root .lakda/operator/templates --allowed-staging-root .lakda/runs
 ```
 
-同梱の`examples/airtest-templates.json`はformat確認用の非実行サンプルであり、`operatorReplacementRequired=true`のままbridgeへ渡すと起動を拒否する。承認済み画像を`--templates-root`配下へ配置し、manifest内の相対path、Pocoの`operatorApproved=true`、`mutationKind=none`をoperatorが明示する。完全なtransitive lockは同梱せず、`requirements.top-level-attestation.txt`は直接依存2件のsource attestationとしてのみ扱う。
+同梱の`examples/airtest-templates.json`はformat確認用の非実行サンプルであり、`operatorReplacementRequired=true`のままbridgeへ渡すと起動を拒否する。承認済み画像を`--templates-root`配下へ配置し、manifest内の相対path、Pocoの`operatorApproved=true`、`mutationKind=none`をoperatorが明示する。hash付きlockは`tools/airtest-poco-bridge/locks/`に同梱する。`requirements.txt`はresolver入力、`requirements.top-level-attestation.txt`はAirtest／Poco本体の過去のtop-level source attestationであり、pipのconstraintsに使わない。
 
 通常探索はcapture capabilityに応じてAndroid videoまたはWindows／iOSの`sampled-frames/v1`を開始し、finding／non-passだけを保持する。passかつfindingなしのcaptureは削除する。`regression-replay`と実LLM `full`は既存方針どおりvideo／連続frameを強制offする。pause／kill／bookmarkはcontrol request queueへatomic投入し、runnerがaction境界で受理したイベントだけをsessionへ反映する。resumeはcheckpointのaction timestamp、trace/replay-trace SHA-256、post-fingerprint、capabilityを再検証し、暗黙forkは行わない。session HATEはCharter、capability、events、checkpoint、findings、report、参照run manifestの実bytesを再照合する。五lane acceptance indexが揃うまで個別reportは`pending_external`であり、fixture／emulator成功で代替しない。
 
@@ -249,22 +237,6 @@ qeg gate --input <qeg-record>
 ```
 
 Lakdaの責務はHATE/v1 manifestまでである。HATE adapterがQEG IDへ変換し、QEGがGateを決定する。
-### Historical / Legacy: v0.3.0-rc.5 revision-bound Release Candidate Gate
-
-`.github/workflows/release-evidence.yml`は手動起動の二段階Gateです。対象は`candidate_ref`で固定した40桁SHAであり、`package.json`のrc versionと一致しなければなりません。workflowはこのSHA以外のcommitやdirty worktreeを受け入れません。
-
-`prepare`はself-hosted Windows/Qwen runnerで次を順に実行します。
-
-1. retryなし・single workerの`npm run check`、fixture、adaptive、package、HATE upstream。
-2. 承認済みreference stagingのimmutable config/corpus/caseを使うP11 real acceptanceとverifier。
-3. 固定`b431504...`のRanD audit、固定revisionのCode-to-gateとHATE、実Qwen full 90-runとworker-smoke 20-run。
-4. sanitized prepared evidenceのsecurity scanとdigest固定。
-
-reference stagingのconfig、corpus、case、target revision、allowlist、kill switchが欠ける場合は`pending_external`相当のHOLDで停止する。fixture、mock、RanD fixtureは実targetの代替ではない。
-
-`finalize`はprepared artifactとstrict manual-bb recordを同じcandidate SHAで照合してから、外部QEGのschema-check、evidence verify、gate、recordを実行する。RanD → Code-to-gate → HATE → manual-bb-test-harness → QEGのcommit、artifact hash、QEG policy hash、final verdictはworkflow-cookbookのfive-tool manifestで再検証する。QEG `go`とP0/P1 blockerなし以外ではrelease tagを作成しない。
-
-`publish_release=true`を明示した場合だけ、QEG `go`後に`release_tag=v<package version>`を対象SHAへ作成し、sanitized evidence zipをprereleaseへ添付する。`600a037`の過去証跡は履歴であり、rc.5のGateを省略する根拠にはならない。
 
 ## 4. Confirm
 
@@ -302,3 +274,45 @@ Security実受入は既存の`acceptance:adaptive:real` runnerを使い、別run
 - operator bridgeは各実行で`securityPermit`を受け取り、cleanupとkill switch endpointを提供すること。
 
 case reportは`lakda/adaptive-acceptance-case/v2`となり、policy評価数、開始request数、permit receipt、cleanup、kill switch、binding digestを`securityAudit`へ保存する。16 ACのsuite verifierでは`LAKDA_ADAPTIVE_SECURITY_TARGET_MANIFEST`を指定し、署名とreportのmanifest ID/SHA-256/revision/config bindingを再検証する。LakdaはHATE/v1への登録までを行い、manual-bb/QEG verdictは引き続き`pending_external`とする。
+
+## 7. Historical / Legacy
+
+見出しに「Historical / Legacy」と付いた節をここに集める。現行の手順は1〜6を使う。
+
+### Historical / Legacy: v0.2.1 worker batch / artifact確認
+
+`workers=1`は従来どおり単一の`RunResult`をstdoutへ返す。`workers=2..4`の`run`/`replay`は`lakda/run-batch/v1`の`RunBatchResult`を返し、child runごとに独立run directoryとHATE manifestを保存する。workerは逐次実行し、1件の失敗や基盤error後も残りを実行する。seedは`baseSeed + workerIndex`、batch共有Action Budgetは60秒sliding windowで、上限到達時は待機せず`partial/rate_limit`でworkerを終了する。
+
+`artifacts.domSnapshots=true`を指定したrunでは、成功action後の`artifacts/dom/0001-<action-id>.html`を確認する。保存内容はredacted HTMLのみで、script本文、form値、password/token/secret要素、`data-lakda-sensitive`要素の内容と全属性を含めない。保存前は実際に保存するUTF-8 bytesで容量判定し、metadataなど最終必須artifactの保存後に上限超過となった場合は、任意artifactであるDOM snapshotを削除して`partial/artifact_limit`とする。HAR指定時は`artifacts/network.har`だけを確認し、一時raw HARが残っていないこと、すべてのheader値、cookie、Set-Cookie、query値、bodyにsecret/PIIがないことを確認する。
+
+### Historical / Legacy: v0.3.0-rc.1 適応型探索 / P6
+
+`lakda.config.json`で`mode=adaptive-explore`と`adaptive`契約を明示し、対象host、target kind、mutation kind、停止条件、recovery budgetを固定して実行する。
+
+```powershell
+lakda run --base-url <approved-base-url> --mode adaptive-explore --persona <persona> --seed <seed>
+npm run acceptance:adaptive
+```
+
+Playwright adapterはin-processで動作する。Airtest/PocoとSecurity adapterはoperator管理のloopback JSON serviceへ接続し、Lakdaは外部processを起動しない。endpoint/capability/initialTargetが欠ける場合はfail-closedとする。Security active操作では認可record、scope、rate/concurrency、kill switch、cleanupを必須とし、scanner/LLMの結果はcandidateから自動昇格させない。
+
+P6 RCのローカル納品Gateは`npm run check`、`npm run acceptance:fixture`、`npm run acceptance:adaptive`、`npm run check:hate`、`npm run pack:check`である。これはpackageの再現性とfixture受入を示すが、Airtest/Poco実機、認可済みSecurity target、manual-bb/QEG final Gateを代替しない。
+
+旧P6 workflowは[履歴archive](docs/release-gate/history/README.md)へ退避済みです。上記は当時の手順であり、現行releaseは[current profile](release-profiles/current.json)と[release-evidence.yml](.github/workflows/release-evidence.yml)を使います。
+
+### Historical / Legacy: v0.3.0-rc.5 revision-bound Release Candidate Gate
+
+`.github/workflows/release-evidence.yml`は手動起動の二段階Gateです。対象は`candidate_ref`で固定した40桁SHAであり、`package.json`のrc versionと一致しなければなりません。workflowはこのSHA以外のcommitやdirty worktreeを受け入れません。
+
+`prepare`はself-hosted Windows/Qwen runnerで次を順に実行します。
+
+1. retryなし・single workerの`npm run check`、fixture、adaptive、package、HATE upstream。
+2. 承認済みreference stagingのimmutable config/corpus/caseを使うP11 real acceptanceとverifier。
+3. 固定`b431504...`のRanD audit、固定revisionのCode-to-gateとHATE、実Qwen full 90-runとworker-smoke 20-run。
+4. sanitized prepared evidenceのsecurity scanとdigest固定。
+
+reference stagingのconfig、corpus、case、target revision、allowlist、kill switchが欠ける場合は`pending_external`相当のHOLDで停止する。fixture、mock、RanD fixtureは実targetの代替ではない。
+
+`finalize`はprepared artifactとstrict manual-bb recordを同じcandidate SHAで照合してから、外部QEGのschema-check、evidence verify、gate、recordを実行する。RanD → Code-to-gate → HATE → manual-bb-test-harness → QEGのcommit、artifact hash、QEG policy hash、final verdictはworkflow-cookbookのfive-tool manifestで再検証する。QEG `go`とP0/P1 blockerなし以外ではrelease tagを作成しない。
+
+`publish_release=true`を明示した場合だけ、QEG `go`後に`release_tag=v<package version>`を対象SHAへ作成し、sanitized evidence zipをprereleaseへ添付する。`600a037`の過去証跡は履歴であり、rc.5のGateを省略する根拠にはならない。

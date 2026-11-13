@@ -263,17 +263,8 @@ test("history evidence requires the expected execution and oracle contract kinds
 test("history selection preserves a playable video's position without autoplay and closing pauses it", async ({ page }) => {
   const root = await mkdtemp(join(tmpdir(), "lakda-report-video-links-"));
   try {
-    const bytes = Buffer.from(await page.evaluate(async () => {
-      const canvas = document.createElement("canvas"); canvas.width = 32; canvas.height = 32;
-      const context = canvas.getContext("2d")!; const stream = canvas.captureStream(10);
-      const recorder = new MediaRecorder(stream, { mimeType: "video/webm;codecs=vp8" }); const chunks: Blob[] = [];
-      recorder.ondataavailable = event => chunks.push(event.data);
-      const stopped = new Promise<void>((resolve, reject) => { recorder.onstop = () => resolve(); recorder.onerror = () => reject(new Error("fixture recording failed")); });
-      let frame = 0; const paint = setInterval(() => { context.fillStyle = ++frame % 2 ? "blue" : "green"; context.fillRect(0, 0, 32, 32); }, 100);
-      recorder.start(); await new Promise(resolve => setTimeout(resolve, 1100)); recorder.stop(); await stopped;
-      clearInterval(paint); stream.getTracks().forEach(track => track.stop());
-      return Array.from(new Uint8Array(await new Blob(chunks).arrayBuffer()));
-    }));
+    // Deterministic VP8/WebM test fixture (3 s); avoid MediaRecorder/canvas CI renderer crashes.
+    const bytes = await readFile(join(import.meta.dirname, "fixtures", "report-3s.webm"));
     const videoRef = { ...reference, artifactId: "adapter:video", path: "artifacts/recording.webm", sha256: sha256(bytes), size: bytes.length };
     const recordedOracle = { ...oracle, evidenceRefs: [videoRef] };
     const input = await fixture(root, [{ type: "oracle", result: recordedOracle }], [recordedOracle]);

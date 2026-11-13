@@ -70,43 +70,43 @@ jobs:
       five_tool_namespace: ${{ steps.freeze.outputs.five_tool_namespace }}
       release_scope: ${{ steps.freeze.outputs.release_scope }}
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
           ref: ${{ inputs.candidate_ref || github.sha }}
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           repository: RNA4219/RanD
           ref: b4315040fd1cb823421cff53a0c7eda6f9d89c4a
           path: .tools/rand
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           repository: RNA4219/code-to-gate
           ref: 9a559a8a3cfc5df0250df7342da309ca03cd28eb
           path: .tools/code-to-gate
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           repository: RNA4219/harness-auto-test-evidence
           ref: 3a4b655c2434109e230f8b862a9d5fe14f1c069e
           path: .tools/hate
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           repository: RNA4219/manual-bb-test-harness
           ref: 1d8619b2067421938d2474485dd36abcf86af634
           path: .tools/manual-bb
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           repository: RNA4219/workflow-cookbook
           ref: db3b2141c1fef0f4835170dd82f85aabc6000fc3
           path: .tools/workflow-cookbook
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.0.3
         with:
           node-version-file: .node-version
           cache: npm
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.13"
-      - uses: astral-sh/setup-uv@e06108dd0aef18192324c70427afc47652e63a82 # v7.6.0
+      - uses: astral-sh/setup-uv@e06108dd0aef18192324c70427afc47652e63a82 # v7.5.0
 
       - id: freeze
         name: Freeze candidate identity and release profile
@@ -311,33 +311,33 @@ jobs:
     timeout-minutes: 120
     environment: staging
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
           ref: ${{ needs.prepare.outputs.revision }}
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           repository: RNA4219/quality-evidence-graph
           ref: 6e33d77399611016f64e81d7147580b05387185b
           path: .tools/qeg
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           repository: RNA4219/workflow-cookbook
           ref: db3b2141c1fef0f4835170dd82f85aabc6000fc3
           path: .tools/workflow-cookbook
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           repository: RNA4219/manual-bb-test-harness
           ref: 1d8619b2067421938d2474485dd36abcf86af634
           path: .tools/manual-bb
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.0.3
         with:
           node-version-file: .node-version
           cache: npm
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.13"
-      - uses: astral-sh/setup-uv@e06108dd0aef18192324c70427afc47652e63a82 # v7.6.0
+      - uses: astral-sh/setup-uv@e06108dd0aef18192324c70427afc47652e63a82 # v7.5.0
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: ${{ needs.prepare.outputs.artifact_prefix }}-prepared-${{ needs.prepare.outputs.revision }}

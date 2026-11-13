@@ -3,7 +3,9 @@
   "role": "doc",
   "public_api": [],
   "summary": "docs/README.md",
-  "deps_out": [],
+  "deps_out": [
+    "HUB.codex.md"
+  ],
   "deps_in": [],
   "risks": [],
   "tests": [],

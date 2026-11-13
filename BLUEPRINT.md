@@ -2,11 +2,13 @@
 intent_id: INT-LAKDA-001
 owner: RNA4219
 status: active
-last_reviewed_at: 2026-07-13
-next_review_due: 2026-08-12
+last_reviewed_at: 2026-11-13
+next_review_due: 2026-12-13
 ---
 
 # BLUEPRINT: domain-lakda-runner
+
+> この文書は v1〜v0.2.1 の設計境界の記録である。0.4系以降に追加した適応型探索、自動・クロスプラットフォーム探索、P8〜P11、レポートの要件と仕様は [HUB](HUB.codex.md) の「文書の優先順位」から辿る。
 
 ## 目的
 
@@ -84,7 +86,6 @@ flowchart LR
 - LLM endpoint は loopback のみ。暗黙のモデル fallback、外部 bind、外部 URL 送信を禁止する。
 - retry は接続 reset と一時的 5xx のみ最大 2 回。同一 seed、prompt、sampling で再試行する。
 - すべての LLM decision は schema 検証、candidate ID allowlist、Executor の安全検査を通過させる。
-- 変更単位は実装タスクごとに原則 2 source files / 100 lines 以下とし、docs-only の準備変更はこの制限の対象外とする。
 
 ## 実装単位
 
@@ -104,6 +105,6 @@ flowchart LR
 - 正本要件と仕様から実装境界、禁止事項、受入指標が参照できる。
 - Task Seed が M1–M4 の依存順と変更範囲を固定している。
 - 実装前に変更対象（source、test、CI、dependency）が未作成であることを確認できる。
-- 次の実装入口は `docs/tasks/TASK.20260713-06.md` とする。
+- 当初の実装入口は `docs/tasks/TASK.20260713-06.md` とした。現行の実装入口は [HUB](HUB.codex.md) の「現行実装順」と [Task索引](docs/tasks/README.md) とする。
 
 

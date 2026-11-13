@@ -2,7 +2,7 @@
   "generated_at": "00044",
   "index_snapshot": "docs/birdseye/index.json",
   "refresh_command": "uv run python -m tools.codemap.update --repo-root C:\\Users\\ryo-n\\Codex_dev\\domain-lakda-runner --targets docs/birdseye/index.json,docs/birdseye/hot.json --emit index+caps",
-  "curation_notes": "v1 PoCの正本、受入、運用資料を最小hopで参照するためのホットリスト。",
+  "curation_notes": "現行文書の優先順位とSankai判断待ちを含め、v1履歴/受入も追跡するホットリスト（2026-11-13 文書索引手動同期）。",
   "nodes": [
     {
       "id": "README.md",
@@ -103,6 +103,26 @@
       "caps": "docs/birdseye/caps/docs.acceptance.AC.20260713.06.v021.hardening.real.llm.json.json",
       "edges": [
         "EVALUATION.md"
+      ]
+    },
+    {
+      "id": "HUB.codex.md",
+      "role": "doc",
+      "reason": "現行正本の優先順位、review dueのstatus別判定、リリース境界。",
+      "caps": "docs/birdseye/caps/HUB.codex.md.json",
+      "edges": [
+        "REQUIREMENTS-MAINTAINABILITY.md",
+        "GUARDRAILS.md"
+      ]
+    },
+    {
+      "id": "docs/SANKAI-FOLLOWUP-20261113.md",
+      "role": "doc",
+      "reason": "Sankai文書差分の保留判断6項目とCI/受入境界。",
+      "caps": "docs/birdseye/caps/docs.SANKAI-FOLLOWUP-20261113.md.json",
+      "edges": [
+        "GUARDRAILS.md",
+        "HUB.codex.md"
       ]
     }
   ]

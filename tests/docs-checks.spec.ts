@@ -100,3 +100,29 @@ test("UP checker validates independent requirement, acceptance, specification an
   docs.set("docs/tasks/TASK.fixture.md", "---\nintent_id: INT-LAKDA-UP-001\nspecification: absent.md\n---");
   expect(check(fixtureRoot, fixtureIo)).toContain("UP: task has no valid specification TASK.fixture.md");
 });
+
+test("review-due checker fails overdue active documents and only warns for other open statuses", async () => {
+  const module = await import(pathToFileURL(join(root, "scripts/docs-checks/review-due.mjs")).href);
+  const findings = module.reviewDueFindings as (base: string, reader: typeof io, paths: string[], today?: string) => { failures: string[]; warnings: string[] };
+  const fixture = await mkdtemp(join(tmpdir(), "lakda-review-"));
+  const document = async (name: string, frontMatter: string): Promise<string> => {
+    const path = join(fixture, name);
+    await writeFile(path, "---\n" + frontMatter + "\n---\n# " + name + "\n");
+    return path;
+  };
+  try {
+    const paths = [
+      await document("ACTIVE-OK.md", "status: active\nnext_review_due: 2026-12-01"),
+      await document("ACTIVE-LATE.md", "status: active\nnext_review_due: 2026-08-22"),
+      await document("OPEN-LATE.md", "status: in_progress\nnext_review_due: 2026-08-14"),
+      await document("DONE-LATE.md", "status: done\nnext_review_due: 2026-08-14"),
+      await document("BAD-DATE.md", "status: active\nnext_review_due: soon"),
+      await document("NO-FIELD.md", "status: active"),
+    ];
+    expect(findings(fixture, io, paths, "2026-11-13")).toEqual({
+      failures: ["ACTIVE-LATE.md: review overdue since 2026-08-22 (status active)", "BAD-DATE.md: invalid next_review_due soon"],
+      warnings: ["OPEN-LATE.md: review overdue since 2026-08-14 (status in_progress)"],
+    });
+    expect(findings(fixture, io, paths, "2026-08-22").failures).toEqual(["BAD-DATE.md: invalid next_review_due soon"]);
+  } finally { await rm(fixture, { recursive: true, force: true }); }
+});

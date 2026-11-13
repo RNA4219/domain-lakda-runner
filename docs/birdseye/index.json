@@ -578,6 +578,16 @@
     "docs/acceptance/AC-20260722-20.lakda-040-rc2-local-release-validation.md": {
       "role": "doc",
       "caps": "docs/birdseye/caps/docs.acceptance.AC-20260722-20.lakda-040-rc2-local-release-validation.md.json"
+    },
+    "HUB.codex.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/HUB.codex.md.json",
+      "mtime": "00044"
+    },
+    "docs/SANKAI-FOLLOWUP-20261113.md": {
+      "role": "doc",
+      "caps": "docs/birdseye/caps/docs.SANKAI-FOLLOWUP-20261113.md.json",
+      "mtime": "00044"
     }
   },
   "edges": [
@@ -800,6 +810,42 @@
     [
       "docs/tasks/TASK.20260713-06.md",
       "docs/acceptance/AC-20260713-06.v021-hardening-real-llm.json"
+    ],
+    [
+      "README.md",
+      "HUB.codex.md"
+    ],
+    [
+      "BLUEPRINT.md",
+      "HUB.codex.md"
+    ],
+    [
+      "GUARDRAILS.md",
+      "HUB.codex.md"
+    ],
+    [
+      "docs/README.md",
+      "HUB.codex.md"
+    ],
+    [
+      "docs/BIRDSEYE.md",
+      "HUB.codex.md"
+    ],
+    [
+      "docs/BIRDSEYE.md",
+      "docs/SANKAI-FOLLOWUP-20261113.md"
+    ],
+    [
+      "CHANGELOG.md",
+      "docs/SANKAI-FOLLOWUP-20261113.md"
+    ],
+    [
+      "docs/SANKAI-FOLLOWUP-20261113.md",
+      "GUARDRAILS.md"
+    ],
+    [
+      "docs/SANKAI-FOLLOWUP-20261113.md",
+      "HUB.codex.md"
     ]
   ]
 }

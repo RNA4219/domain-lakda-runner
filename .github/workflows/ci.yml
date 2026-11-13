@@ -17,18 +17,18 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version-file: .node-version
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.13"
       - name: Execute Python bridge fixture contracts
         run: |
           $pythonPath = (Get-Command python).Source
           npm run test:bridge:python -- --python $pythonPath
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: always()
         with:
           name: python-bridge-evidence
@@ -40,7 +40,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
           version: "0.12.13"
@@ -57,7 +57,7 @@ jobs:
           .lakda/dependency-env/Scripts/python.exe -B tools/airtest-poco-bridge/verify_dependencies.py
           --lock tools/airtest-poco-bridge/locks/windows-amd64-py312.txt
           --out .lakda/qa/python-dependencies/windows-amd64-py312.json
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: always()
         with:
           name: python-bridge-dependency-evidence
@@ -67,9 +67,10 @@ jobs:
 
   docs-contract:
     runs-on: windows-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version-file: .node-version
           cache: npm
@@ -78,9 +79,10 @@ jobs:
 
   quality:
     runs-on: windows-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version-file: .node-version
           cache: npm
@@ -93,8 +95,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version-file: .node-version
           cache: npm
@@ -107,7 +109,7 @@ jobs:
       - run: npm run acceptance:fixture
         env:
           CI: "true"
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: failure()
         with:
           name: chromium-evidence
@@ -120,9 +122,10 @@ jobs:
 
   package-smoke:
     runs-on: windows-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           repository: RNA4219/harness-auto-test-evidence
           ref: 3a4b655c2434109e230f8b862a9d5fe14f1c069e
@@ -130,7 +133,7 @@ jobs:
           sparse-checkout: |
             schemas/HATE/v1/artifact-manifest.schema.json
           sparse-checkout-cone-mode: false
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version-file: .node-version
           cache: npm

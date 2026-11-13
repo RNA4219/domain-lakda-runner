@@ -3,7 +3,9 @@
   "role": "history",
   "public_api": [],
   "summary": "CHANGELOG.md",
-  "deps_out": [],
+  "deps_out": [
+    "docs/SANKAI-FOLLOWUP-20261113.md"
+  ],
   "deps_in": [
     "README.md",
     "docs/completion-record.md"

@@ -8,6 +8,7 @@ import { checkAdaptive } from "./docs-checks/adaptive.mjs";
 import { checkReleaseProfile } from "./docs-checks/release-profile.mjs";
 import { filesystem, walk } from "./docs-checks/context.mjs";
 import { checkMarkdown } from "./docs-checks/markdown.mjs";
+import { reviewDueFindings } from "./docs-checks/review-due.mjs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -32,6 +33,10 @@ failures.push(...checkMaintainability(root, filesystem));
 failures.push(...checkReleaseProfile(root, filesystem));
 
 failures.push(...checkUp(root, filesystem));
+
+const reviewDue = reviewDueFindings(root, filesystem, markdownPaths);
+failures.push(...reviewDue.failures);
+if (reviewDue.warnings.length) console.warn(reviewDue.warnings.map(warning => "warning: " + warning).join("\n"));
 if (failures.length) {
   console.error(failures.join("\n"));
   process.exitCode = 1;

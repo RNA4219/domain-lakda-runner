@@ -12,7 +12,8 @@
     "RUNBOOK.md",
     "SPECIFICATION.md",
     "docs/BIRDSEYE.md",
-    "docs/completion-record.md"
+    "docs/completion-record.md",
+    "HUB.codex.md"
   ],
   "deps_in": [
     "docs/birdseye/index.json"

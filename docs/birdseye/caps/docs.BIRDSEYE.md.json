@@ -5,7 +5,9 @@
   "summary": "docs/BIRDSEYE.md",
   "deps_out": [
     "docs/birdseye/caps/",
-    "docs/birdseye/index.json"
+    "docs/birdseye/index.json",
+    "HUB.codex.md",
+    "docs/SANKAI-FOLLOWUP-20261113.md"
   ],
   "deps_in": [
     "README.md"

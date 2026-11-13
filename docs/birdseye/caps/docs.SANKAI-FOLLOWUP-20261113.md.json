@@ -1,0 +1,17 @@
+{
+  "id": "docs/SANKAI-FOLLOWUP-20261113.md",
+  "role": "doc",
+  "public_api": [],
+  "summary": "Sankai差分の要確認6項目と未検証境界",
+  "deps_out": [
+    "GUARDRAILS.md",
+    "HUB.codex.md"
+  ],
+  "deps_in": [
+    "CHANGELOG.md",
+    "docs/BIRDSEYE.md"
+  ],
+  "risks": [],
+  "tests": [],
+  "generated_at": "00044"
+}

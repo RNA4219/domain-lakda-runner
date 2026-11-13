@@ -45,7 +45,7 @@ Lakda側は`docs/birdseye/index.json`のrequirements、specification、blueprint
 3. 動的traceは新規`lakda/adaptive-trace/v1`とし、`action-plan/v1`を拡張しない。
 4. Playwrightはin-process。Airtest/PocoとZAPはoperator管理のloopback JSON serviceへ接続し、Lakdaは起動しない。AirtestはWindows、Android、iOSを別lane／capabilityとして扱う。
 5. `src/core/runner.ts`はdispatchだけを追加し、新規ロジックは`src/adaptive/`と`src/adapters/`へ分離する。
-6. Task Seedは原則0.5 engineer-day、source 2ファイルまたは100行以内。超過時は着手前に再分割する。
+6. Task Seedは原則0.5 engineer-day。超過時は着手前に再分割する。
 7. tests-first、Acceptance Record必須、対応仕様checklistのB/Cは実証跡取得後だけ更新する。
 
 ### 5. Public I/O
