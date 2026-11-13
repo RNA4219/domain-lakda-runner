@@ -1,0 +1,23 @@
+{
+  "id": "HUB.codex.md",
+  "role": "doc",
+  "public_api": [],
+  "summary": "現行文書の優先順位とreview due規則",
+  "deps_out": [
+    "REQUIREMENTS-MAINTAINABILITY.md",
+    "GUARDRAILS.md"
+  ],
+  "deps_in": [
+    "README.md",
+    "BLUEPRINT.md",
+    "GUARDRAILS.md",
+    "docs/README.md",
+    "docs/BIRDSEYE.md",
+    "docs/SANKAI-FOLLOWUP-20261113.md"
+  ],
+  "risks": [],
+  "tests": [
+    "npm run check:docs"
+  ],
+  "generated_at": "00044"
+}

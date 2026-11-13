@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Changed (2026-11-13: documentation reconciliation)
+
+- Clarified current safety, external bridge, artifact/redaction, and HATE/QEG responsibility boundaries without changing runtime LLM prompts or schemas.
+- Defined HUB document precedence and status-aware review-due checks; kept the 12 expired non-active documents as warnings pending individual review.
+- Reorganized README/RUNBOOK, corrected bridge lock instructions, removed a Skill entry by maintainer request, and labelled the historical reference staging badge with revision `600a037`.
+- Pinned CI Actions to immutable SHAs, added docs-contract/quality/package-smoke timeouts, and preserved intentionally different setup-uv versions by workflow.
+- Removed the obsolete source-file/line-count size rule; recorded the six unresolved review subjects in [Sankai follow-up](docs/SANKAI-FOLLOWUP-20261113.md).
+
+
 ## 0.5.0-rc.2 - 2026-09-12 (Release candidate)
 
 ### Added

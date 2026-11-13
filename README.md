@@ -1,9 +1,16 @@
 # Lakda / domain-lakda-runner
 
 [![CI](https://github.com/RNA4219/domain-lakda-runner/actions/workflows/ci.yml/badge.svg)](https://github.com/RNA4219/domain-lakda-runner/actions/workflows/ci.yml)
-[![reference staging: QEG go](https://img.shields.io/badge/reference_staging-QEG_go-1f883d)](docs/release-gate/qeg-600a037/gate-verdict.json)
+[![reference staging 600a037: QEG go](https://img.shields.io/badge/reference_staging_600a037-QEG_go-1f883d)](docs/release-gate/qeg-600a037/gate-verdict.json)
 [![license: RNA-TPSAL-1.0](https://img.shields.io/badge/license-RNA--TPSAL--1.0-blue.svg)](LICENSE)
 [![source-available](https://img.shields.io/badge/source--available-yes-orange.svg)](LICENSE)
+
+Lakdaは、Web・ゲーム・認可済みセキュリティ探索を共通の状態遷移モデルで扱うテストオーケストレーターです。Playwright、Airtest/Poco、ZAPなどの操作基盤を再実装せず、「目と手」として接続します。Lakda Coreは、安全に試す候補、踏破済み状態、再現手順、証跡を管理します。
+
+> Lakdaのrun outcomeは最終品質Gateではありません。LakdaはHATE/v1証跡までを生成し、Go／No-Goは外部のmanual-bbとQEGが判断します。
+
+> [!NOTE]
+> 現在の候補版は `0.5.0-rc.2` です。code revision `600a037efec8617d2090b1c8be408a1d1b9b1c5a` の公開・非破壊[reference staging](https://rna4219.github.io/domain-lakda-runner/)に対するQEG `go`は、履歴として保持しますが、現在のsource revisionを承認するものではありません。現在の候補版はfreeze SHAごとにdeterministic、adaptive、exploration、package、reference staging、実Qwen、RanD、Code-to-gate、HATE、manual-bb、QEGを再実行するまで`pending_external`です。任意の本番・実機・security targetへの包括承認も示しません。詳細は[品質証跡記録](docs/acceptance/AC-20260716-19.reference-staging-qeg-go.md)を参照してください。
 
 ## ライセンス
 
@@ -28,13 +35,6 @@ When the software is used to provide a paid QA, testing, development, consulting
 Attribution-free white-label use requires a [separate written commercial license](COMMERCIAL-LICENSE.md).
 
 Previously released MIT-licensed versions remain available under their original MIT terms. See [LICENSING.md](LICENSING.md).
-
-Lakdaは、Web・ゲーム・認可済みセキュリティ探索を共通の状態遷移モデルで扱うテストオーケストレーターです。Playwright、Airtest/Poco、ZAPなどの操作基盤を再実装せず、「目と手」として接続します。Lakda Coreは、安全に試す候補、踏破済み状態、再現手順、証跡を管理します。
-
-> Lakdaのrun outcomeは最終品質Gateではありません。LakdaはHATE/v1証跡までを生成し、Go／No-Goは外部のmanual-bbとQEGが判断します。
-
-> [!NOTE]
-> 現在の候補版は `0.5.0-rc.2` です。code revision `600a037efec8617d2090b1c8be408a1d1b9b1c5a` の公開・非破壊[reference staging](https://rna4219.github.io/domain-lakda-runner/)に対するQEG `go`は、履歴として保持しますが、現在のsource revisionを承認するものではありません。現在の候補版はfreeze SHAごとにdeterministic、adaptive、exploration、package、reference staging、実Qwen、RanD、Code-to-gate、HATE、manual-bb、QEGを再実行するまで`pending_external`です。任意の本番・実機・security targetへの包括承認も示しません。詳細は[品質証跡記録](docs/acceptance/AC-20260716-19.reference-staging-qeg-go.md)を参照してください。
 
 ## 機能
 
@@ -97,14 +97,6 @@ P8〜P11の契約は[拡張仕様書](docs/spec/lakda-extension/README.md)を正
 2. 終了時の通知にある`directory`内の`index.html`をブラウザで開きます。既定の保存先は`.lakda/reports`配下です。
 3. 結果一覧のメッセージから気になる項目を開き、全文と画像・動画を確認します。動画は再生ボタンで再生します。
 
-概要では合否と主要な件数を確認できます。操作件数や実行時間は「操作件数・実行時間など」を開くと表示されます。結果が未確定の実行や未完了のワーカーがある場合は、概要に表示します。
-
-結果一覧は状態やキーワードで絞り込めます。「実行失敗」は失敗した実行、「失敗項目」は個別の失敗内容です。表示名でも保存記録のコード（`failed`／`failure`）でも検索でき、「絞り込みを全解除」で一覧に戻せます。
-
-詳細の「失敗した手順へ」と前／次のボタンから操作を確認できます。履歴一覧も選んだ手順までスクロールします。手順を選んで画像が出ない場合は、「実行全体の証跡を見る」で保存済みの画像・動画を開きます。手順との対応が未確認であることを表示し、画像は「画像を拡大」で細部を確認できます。
-
-出力言語は生成時に日本語（既定）と英語から選べます。対応CLIに`--report-language ja`または`--report-language en`を付けます。既定値を保存する場合は`lakda.report.json`に`{"schemaVersion":"lakda/report-config/v1","language":"en"}`を設定します。CLIの指定を優先し、テストのメッセージ・ID・記録上のコードは原文を保ちます。別の言語で読みたい場合は、保存済みの実行結果から再生成できます。
-
 保存済みrun／sessionから作り直す場合は、次のコマンドを使います。
 
 ```text
@@ -118,17 +110,7 @@ lakda report verify --report-dir .lakda/reports/review-01
 lakda report generate --run-dir .lakda/runs/<run-directory> --out .lakda/reports/review-en --report-language en
 ```
 
-生成後は出力フォルダーの`index.html`を開きます。閲覧にはLakda・Node.js・Webサーバーは不要です。持ち運ぶときは画像・動画・表示用ファイルを含むフォルダー一式をコピーするか、ZIPにして展開してください。ファイル間の参照は相対パスで、外部通信なしで閲覧できます。`index.html`だけでは表示に必要なファイルが不足します。Windowsでは長すぎる保存パスで媒体を開けない場合があるため、展開先は短いパスを推奨します。確認範囲は[利用フローと持ち運びの検証記録](docs/spec/verification-reports/USER-FLOW-20260911.md)を参照してください。
-
-再生成先は未存在フォルダーを指定してください。`--session <session-directory>`／`--sources <report-sources.json>`にも対応します。元テストのfailedとレポート生成のreadyは別状態です。操作履歴のない旧runは計画と件数未取得を表示します。
-
-`run`／`replay`／`explore run`／`explore resume`は終了後に自動生成します。保存先の既定は`.lakda/reports`です。`--report off`で無効化し、`--report-dir`／`--report-profile`で保存先とprofileを指定できます。元のstdout／終了codeを維持し、生成結果とreceipt保存先はstderrに表示します。worker batchは全workerで1レポートとし、再生成用のprivate indexを`sources-<UUID>/sources.json`へ別保存します。indexにはローカル保存先が含まれるため、共有する場合はHTML bundleだけを選びます。
-
-新規runはtarget接続前に最小の開始記録を保存します。最終manifestが存在しない場合は、この記録から`local`の診断レポートを作り「結果未確定」と表示します。開始記録だけでは実行中と異常終了を区別できず、合否・終了時刻・操作数・媒体を推定しません。開始記録もないrunや既存manifestが不正なrunは拒否します。未確定runは`share`へ出力できません。
-
-`share`は、保存済みHATEに含まれる検査記録と媒体のbytesを、`lakda.report.json`の`trustStorePath`で指定した鍵一覧で検証できる場合に媒体を同梱します。real sessionとそのadaptive runでは対象manifestの許可鍵・capabilityも照合します。未検査媒体は除外し、採用した媒体の詳細から検証記録を確認できます。履歴やfindingに検証できる明示参照があれば、該当項目から画像・動画を選択できます。対応記録のない媒体は実行全体の証跡として確認できます。画像は原寸以上へ拡大し、画像枠内を矢印キーで移動できます。Chrome／Edge・100%／200%の[媒体40ケースと最大件数の測定](docs/spec/verification-reports/MEDIA-ACCEPTANCE-20260910.md)をlocalで確認済みです。容量の全境界と実環境・手動受入は[実装Task](docs/tasks/TASK.20260910-65.md)で継続中です。詳細は[レポート仕様](docs/spec/verification-reports/SPEC-01-REPORTING.md)を参照してください。
-
-native v2の保存sessionは、媒体なし・textOnlyを含め、report設定の`trustStorePath`と保存観測で対象の署名を検証します。現在の期限切れだけで過去の有効な証跡を拒否しません。操作結果が不明な記録は「結果未確定」と警告し、生成状態をdegradedにします。署名不正・観測欠落・証跡一覧との不一致は生成エラーになります。詳細は[native保存証跡の検証記録](docs/spec/verification-reports/NATIVE-IDENTITY-REPORT-20260911.md)を参照してください。
+画面の見方、出力言語、持ち運び、自動生成の設定、`share`と署名の検証、結果未確定のrunの扱いは[RUNBOOK.md](RUNBOOK.md)の「保存結果のHTMLレポート」を参照してください。
 
 ## 最短のローカル検証
 
@@ -157,8 +139,9 @@ Codexで保守や受入作業を行う場合は、次のpersonal Skillsを利用
 | `five-tool-validation-gate` | RanD → Code-to-gate → HATE → manual-bb → QEGを一続きのrelease evidenceとして実行するとき。全体フローの正本は[workflow-cookbook](https://github.com/RNA4219/workflow-cookbook) |
 | [`manual-bb-test-harness`](https://github.com/RNA4219/manual-bb-test-harness/tree/main/skills/manual-bb-test-harness) | 仕様とriskから手動ブラックボックスケース、strict Gate、Go/No-Go briefを作るとき |
 | `agent-tools-hub` | Agent_tools全体の入口を選び、workflow-cookbook・manual-bb・QEGへの読み順を整理するとき |
-| `workflow-agent-evidence` | workflow-cookbookのEvidence recordとLakda/HATEの証跡連携を保守するとき |
 | `local-llm-launcher` | operatorが実Qwenをloopbackで起動・停止し、model IDとGGUF SHA-256を固定するとき |
+
+リンクのないSkill（`lakda-maintainer`、`five-tool-validation-gate`、`agent-tools-hub`、`local-llm-launcher`）は、このrepoには同梱していません。
 
 人間が先に読む正本はこのREADME、[RUNBOOK.md](RUNBOOK.md)、各仕様書です。Skillは正本を置き換えず、fixtureを実環境証跡へ昇格させる権限も持ちません。
 
@@ -253,12 +236,11 @@ factor modelは安全なfixture値と専用constraint DSLだけを受け入れ�
 
 ## 安全性と証跡
 
+安全境界の全項目は[GUARDRAILS.md](GUARDRAILS.md)の「adapter・bridge・証跡の安全境界」にあります。要点は次の3つです。
+
 - 操作はallow host、deny操作、mutation種別、操作予算、kill switchの検査後にだけ実行します。
-- screenshot、trace、videoは画面上の情報を含み得るため、承認済みtargetでartifact classificationとretentionを設定し、sanitized release bundleやGitへ含めません。
-- Airtest/PocoとSecurity bridgeは、Lakdaが外部processを起動せず、operator管理のloopback endpointにだけ接続します。bridgeはredirectを追跡せず、JSON content typeと1 MiBのrequest/response上限を検査します。
-- Security機能は認可済み環境の補助です。passive候補を含む全candidateで独立したenvironment、host/path、HTTP method、request template digest、capability/bridge digestを照合し、実行時はpermit receiptをbridgeへ渡します。本番への攻撃的scan、無承認mutation、LLMだけによる脆弱性認定は行いません。
-- text artifactはredaction、secret/PII scan、容量判定、SHA-256、HATE/v1 exportを通します。screenshot／trace／videoはtext scan済みと偽らず、通常runでは`redaction_status=pending`、scanは`not_applicable`として保持します。real探索でbinaryをHATEへ登録するには、target manifestで許可した外部attestorの署名付きscan結果が必須です。raw prompt、認証情報、storageState、実入力値を公開証跡へ含めません。
-- mock、fixture、状態注入は補助証跡です。実サーバー・実機の受入証跡とは区別します。
+- Airtest/PocoとSecurity bridgeは、Lakdaが外部processを起動せず、operator管理のloopback endpointにだけ接続します。
+- Security機能は認可済み環境の補助です。本番への攻撃的scan、無承認mutation、LLMだけによる脆弱性認定は行いません。
 
 ## 受入とリリースの状態
 

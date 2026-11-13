@@ -5,7 +5,8 @@
   "summary": "BLUEPRINT.md",
   "deps_out": [
     "REQUIREMENTS.md",
-    "SPECIFICATION.md"
+    "SPECIFICATION.md",
+    "HUB.codex.md"
   ],
   "deps_in": [
     "README.md"
