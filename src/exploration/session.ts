@@ -578,6 +578,7 @@ export async function buildExplorationReport(paths: ExplorationSessionPaths, opt
   if (session.technicalOutcome && session.technicalOutcome !== "passed" && !blockers.some(blocker => blocker.startsWith("technical-outcome:"))) blockers.push(`technical-outcome:${session.technicalOutcome}`);
   const report: ExplorationReport = {
     schemaVersion: "lakda/exploration-report/v1", sessionId: session.sessionId, status: session.status, charterDigest: session.charterDigest,
+    charterId: charter.charterId, ...(charter.origin ? { origin: charter.origin } : {}),
     platform: session.platform, lane: session.lane, targetRevision: charter.targetRevision, executionMode: charter.executionMode, coverage: { ...run.coverage, actions: Math.max(run.coverage.actions, session.actionCount) },
     findings: findings.length ? findings : run.findings, blockers, capture: run.capture,
     residualRisk: [...blockers, ...findings.filter(finding => finding.status === "exploratory-finding").map(finding => `${finding.kind}:${finding.findingId}`)], goNoGo: "external-qeg-required", runIds: session.runIds,

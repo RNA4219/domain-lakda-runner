@@ -24,8 +24,9 @@ import { prepareBinaryAttestationRun, type BinaryAttestationRunOptions, type Pre
 import { completeBinaryAttestationRun } from "../exploration/attestation-run.js";
 import { createAttestationStopCheck } from "../exploration/attestation-control.js";
 import { AttestationContractError } from "../exploration/attestation-contracts.js";
+import { sha256 } from "./redaction.js";
 
-export type RunRuntimeContext = { workerIndex?: number; batchId?: string; clock?: () => number; actionBudget?: ActionBudget; adaptiveReplayPrefixActions?: number; adaptiveExpectedFingerprint?: string; controlFile?: string; explorationCapture?: ExplorationCaptureRuntime; adaptiveBridge?: ExternalToolBridge; requireBinaryAttestation?: boolean; attestationTrustStorePath?: string; artifactAttestorKeyIds?: readonly string[]; binaryAttestation?: BinaryAttestationRunOptions; explorationTargetRevisionProbe?: { kind: "response-header" | "dom-meta"; name: string; expected: string } };
+export type RunRuntimeContext = { workerIndex?: number; batchId?: string; clock?: () => number; actionBudget?: ActionBudget; adaptiveReplayPrefixActions?: number; adaptiveExpectedFingerprint?: string; controlFile?: string; explorationCapture?: ExplorationCaptureRuntime; adaptiveBridge?: ExternalToolBridge; requireBinaryAttestation?: boolean; attestationTrustStorePath?: string; artifactAttestorKeyIds?: readonly string[]; binaryAttestation?: BinaryAttestationRunOptions; replayEvidenceMode?: "real"; explorationTargetRevisionProbe?: { kind: "response-header" | "dom-meta"; name: string; expected: string } };
 
 type LiveSelection = { kind: "action"; action: Action } | { kind: "stop" } | { kind: "hold" };
 type LiveSelector = (page: Page, priorAction: Action | undefined) => Promise<LiveSelection>;
@@ -278,6 +279,10 @@ export async function runLakda(config: LakdaConfig, replayInput?: string, runtim
   const actionBudget = runtime.actionBudget ?? new ActionBudget(config.safety.maxActionsPerMinute, runtime.clock);
   const resolvedRuntime = { ...runtime, actionBudget };
   const collector = await ArtifactCollector.create(config, config.mode, resolvedRuntime);
+  if (replayInput && config.mode === "regression-replay") {
+    collector.metadata.replayInputSha256 = sha256(await readFile(replayInput));
+    if (runtime.replayEvidenceMode === "real") collector.metadata.executionMode = "real";
+  }
   let plan: ActionPlan = { schemaVersion: "lakda/action-plan/v1", mode: config.mode === "adaptive-explore" ? "smoke" : config.mode, seed: config.seed, baseUrl: config.baseUrl ?? "", actions: [] };
   let llmStatus: LlmStatus = "not_requested";
   let execution!: ExecutionResult;

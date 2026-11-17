@@ -11,6 +11,10 @@ import type { BinaryAttestationRunSummary } from "../exploration/attestation-run
 
 export type RunMetadata = {
   schemaVersion: "lakda/run-metadata/v1";
+  /** Exact replay input bytes, for external evidence reconciliation. */
+  replayInputSha256?: string;
+  /** Explicit operator assertion; QEG still requires independent acceptance. */
+  executionMode?: "real";
   runId: string;
   attempt: number;
   startedAt: string;

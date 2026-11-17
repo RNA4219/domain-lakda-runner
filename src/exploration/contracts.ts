@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertLoopbackEndpoint } from "../core/safety.js";
 import { canonicalJson } from "../core/plan.js";
-import { sha256 } from "../core/redaction.js";
+import { findSensitive, sha256 } from "../core/redaction.js";
 import { assertNoSensitivePublicData } from "../adaptive/contracts.js";
 import type { AdaptiveConfig, TargetRef } from "../adaptive/contracts.js";
 
@@ -24,7 +24,15 @@ export type ExplorationProfile = {
   recovery?: { maxBacktracks: number; maxAttemptsPerState: number };
 };
 
+export type ExplorationOrigin = {
+  tool: "manual-bb-test-harness"; charterId: string; revision: string; contentHash: string; oracleRevision: string;
+  featureId?: string; priority?: "P0" | "P1" | "P2" | "P3";
+  mission?: string; questions?: string[]; traceTo?: string[]; basisRefs?: string[];
+};
+
 export type ExplorationCharter = {
+  /** Provenance is evidence only. It must never alter exploration planning or stopping. */
+  origin?: ExplorationOrigin;
   schemaVersion: typeof EXPLORATION_CHARTER_VERSION;
   charterId: string;
   targetRevision: string;
@@ -101,7 +109,7 @@ export type ExplorationSessionEvent = {
 };
 
 export type ExplorationReport = {
-  schemaVersion: typeof EXPLORATION_REPORT_VERSION; sessionId: string; status: ExplorationSessionStatus | "pending_external"; charterDigest: string;
+  schemaVersion: typeof EXPLORATION_REPORT_VERSION; charterId?: string; origin?: ExplorationOrigin; sessionId: string; status: ExplorationSessionStatus | "pending_external"; charterDigest: string;
   platform: ExplorationPlatform; lane: string; targetRevision: string; executionMode?: ExplorationExecutionMode;
   coverage: { actions: number; states: number; transitions: number; unexplored: string[]; timeline?: Array<Record<string, unknown>> };
   findings: ExplorationFinding[]; blockers: string[]; capture: { screenshots: number; videos: number; sampledFrames: number; failures: string[] };
@@ -133,6 +141,15 @@ function assertSchema(validate: Validator, value: unknown, label: string): void 
 export function assertExplorationCharter(value: unknown): asserts value is ExplorationCharter {
   assertSchema(validators.charter, value, "exploration charter");
   const charter = value as ExplorationCharter;
+  const checkOrigin = (origin: ExplorationOrigin | undefined): void => {
+    if (!origin) return;
+    for (const field of Object.values(origin)) {
+      for (const entry of Array.isArray(field) ? field : [field]) {
+        if (typeof entry === "string" && findSensitive(entry).length) throw new Error("exploration origin contains secret/PII");
+      }
+    }
+  };
+  checkOrigin(charter.origin);
   if (!charter.executionMode) throw new Error("exploration charterにはexecutionModeが必要です");
   if (charter.executionMode === "real" && !charter.targetManifestPath) throw new Error("real探索には署名済みtargetManifestPathが必要です");
   if (charter.executionMode === "real" && !charter.trustStorePath) throw new Error("real探索にはoperator trustStorePathが必要です");
@@ -158,7 +175,11 @@ export function assertExplorationCharter(value: unknown): asserts value is Explo
 export function assertExplorationCapabilitySnapshot(value: unknown): asserts value is ExplorationCapabilitySnapshot { assertSchema(validators.capability, value, "exploration capability"); }
 export function assertExplorationSession(value: unknown): asserts value is ExplorationSession { assertSchema(validators.session, value, "exploration session"); }
 export function assertExplorationFinding(value: unknown): asserts value is ExplorationFinding { assertSchema(validators.finding, value, "exploration finding"); }
-export function assertExplorationReport(value: unknown): asserts value is ExplorationReport { assertSchema(validators.report, value, "exploration report"); }
+export function assertExplorationReport(value: unknown): asserts value is ExplorationReport {
+  assertSchema(validators.report, value, "exploration report");
+  const origin = (value as ExplorationReport).origin;
+  if (origin && Object.values(origin).some(field => (Array.isArray(field) ? field : [field]).some(entry => typeof entry === "string" && findSensitive(entry).length))) throw new Error("exploration report origin contains secret/PII");
+}
 
 export function explorationDigest(value: unknown): string { return `sha256:${sha256(canonicalJson(value))}`; }
 

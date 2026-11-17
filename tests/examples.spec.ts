@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { assertCombinationFactorModel } from "../src/adaptive/combinations.js";
 import { loadConfig } from "../src/core/config.js";
 import { validateActionPlan } from "../src/core/plan.js";
+import { assertExplorationCharter } from "../src/exploration/contracts.js";
 
 type Validator = ((value: unknown) => boolean) & { errors?: unknown[] };
 type AjvConstructor = new (options: object) => { compile(schema: object): Validator };
@@ -63,6 +64,12 @@ test("sanitized examples satisfy their public contracts without real target data
   expect(target.access).toEqual({ approved: false, authSource: "pending_external", approvalEvidenceRef: "pending_external" });
   expect(target.environment.baseUrlOrigin).toBeNull();
   [configValue, model, replay, target].forEach(value => visit(value));
+  const starterConfig = await json("examples/starter/lakda.config.json");
+  const starterCharter = await json("examples/starter/lakda/charters/charter.template.json");
+  await validate("schemas/lakda-config-v1.schema.json", starterConfig);
+  await validate("schemas/lakda-exploration-charter-v1.schema.json", starterCharter);
+  assertExplorationCharter(starterCharter);
+  [starterConfig, starterCharter].forEach(value => visit(value));
 });
 
 test("run catalog public schemas compile under draft 2020-12", async () => {

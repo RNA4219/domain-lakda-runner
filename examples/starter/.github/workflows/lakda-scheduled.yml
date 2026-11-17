@@ -1,0 +1,58 @@
+name: Lakda regression replay
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 2 * * 1"
+permissions:
+  contents: read
+jobs:
+  replay:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          repository: RNA4219/domain-lakda-runner
+          ref: bb950553d15fa10f2a177dd49960fe240b1c8d6f
+          path: .lakda-tool
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24.6.0
+      - name: Install pinned Lakda
+        shell: pwsh
+        run: |
+          cd .lakda-tool
+          npm ci
+          npm run build
+      - name: Replay all promoted action sequences
+        shell: pwsh
+        env:
+          LAKDA_BASE_URL: ${{ vars.LAKDA_BASE_URL }}
+        run: |
+          if (-not $env:LAKDA_BASE_URL) { throw "Approve and configure LAKDA_BASE_URL before replay" }
+          New-Item -ItemType Directory -Force .lakda/reports | Out-Null
+          $traces = @(Get-ChildItem -Path lakda/traces -Recurse -File -Filter action-sequence.json)
+          if ($traces.Count -eq 0) { throw "No promoted traces configured" }
+          $failed = $false
+          foreach ($trace in $traces) {
+            node .lakda-tool/dist/cli.js replay --input $trace.FullName --base-url $env:LAKDA_BASE_URL --execution-mode real --report off
+            if ($LASTEXITCODE -ne 0) { $failed = $true }
+          }
+          # Render existing verified run records into text-only reports without retaining media.
+          $runs = @(Get-ChildItem -Path .lakda/runs -Directory)
+          foreach ($run in $runs) {
+            $out = Join-Path ".lakda/reports" ($run.Name + "-text")
+            node .lakda-tool/dist/cli.js report generate --run-dir $run.FullName --out $out --text-only
+            if ($LASTEXITCODE -ne 0) { $failed = $true }
+          }
+          node .lakda-tool/dist/cli.js report summary --runs-dir .lakda/runs --out .lakda/reports/summary.md --target-revision "${{ github.sha }}"
+          if ($LASTEXITCODE -ne 0) { throw "Summary rejected" }
+          if ($failed) { throw "One or more replay runs failed" }
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: always()
+        with:
+          name: lakda-text-summary
+          path: |\n            .lakda/reports/*.md\n            .lakda/reports/*-text/**
+          if-no-files-found: warn
+          retention-days: 7

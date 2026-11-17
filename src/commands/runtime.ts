@@ -39,13 +39,16 @@ export async function replayCommand(flags: Flags): Promise<number> {
   const reporting = await resolveReportConfig(flags);
   const inputPath = stringFlag(flags, "input", true)!;
   const baseUrl = stringFlag(flags, "base-url", true)!;
+  const evidenceMode = stringFlag(flags, "execution-mode");
+  if (evidenceMode && evidenceMode !== "real") throw new Error("Only --execution-mode real is supported for replay evidence");
   const config = loadConfig(
     stringFlag(flags, "config") ?? resolve(process.cwd(), "lakda.config.json"),
     { ...configOverrides(flags), baseUrl, mode: "regression-replay" },
   );
+  const context = evidenceMode === "real" ? { replayEvidenceMode: "real" as const } : {};
   const result = config.workers > 1
-    ? await runLakdaBatch(config, inputPath)
-    : await runLakda(config, inputPath);
+    ? await runLakdaBatch(config, inputPath, context)
+    : await runLakda(config, inputPath, context);
   console.log(JSON.stringify(result, null, 2));
   await reportResult(result, config, reporting);
   return result.exitCode;
