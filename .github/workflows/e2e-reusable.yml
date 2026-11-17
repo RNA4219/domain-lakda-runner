@@ -1,0 +1,136 @@
+name: Lakda reusable E2E
+on:
+  workflow_call:
+    inputs:
+      scenario-dir:
+        type: string
+        required: true
+      base-url:
+        type: string
+        required: true
+      environment-name:
+        type: string
+        required: true
+      isolation-verified:
+        type: boolean
+        default: false
+      real-target-attested:
+        type: boolean
+        default: false
+      upload-evidence:
+        type: boolean
+        default: false
+    secrets:
+      input_profiles_json:
+        required: false
+permissions:
+  contents: read
+jobs:
+  discover:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.inspect.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+      - id: inspect
+        env:
+          SCENARIO_DIR: ${{ inputs.scenario-dir }}
+          TARGET_BASE_URL: ${{ inputs.base-url }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, readdirSync, lstatSync, appendFileSync } from 'node:fs';
+          import { resolve, join, relative, sep } from 'node:path';
+          import { createHash } from 'node:crypto';
+          const root = resolve(process.cwd());
+          const dir = resolve(root, process.env.SCENARIO_DIR);
+          if (!dir.startsWith(root + sep) || lstatSync(dir).isSymbolicLink()) throw Error('invalid directory');
+          const dirs = readdirSync(dir, { withFileTypes: true }).filter(x => x.isDirectory()).sort((a,b) => a.name.localeCompare(b.name));
+          if (dirs.length === 0 || dirs.length > 100) throw Error('invalid scenario count');
+          const include = [];
+          for (const item of dirs) {
+            if (!/^[A-Za-z][A-Za-z0-9_-]{0,79}$/.test(item.name)) throw Error('invalid scenario id');
+            const path = join(dir, item.name);
+            const manifest = JSON.parse(readFileSync(join(path, 'manifest.json'), 'utf8'));
+            const review = JSON.parse(readFileSync(join(path, 'scenario.json'), 'utf8'));
+            const plan = JSON.parse(readFileSync(join(path, 'action-sequence.json'), 'utf8'));
+            const target = new URL(process.env.TARGET_BASE_URL).toString();
+            if (plan.schemaVersion !== 'lakda/action-plan/v1' || plan.baseUrl !== target) throw Error('target URL does not match reviewed action plan');
+            if (manifest.schemaVersion !== 'manual-bb/e2e-export/v1' || manifest.caseId !== item.name ||
+                review.schemaVersion !== 'manual-bb/e2e-scenario/v1' || review.caseId !== item.name ||
+                !review.reviewRef || !review.reviewedBy) throw Error('unreviewed scenario');
+            const required = ['scenario.json', 'scenario.md', 'action-sequence.json', 'lakda.config.json', 'scenario.spec.ts'];
+            if (!manifest.filesSha256 || required.some(file => typeof manifest.filesSha256[file] !== 'string') ||
+                Object.keys(manifest.filesSha256).length !== required.length) throw Error('unverified required artifact');
+            for (const [file, digest] of Object.entries(manifest.filesSha256)) {
+              if (!/^[A-Za-z0-9._-]+$/.test(file) || !/^[a-f0-9]{64}$/.test(digest)) throw Error('invalid manifest');
+              const name = join(path, file);
+              if (lstatSync(name).isSymbolicLink()) throw Error('symlink in scenario');
+              if (createHash('sha256').update(readFileSync(name)).digest('hex') !== digest) throw Error('tampered scenario');
+            }
+            include.push({id: item.name, path: relative(root, path).split(sep).join('/')});
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT, 'matrix=' + JSON.stringify({include}) + '\n');
+          NODE
+  replay:
+    needs: discover
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ inputs.isolation-verified && 4 || 1 }}
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.environment-name }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          repository: RNA4219/domain-lakda-runner
+          ref: f7e69ccd88688cd9d5c497b1ef6ce97cf57d81fb
+          path: .lakda-runtime
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24.6.0'
+      - name: Build pinned runtime and Chromium
+        working-directory: .lakda-runtime
+        run: |
+          npm ci
+          npm run build
+          npx playwright install --with-deps chromium
+      - name: Replay reviewed case
+        env:
+          BASE_URL: ${{ inputs.base-url }}
+          SCENARIO_PATH: ${{ matrix.path }}
+          REAL_TARGET: ${{ inputs.real-target-attested }}
+          CASE_ID: ${{ matrix.id }}
+          INPUT_PROFILES_JSON: ${{ secrets.input_profiles_json }}
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import {readFileSync, writeFileSync} from 'node:fs';
+          import {join} from 'node:path';
+          const plan = JSON.parse(readFileSync(join(process.env.SCENARIO_PATH, 'action-sequence.json'), 'utf8'));
+          const config = JSON.parse(readFileSync(join(process.env.SCENARIO_PATH, 'lakda.config.json'), 'utf8'));
+          const expected = new Set(plan.actions.filter(action => action.inputProfileId).map(action => action.inputProfileId));
+          const supplied = process.env.INPUT_PROFILES_JSON ? JSON.parse(process.env.INPUT_PROFILES_JSON) : {};
+          if (!supplied || Array.isArray(supplied) || typeof supplied !== 'object' ||
+              Object.keys(supplied).some(key => !expected.has(key) || !/^[A-Za-z0-9_-]{1,80}$/.test(key) || typeof supplied[key] !== 'string') ||
+              [...expected].some(key => !Object.hasOwn(supplied, key))) throw Error('invalid or missing secret input profiles');
+          config.inputProfiles = supplied;
+          writeFileSync(join(process.env.RUNNER_TEMP, 'lakda-inputs-' + process.env.CASE_ID + '.json'), JSON.stringify(config), {flag:'wx',mode:0o600});
+          NODE
+          args=(replay --input "$SCENARIO_PATH/action-sequence.json" --base-url "$BASE_URL" --config "$RUNNER_TEMP/lakda-inputs-$CASE_ID.json" --output-dir "$RUNNER_TEMP/lakda-runs" --report off)
+          if [[ "$REAL_TARGET" == "true" ]]; then args+=(--execution-mode real); fi
+          node .lakda-runtime/dist/cli.js "${args[@]}"
+      - name: Preserve evidence only with explicit product approval
+        if: ${{ always() && inputs.upload-evidence }}
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: lakda-e2e-${{ matrix.id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/lakda-runs/
+          if-no-files-found: warn
+          retention-days: 14

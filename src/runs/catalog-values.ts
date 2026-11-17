@@ -37,7 +37,7 @@ export function dateValue(value: unknown, name: string): string {
 
 export function assertSafePublicValue(value: string, name: string): void {
   if (findSensitive(value).length > 0) throw new Error(name + " contains sensitive data");
-  if (isAbsolute(value) || /^file:\/\//i.test(value)) throw new Error(name + " contains an absolute path");
+  if (isAbsolute(value) || /^[A-Za-z]:[\\/]/.test(value) || /^\\\\/.test(value) || /^file:\/\//i.test(value)) throw new Error(name + " contains an absolute path");
 }
 
 export function ratioValue(value: unknown, name: string): number {

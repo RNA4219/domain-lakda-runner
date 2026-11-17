@@ -1,9 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
 import { compareRuns, listRuns, showRun } from "../src/runs/catalog.js";
+import { generateTrend } from "../src/runs/trend.js";
 import { runsCompareCommand } from "../src/commands/runs.js";
 import { runCli } from "../src/cli.js";
 import { sha256 } from "../src/core/redaction.js";
@@ -364,5 +365,49 @@ test("runs compare rejects an unsupported or mismatched graph version", async ()
     await expect(compareRuns(base, head)).rejects.toThrow(/state graph schemaVersion/);
   } finally {
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+
+test("cross-run trend verifies HATE bytes, remains read-only, and rejects tampered history", async () => {
+  const root = await mkdtemp(join(tmpdir(), "lakda-trend-verified-"));
+  const output = root + "-generated";
+  const rejected = root + "-rejected";
+  const aliasRoot = root + "-alias";
+  try {
+    const first = await writeRun(root, "first", {
+      runId: "trend-one", startedAt: "2026-11-17T00:00:00.000Z",
+      endedAt: "2026-11-17T00:00:01.000Z", adaptive: false, outcome: "passed",
+    });
+    await writeRun(root, "second", {
+      runId: "trend-two", startedAt: "2026-11-17T00:01:00.000Z",
+      endedAt: "2026-11-17T00:01:03.000Z", adaptive: false, outcome: "failed",
+    });
+    const indexFile = join(root, "index.json");
+    await writeFile(indexFile, JSON.stringify({
+      schemaVersion: "lakda/trend-index/v1",
+      runs: ["first", "second"].map(runRef => ({
+        runRef, scenarioId: "TC-001", caseRevision: "v1", environment: "fixture",
+        browser: "chromium", evidenceKind: "fixture",
+      })),
+    }));
+    const data = await generateTrend(indexFile, root, output);
+    expect(data.series).toHaveLength(1);
+    expect(data.series[0]).toMatchObject({ total: 2, evaluated: 2, passed: 1, failed: 1, successRate: .5, flakyCandidate: true });
+    expect(data.gate).toBe("external-qeg-required");
+    expect(JSON.parse(await readFile(join(output, "trend.json"), "utf8"))).toEqual(data);
+    expect(await readFile(join(output, "index.html"), "utf8")).toContain("Lakda cross-run trends");
+    await expect(generateTrend(indexFile, root, output)).rejects.toThrow(/EEXIST|file already exists/);
+    await writeFile(join(first, "run-metadata.json"), "{}");
+    await expect(generateTrend(indexFile, root, rejected)).rejects.toThrow(/hash|bytes/);
+    await expect(generateTrend(indexFile, root, join(root, "embedded-output"))).rejects.toThrow(/must not modify run storage/);
+    await mkdir(aliasRoot);
+    await symlink(root, join(aliasRoot, "link"), process.platform === "win32" ? "junction" : "dir");
+    await expect(generateTrend(indexFile, root, join(aliasRoot, "link", "embedded-output"))).rejects.toThrow(/must not modify run storage/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(output, { recursive: true, force: true });
+    await rm(rejected, { recursive: true, force: true });
+    await rm(aliasRoot, { recursive: true, force: true });
   }
 });

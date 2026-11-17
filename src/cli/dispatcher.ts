@@ -21,6 +21,7 @@ import {
   runsShowCommand,
 } from "../commands/runs.js";
 import { reportSummaryCommand } from "../commands/report-summary.js";
+import { runsTrendCommand } from "../commands/trend.js";
 import { usage } from "./help.js";
 import {
   parseCliArgs,
@@ -62,6 +63,7 @@ export async function dispatchCli(parsed: ParsedCliArgs): Promise<number> {
   if (command === "explore bookmark") return await exploreBookmarkCommand(parsed.flags);
   if (command === "explore fork") return await exploreForkCommand(parsed.flags);
   if (command === "explore acceptance") return await exploreAcceptanceCommand(parsed.flags);
+  if (command === "runs trend") return await runsTrendCommand(parsed.flags);
   if (command === "runs list") {
     return await runsListCommand({
       outputDir: stringFlag(parsed.flags, "output-dir"),
