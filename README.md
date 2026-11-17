@@ -141,7 +141,7 @@ Codexで保守や受入作業を行う場合は、次のpersonal Skillsを利用
 | `agent-tools-hub` | Agent_tools全体の入口を選び、workflow-cookbook・manual-bb・QEGへの読み順を整理するとき |
 | `local-llm-launcher` | operatorが実Qwenをloopbackで起動・停止し、model IDとGGUF SHA-256を固定するとき |
 
-リンクのないSkill（`lakda-maintainer`、`five-tool-validation-gate`、`agent-tools-hub`、`local-llm-launcher`）は、このrepoには同梱していません。
+このrepoには同梱していないSkill（`lakda-maintainer`、`five-tool-validation-gate`、`agent-tools-hub`、`local-llm-launcher`）は、実体があるまで手順として案内しません。すぐ使える製品側の導入例は [examples/starter](examples/starter/START-HERE.md) を参照してください。
 
 人間が先に読む正本はこのREADME、[RUNBOOK.md](RUNBOOK.md)、各仕様書です。Skillは正本を置き換えず、fixtureを実環境証跡へ昇格させる権限も持ちません。
 

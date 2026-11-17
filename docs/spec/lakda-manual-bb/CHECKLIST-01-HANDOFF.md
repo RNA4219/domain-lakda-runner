@@ -1,0 +1,6 @@
+- [x] Optional bounded origin schema and matching TypeScript type
+- [x] Existing redaction applies to all string evidence
+- [x] Report passes through source provenance
+- [x] CLI summary does not perform network operations
+- [x] Starter config/charter are sanitized fixture examples
+- [ ] Real environment integration, signed target, and Gate acceptance require external approval

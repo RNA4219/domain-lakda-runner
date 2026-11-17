@@ -24,7 +24,15 @@ export type ExplorationProfile = {
   recovery?: { maxBacktracks: number; maxAttemptsPerState: number };
 };
 
+export type ExplorationOrigin = {
+  tool: "manual-bb-test-harness"; charterId: string; revision: string; contentHash: string; oracleRevision: string;
+  featureId?: string; priority?: "P0" | "P1" | "P2" | "P3";
+  mission?: string; questions?: string[]; traceTo?: string[]; basisRefs?: string[];
+};
+
 export type ExplorationCharter = {
+  /** Provenance is evidence only. It must never alter exploration planning or stopping. */
+  origin?: ExplorationOrigin;
   schemaVersion: typeof EXPLORATION_CHARTER_VERSION;
   charterId: string;
   targetRevision: string;
@@ -101,7 +109,7 @@ export type ExplorationSessionEvent = {
 };
 
 export type ExplorationReport = {
-  schemaVersion: typeof EXPLORATION_REPORT_VERSION; sessionId: string; status: ExplorationSessionStatus | "pending_external"; charterDigest: string;
+  schemaVersion: typeof EXPLORATION_REPORT_VERSION; charterId?: string; origin?: ExplorationOrigin; sessionId: string; status: ExplorationSessionStatus | "pending_external"; charterDigest: string;
   platform: ExplorationPlatform; lane: string; targetRevision: string; executionMode?: ExplorationExecutionMode;
   coverage: { actions: number; states: number; transitions: number; unexplored: string[]; timeline?: Array<Record<string, unknown>> };
   findings: ExplorationFinding[]; blockers: string[]; capture: { screenshots: number; videos: number; sampledFrames: number; failures: string[] };

@@ -14,6 +14,7 @@ Commands:
   lakda scout --config <path> --suite <trace-or-suite.json> [--scout-mode rule-only|llm] [--out <leads.json>]
   lakda report leads --run-dir <run-dir> --format json|html
   lakda report generate (--run-dir <run-dir>|--session <session-dir>|--sources <sources.json>) --out <new-report-dir> [--profile local|share] [--text-only] [--report-config <file>]
+  lakda report summary --runs-dir <runs-dir> --out <summary.md|json> --format md|json [--target-revision <revision>] [--reports-dir <dir>] [--base-runs-dir <dir>]
   lakda report verify --report-dir <report-dir>
   lakda investigate --lead <lead.json> --trace <adaptive-trace.json> --config <lakda.config.json> --reviewer <ref> --out <investigation.json>
   lakda promote --investigation <investigation.json> --kind trace|suite --out <promotion.json>

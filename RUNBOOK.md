@@ -316,3 +316,12 @@ reference stagingのconfig、corpus、case、target revision、allowlist、kill 
 `finalize`はprepared artifactとstrict manual-bb recordを同じcandidate SHAで照合してから、外部QEGのschema-check、evidence verify、gate、recordを実行する。RanD → Code-to-gate → HATE → manual-bb-test-harness → QEGのcommit、artifact hash、QEG policy hash、final verdictはworkflow-cookbookのfive-tool manifestで再検証する。QEG `go`とP0/P1 blockerなし以外ではrelease tagを作成しない。
 
 `publish_release=true`を明示した場合だけ、QEG `go`後に`release_tag=v<package version>`を対象SHAへ作成し、sanitized evidence zipをprereleaseへ添付する。`600a037`の過去証跡は履歴であり、rc.5のGateを省略する根拠にはならない。
+
+
+## manual-bb handoff and promoted replay (2026-11)
+
+Manual-bb exploratory charters can be exported into the Lakda `exploration-charter/v1` template. `origin` is retained as evidence provenance only and is ignored by the action generator and stop decisions. Check real target authorization and the signed manifest before execution. Lakda retains `goNoGo: external-qeg-required`; manual-bb/QEG alone decide release Gate.
+
+Store each promoted regression under `lakda/traces/<promotionId>/`, including the immutable `promotion.json` and all resolved `artifactRefs` paths. Run the exact promoted action sequence with `lakda replay --input lakda/traces/<promotionId>/action-sequence.json --base-url <approved-url> --report off` in an approved environment. Revisions must create a new promotion directory. Import replay suites into manual-bb only after a verifiable trace/run provenance binding exists.
+
+Use the `examples/starter` package and its product-side scheduled workflow as a starting point; do not add this schedule to Lakda's own CI. `lakda report summary --runs-dir .lakda/runs --out .lakda/reports/summary.md` summarizes local records without contacting targets or notifying channels. Generated summaries are not release Gate decisions.

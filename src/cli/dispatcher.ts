@@ -20,6 +20,7 @@ import {
   runsListCommand,
   runsShowCommand,
 } from "../commands/runs.js";
+import { reportSummaryCommand } from "../commands/report-summary.js";
 import { usage } from "./help.js";
 import {
   parseCliArgs,
@@ -49,6 +50,7 @@ export async function dispatchCli(parsed: ParsedCliArgs): Promise<number> {
   if (command === "scout") return await scoutCommand(parsed.flags);
   if (command === "report leads") return await reportLeadsCommand(parsed.flags);
   if (command === "report generate") return await generateReportCommand(parsed.flags);
+  if (command === "report summary") return await reportSummaryCommand(parsed.flags);
   if (command === "report verify") return await verifyReportCommand(parsed.flags);
   if (command === "investigate") return await investigateCommand(parsed.flags);
   if (command === "promote") return await promoteCommand(parsed.flags);
