@@ -8,6 +8,8 @@ last_updated: 2026-08-02
 
 ## 現行
 
+- [E2E Platform仕様](e2e-platform/README.md) — シナリオ、並列、Linux、分析、共通workflowの5仕様と各1正本checklist（現段階は部分実装）
+
 - [実行検証・生成レポート仕様](verification-reports/README.md) — 7改修の実装仕様、セルフレビュー、対応checklist
 - [保守性・拡張性仕様](maintainability/README.md) — repository governance、release profile、acceptance core、registry、run比較、module/examples
 - [適応型探索仕様](adaptive-exploration/README.md) — 共通core、state graph、replay/oracle/evidence、3 adapter

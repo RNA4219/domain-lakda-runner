@@ -23,6 +23,8 @@ next_review_due: 2026-12-13
 9. [Birdseye](docs/BIRDSEYE.md) — 依存トポロジとCapsule
 10. [reference](docs/reference/deep-research-report.md) — 非規範資料
 
+追加のE2E Platform要件は[REQUIREMENTS-E2E-PLATFORM](REQUIREMENTS-E2E-PLATFORM.md)、仕様と各1件の正本checklistは[docs/spec/e2e-platform](docs/spec/e2e-platform/README.md)を参照する。既存の安全条件・既存の正本に優先しない。
+
 ## 現行実装順
 
 2026-09-10追加改修は[実装仕様](docs/spec/verification-reports/README.md)と[Task 61](docs/tasks/TASK.20260910-61.md)〜[Task 69](docs/tasks/TASK.20260910-69.md)を入口とする。既存計画のlocal_complete履歴は保持する。
