@@ -37,12 +37,10 @@ async function collect(root: string) {
 async function collectExplorationReports(root: string): Promise<{ findingCount: number; severities: Record<string, number> }> {
   let findingCount = 0;
   const severities: Record<string, number> = {};
-  let entries: Awaited<ReturnType<typeof readdir>>;
-  try { entries = await readdir(root, { withFileTypes: true }); }
-  catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { findingCount, severities };
+  const entries = await readdir(root, { withFileTypes: true }).catch((error: unknown) => {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
     throw error;
-  }
+  });
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     let report: Record<string, unknown>;
