@@ -1,6 +1,6 @@
 /** Read-only, verified cross-run trend aggregation; not a Gate verdict. */
 import { readFile, mkdir, realpath, stat, writeFile } from "node:fs/promises";
-import { basename, isAbsolute, join, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { showRun } from "./catalog.js";
 import { readManifestSnapshot } from "./manifest-snapshot.js";
 import { hateArtifact } from "./catalog-values.js";
@@ -91,7 +91,9 @@ export async function generateTrend(indexPath: string, runsDir: string, outDir: 
   const root = await realpath(resolve(runsDir));
   requireValue((await stat(root)).isDirectory(), "runs root is not a directory");
   const target = resolve(outDir);
-  requireValue(!within(root, target), "trend output must not modify run storage");
+  const outputParent = await realpath(dirname(target));
+  const canonicalTarget = resolve(outputParent, basename(target));
+  requireValue(!within(root, canonicalTarget), "trend output must not modify run storage");
   const seen = new Set<string>();
   const rows: TrendRun[] = [];
   for (const raw of index.runs) {

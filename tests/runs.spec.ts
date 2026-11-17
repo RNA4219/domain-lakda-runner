@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
@@ -373,6 +373,7 @@ test("cross-run trend verifies HATE bytes, remains read-only, and rejects tamper
   const root = await mkdtemp(join(tmpdir(), "lakda-trend-verified-"));
   const output = root + "-generated";
   const rejected = root + "-rejected";
+  const aliasRoot = root + "-alias";
   try {
     const first = await writeRun(root, "first", {
       runId: "trend-one", startedAt: "2026-11-17T00:00:00.000Z",
@@ -400,9 +401,13 @@ test("cross-run trend verifies HATE bytes, remains read-only, and rejects tamper
     await writeFile(join(first, "run-metadata.json"), "{}");
     await expect(generateTrend(indexFile, root, rejected)).rejects.toThrow(/hash|bytes/);
     await expect(generateTrend(indexFile, root, join(root, "embedded-output"))).rejects.toThrow(/must not modify run storage/);
+    await mkdir(aliasRoot);
+    await symlink(root, join(aliasRoot, "link"), process.platform === "win32" ? "junction" : "dir");
+    await expect(generateTrend(indexFile, root, join(aliasRoot, "link", "embedded-output"))).rejects.toThrow(/must not modify run storage/);
   } finally {
     await rm(root, { recursive: true, force: true });
     await rm(output, { recursive: true, force: true });
     await rm(rejected, { recursive: true, force: true });
+    await rm(aliasRoot, { recursive: true, force: true });
   }
 });
