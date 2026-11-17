@@ -135,13 +135,9 @@ Codexで保守や受入作業を行う場合は、次のpersonal Skillsを利用
 
 | Skill | 使う場面 |
 |---|---|
-| `lakda-maintainer` | Lakdaの設定、CLI、adapter、P8〜P11、real acceptance、HATE/QEG境界を変更・レビューするとき |
-| `five-tool-validation-gate` | RanD → Code-to-gate → HATE → manual-bb → QEGを一続きのrelease evidenceとして実行するとき。全体フローの正本は[workflow-cookbook](https://github.com/RNA4219/workflow-cookbook) |
 | [`manual-bb-test-harness`](https://github.com/RNA4219/manual-bb-test-harness/tree/main/skills/manual-bb-test-harness) | 仕様とriskから手動ブラックボックスケース、strict Gate、Go/No-Go briefを作るとき |
-| `agent-tools-hub` | Agent_tools全体の入口を選び、workflow-cookbook・manual-bb・QEGへの読み順を整理するとき |
-| `local-llm-launcher` | operatorが実Qwenをloopbackで起動・停止し、model IDとGGUF SHA-256を固定するとき |
 
-このrepoには同梱していないSkill（`lakda-maintainer`、`five-tool-validation-gate`、`agent-tools-hub`、`local-llm-launcher`）は、実体があるまで手順として案内しません。すぐ使える製品側の導入例は [examples/starter](examples/starter/START-HERE.md) を参照してください。
+このrepoに同梱されない4つの非公開Skillは案内対象から外しました。公開されている `manual-bb-test-harness` のSkillだけを案内します。すぐ使える製品側の導入例は [examples/starter](examples/starter/START-HERE.md) を参照してください。
 
 人間が先に読む正本はこのREADME、[RUNBOOK.md](RUNBOOK.md)、各仕様書です。Skillは正本を置き換えず、fixtureを実環境証跡へ昇格させる権限も持ちません。
 

@@ -15,8 +15,7 @@ async function loadJson(file: string): Promise<Record<string, unknown>> {
   return value as Record<string, unknown>;
 }
 async function collect(root: string) {
-  const counts = empty(); let runs = 0; let findingCount = 0;
-  const severities: Record<string, number> = {};
+  const counts = empty(); let runs = 0;
   for (const entry of await readdir(root, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const location = join(root, entry.name);
@@ -28,29 +27,53 @@ async function collect(root: string) {
     }
     if (!isOutcome(metadata.outcome)) throw new Error("unknown run outcome: " + location);
     counts[metadata.outcome]++; runs++;
-    // Exploratory findings are read only when a report was explicitly stored.
-    try {
-      const report = await loadJson(join(location, "exploration-report.json"));
-      if (!Array.isArray(report.findings)) throw new Error("invalid findings");
-      findingCount += report.findings.length;
-      for (const item of report.findings) {
-        if (!item || typeof item !== "object" || typeof item.severity !== "string") throw new Error("invalid finding");
-        severities[item.severity] = (severities[item.severity] ?? 0) + 1;
+
+  }
+  return { runs, counts };
+}
+
+/** Exploration reports are archived in .lakda/explorations/<sessionId>/report.json,
+ * not in .lakda/runs/<runId>. Never infer them from a run outcome. */
+async function collectExplorationReports(root: string): Promise<{ findingCount: number; severities: Record<string, number> }> {
+  let findingCount = 0;
+  const severities: Record<string, number> = {};
+  let entries: Awaited<ReturnType<typeof readdir>>;
+  try { entries = await readdir(root, { withFileTypes: true }); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { findingCount, severities };
+    throw error;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    let report: Record<string, unknown>;
+    try { report = await loadJson(join(root, entry.name, "report.json")); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      throw error;
+    }
+    if (report.schemaVersion !== "lakda/exploration-report/v1" || !Array.isArray(report.findings)) {
+      throw new Error("Invalid saved exploration report: " + entry.name);
+    }
+    findingCount += report.findings.length;
+    for (const item of report.findings) {
+      if (!item || typeof item !== "object" || !["info", "warning", "major", "critical"].includes(String(item.severity))) {
+        throw new Error("Invalid saved exploration finding: " + entry.name);
       }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      const severity = String(item.severity);
+      severities[severity] = (severities[severity] ?? 0) + 1;
     }
   }
-  return { runs, counts, findingCount, severities };
+  return { findingCount, severities };
 }
 export async function reportSummaryCommand(flags: Flags): Promise<number> {
   const root = resolve(stringFlag(flags, "runs-dir", true)!);
   const destination = resolve(stringFlag(flags, "out", true)!);
   const format = stringFlag(flags, "format") ?? (destination.endsWith(".json") ? "json" : "md");
   if (format !== "md" && format !== "json") throw new Error("--format must be md or json");
-  const result = await collect(root);
+  const sessions = resolve(stringFlag(flags, "sessions-dir") ?? join(root, "..", "explorations"));
+  const result = { ...await collect(root), ...await collectExplorationReports(sessions) };
   const baseDir = stringFlag(flags, "base-runs-dir");
-  const base = baseDir ? await collect(resolve(baseDir)) : undefined;
+  const base = baseDir ? { ...await collect(resolve(baseDir)), ...await collectExplorationReports(resolve(baseDir, "..", "explorations")) } : undefined;
   const diff = base ? Object.fromEntries(Object.keys(result.counts).map(key => [key, result.counts[key as keyof Counts] - base.counts[key as keyof Counts]])) : undefined;
   const data = { schemaVersion: "lakda/report-summary/v1", targetRevision: stringFlag(flags, "target-revision") ?? "unspecified", ...result,
     ...(diff ? { delta: { runs: result.runs - base!.runs, counts: diff, findings: result.findingCount - base!.findingCount } } : {}),

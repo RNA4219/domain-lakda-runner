@@ -20,7 +20,7 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       "run-dir": { type: "string" }, out: { type: "string" }, browser: { type: "string" }, help: { type: "boolean" }, version: { type: "boolean" },
       "factor-model": { type: "string" }, suite: { type: "string" }, strength: { type: "string" }, "case-budget": { type: "string" }, "factor-group": { type: "string" },
       lead: { type: "string" }, trace: { type: "string" }, reviewer: { type: "string" }, investigation: { type: "string" }, kind: { type: "string" }, format: { type: "string" }, "out-dir": { type: "string" }, "scout-mode": { type: "string" },
-      "base-run-dir": { type: "string" }, "runs-dir": { type: "string" }, "base-runs-dir": { type: "string" }, "target-revision": { type: "string" }, "execution-mode": { type: "string" }, "reports-dir": { type: "string" }, "head-run-dir": { type: "string" },
+      "base-run-dir": { type: "string" }, "runs-dir": { type: "string" }, "sessions-dir": { type: "string" }, "base-runs-dir": { type: "string" }, "target-revision": { type: "string" }, "execution-mode": { type: "string" }, "reports-dir": { type: "string" }, "head-run-dir": { type: "string" },
       charter: { type: "string" }, session: { type: "string" }, reason: { type: "string" },
       index: { type: "string" }, "trust-store": { type: "string" },
       sources: { type: "string" }, profile: { type: "string" }, "text-only": { type: "boolean" },
