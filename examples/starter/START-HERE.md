@@ -7,4 +7,4 @@
 5. Import the report into manual-bb, answer charter questions in session_log, and explicitly choose pass/fail. Let manual-bb/QEG own Gate.
 6. Configure the repository variable `LAKDA_BASE_URL`, approve real-target access, and enable `lakda-scheduled.yml` for scheduled replay. The example pins the Lakda source revision; update the SHA after review.
 
-The starter has no actual target, authentication, or storageState. For authorized real targets, replace the loopback fixture values deliberately. Text-only reports are the only uploaded CI output.
+The starter config conforms to the Lakda v1 contract; trace and screenshot are set to retain-on-non-pass. Real target credentials and authState must remain private. The starter has no actual target, authentication, or storageState. For authorized real targets, replace the loopback fixture values deliberately. Text-only reports are the only uploaded CI output.

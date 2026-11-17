@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertLoopbackEndpoint } from "../core/safety.js";
 import { canonicalJson } from "../core/plan.js";
-import { sha256 } from "../core/redaction.js";
+import { findSensitive, sha256 } from "../core/redaction.js";
 import { assertNoSensitivePublicData } from "../adaptive/contracts.js";
 import type { AdaptiveConfig, TargetRef } from "../adaptive/contracts.js";
 
@@ -141,6 +141,15 @@ function assertSchema(validate: Validator, value: unknown, label: string): void 
 export function assertExplorationCharter(value: unknown): asserts value is ExplorationCharter {
   assertSchema(validators.charter, value, "exploration charter");
   const charter = value as ExplorationCharter;
+  const checkOrigin = (origin: ExplorationOrigin | undefined): void => {
+    if (!origin) return;
+    for (const field of Object.values(origin)) {
+      for (const entry of Array.isArray(field) ? field : [field]) {
+        if (typeof entry === "string" && findSensitive(entry).length) throw new Error("exploration origin contains secret/PII");
+      }
+    }
+  };
+  checkOrigin(charter.origin);
   if (!charter.executionMode) throw new Error("exploration charterにはexecutionModeが必要です");
   if (charter.executionMode === "real" && !charter.targetManifestPath) throw new Error("real探索には署名済みtargetManifestPathが必要です");
   if (charter.executionMode === "real" && !charter.trustStorePath) throw new Error("real探索にはoperator trustStorePathが必要です");
@@ -166,7 +175,11 @@ export function assertExplorationCharter(value: unknown): asserts value is Explo
 export function assertExplorationCapabilitySnapshot(value: unknown): asserts value is ExplorationCapabilitySnapshot { assertSchema(validators.capability, value, "exploration capability"); }
 export function assertExplorationSession(value: unknown): asserts value is ExplorationSession { assertSchema(validators.session, value, "exploration session"); }
 export function assertExplorationFinding(value: unknown): asserts value is ExplorationFinding { assertSchema(validators.finding, value, "exploration finding"); }
-export function assertExplorationReport(value: unknown): asserts value is ExplorationReport { assertSchema(validators.report, value, "exploration report"); }
+export function assertExplorationReport(value: unknown): asserts value is ExplorationReport {
+  assertSchema(validators.report, value, "exploration report");
+  const origin = (value as ExplorationReport).origin;
+  if (origin && Object.values(origin).some(field => (Array.isArray(field) ? field : [field]).some(entry => typeof entry === "string" && findSensitive(entry).length))) throw new Error("exploration report origin contains secret/PII");
+}
 
 export function explorationDigest(value: unknown): string { return `sha256:${sha256(canonicalJson(value))}`; }
 

@@ -33,8 +33,8 @@
   },
   "artifacts": {
     "classification": "internal",
-    "trace": false,
-    "screenshot": false,
+    "trace": "retain-on-non-pass",
+    "screenshot": "retain-on-non-pass",
     "video": false,
     "har": false,
     "domSnapshots": false,
