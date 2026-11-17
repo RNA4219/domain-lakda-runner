@@ -17,6 +17,12 @@ on:
       real-target-attested:
         type: boolean
         default: false
+      upload-evidence:
+        type: boolean
+        default: false
+    secrets:
+      input_profiles_json:
+        required: false
 permissions:
   contents: read
 jobs:
@@ -54,6 +60,9 @@ jobs:
             if (manifest.schemaVersion !== 'manual-bb/e2e-export/v1' || manifest.caseId !== item.name ||
                 review.schemaVersion !== 'manual-bb/e2e-scenario/v1' || review.caseId !== item.name ||
                 !review.reviewRef || !review.reviewedBy) throw Error('unreviewed scenario');
+            const required = ['scenario.json', 'scenario.md', 'action-sequence.json', 'lakda.config.json', 'scenario.spec.ts'];
+            if (!manifest.filesSha256 || required.some(file => typeof manifest.filesSha256[file] !== 'string') ||
+                Object.keys(manifest.filesSha256).length !== required.length) throw Error('unverified required artifact');
             for (const [file, digest] of Object.entries(manifest.filesSha256)) {
               if (!/^[A-Za-z0-9._-]+$/.test(file) || !/^[a-f0-9]{64}$/.test(digest)) throw Error('invalid manifest');
               const name = join(path, file);
@@ -97,13 +106,28 @@ jobs:
           BASE_URL: ${{ inputs.base-url }}
           SCENARIO_PATH: ${{ matrix.path }}
           REAL_TARGET: ${{ inputs.real-target-attested }}
+          CASE_ID: ${{ matrix.id }}
+          INPUT_PROFILES_JSON: ${{ secrets.input_profiles_json }}
         shell: bash
         run: |
-          args=(replay --input "$SCENARIO_PATH/action-sequence.json" --base-url "$BASE_URL" --config "$SCENARIO_PATH/lakda.config.json" --output-dir "$RUNNER_TEMP/lakda-runs" --report off)
+          node --input-type=module <<'NODE'
+          import {readFileSync, writeFileSync} from 'node:fs';
+          import {join} from 'node:path';
+          const plan = JSON.parse(readFileSync(join(process.env.SCENARIO_PATH, 'action-sequence.json'), 'utf8'));
+          const config = JSON.parse(readFileSync(join(process.env.SCENARIO_PATH, 'lakda.config.json'), 'utf8'));
+          const expected = new Set(plan.actions.filter(action => action.inputProfileId).map(action => action.inputProfileId));
+          const supplied = process.env.INPUT_PROFILES_JSON ? JSON.parse(process.env.INPUT_PROFILES_JSON) : {};
+          if (!supplied || Array.isArray(supplied) || typeof supplied !== 'object' ||
+              Object.keys(supplied).some(key => !expected.has(key) || !/^[A-Za-z0-9_-]{1,80}$/.test(key) || typeof supplied[key] !== 'string') ||
+              [...expected].some(key => !Object.hasOwn(supplied, key))) throw Error('invalid or missing secret input profiles');
+          config.inputProfiles = supplied;
+          writeFileSync(join(process.env.RUNNER_TEMP, 'lakda-inputs-' + process.env.CASE_ID + '.json'), JSON.stringify(config), {flag:'wx',mode:0o600});
+          NODE
+          args=(replay --input "$SCENARIO_PATH/action-sequence.json" --base-url "$BASE_URL" --config "$RUNNER_TEMP/lakda-inputs-$CASE_ID.json" --output-dir "$RUNNER_TEMP/lakda-runs" --report off)
           if [[ "$REAL_TARGET" == "true" ]]; then args+=(--execution-mode real); fi
           node .lakda-runtime/dist/cli.js "${args[@]}"
-      - name: Preserve evidence even on failure
-        if: always()
+      - name: Preserve evidence only with explicit product approval
+        if: ${{ always() && inputs.upload-evidence }}
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
         with:
           name: lakda-e2e-${{ matrix.id }}-${{ github.run_attempt }}
