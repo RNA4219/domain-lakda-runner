@@ -36,6 +36,7 @@ export function assertSafeObligation(obligation: Obligation, config: LakdaConfig
   const [kind, value] = entries[0];
   if (kind === "expectedUrl") {
     if (typeof value !== "string" || !value) throw new Error("invalid expectedUrl");
+    if (!config.baseUrl) throw new Error("baseUrl is required for expectedUrl");
     const target = new URL(value, config.baseUrl);
     if (target.origin !== new URL(config.baseUrl).origin || !config.safety.allowHosts.includes(target.hostname) || target.username || target.password) {
       throw new Error("expectedUrl must remain on approved origin");
