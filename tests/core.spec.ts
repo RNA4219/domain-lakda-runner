@@ -170,3 +170,41 @@ test("config accepts retain-on-non-pass video and rejects unknown retention mode
     expect(() => loadConfig(undefined, { artifacts: { video: "unknown" as never } })).toThrow(/artifacts.video/);
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
+
+
+test("replay checkpoints and final obligations support hidden, enabled, disabled and exact text", async () => {
+  const fixture = await startFixture(() => ({
+    body: '<html><body><div data-testid="message">Approved</div><button data-testid="active">Go</button><button data-testid="inactive" disabled>Stop</button><div data-testid="concealed" style="display:none">Hidden</div></body></html>',
+  }));
+  const outputDir = await mkdtemp(join(tmpdir(), "lakda-assert-"));
+  try {
+    const actions = [
+      { id: "open", kind: "navigate" as const, path: "/" },
+      { id: "assert-hidden", kind: "assert" as const, assertion: { hidden: { testId: "concealed" } } },
+      { id: "assert-enabled", kind: "assert" as const, assertion: { enabled: { testId: "active" } } },
+      { id: "assert-disabled", kind: "assert" as const, assertion: { disabled: { testId: "inactive" } } },
+      { id: "assert-text", kind: "assert" as const, assertion: { text: { locator: { testId: "message" }, value: "Approved" } } },
+    ];
+    const planPath = join(outputDir, "checks.json");
+    await writeFile(planPath, JSON.stringify({ schemaVersion: "lakda/action-plan/v1", mode: "regression-replay", seed: 4219, baseUrl: fixture.baseUrl, actions }));
+    const config = loadConfig(undefined, {
+      baseUrl: fixture.baseUrl, outputDir, mode: "regression-replay", actionCatalog: actions,
+      obligations: [{ visible: { testId: "message" } }, { hidden: { testId: "concealed" } }, { text: { locator: { testId: "message" }, value: "Approved" } }],
+    });
+    expect((await runLakda(config, planPath)).outcome).toBe("passed");
+    const rejected = [...actions.slice(0, -1), { id: "assert-wrong-text", kind: "assert" as const, assertion: { text: { locator: { testId: "message" }, value: "Denied" } } }];
+    await writeFile(planPath, JSON.stringify({ schemaVersion: "lakda/action-plan/v1", mode: "regression-replay", seed: 4219, baseUrl: fixture.baseUrl, actions: rejected }));
+    const result = await runLakda(config, planPath);
+    expect(result.outcome).toBe("failed");
+    expect(result.failures.some(f => f.ruleId === "UI-006")).toBeTruthy();
+    expect(() => createActionPlan(loadConfig(undefined, { baseUrl: fixture.baseUrl, actionCatalog: [
+      { id: "cross-origin", kind: "assert", assertion: { expectedUrl: "https://evil.example.test/" } },
+    ] }))).toThrow(/approved origin/);
+    const mutatingAssertion = loadConfig(undefined, {
+      baseUrl: fixture.baseUrl, fixtureReset: { url: `${fixture.baseUrl}/reset` }, actionCatalog: [
+        { id: "mutating-assertion", kind: "assert", assertion: { visible: { testId: "message" } }, mutates: true },
+      ],
+    });
+    expect(() => createActionPlan(mutatingAssertion)).toThrow(/invalid assertion/);
+  } finally { await fixture.close(); await rm(outputDir, { recursive: true, force: true }); }
+});

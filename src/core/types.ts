@@ -41,15 +41,25 @@ export type Failure = {
   message: string;
 };
 
-export type ActionKind = "navigate" | "goto" | "click" | "fill" | "check" | "select" | "press";
+export type ActionKind = "navigate" | "goto" | "click" | "fill" | "check" | "select" | "press" | "assert";
 export type Locator = {
   testId?: string;
   role?: "button" | "link" | "textbox" | "checkbox" | "combobox" | "option" | "menuitem" | "tab";
   name?: string;
 };
+export type Obligation = {
+  expectedUrl?: string;
+  visible?: Locator;
+  hidden?: Locator;
+  enabled?: Locator;
+  disabled?: Locator;
+  text?: { locator: Locator; value: string };
+};
 export type Action = {
   id: string;
   kind: ActionKind;
+  /** Reviewed, non-mutating checkpoint evaluated at this position in replay. */
+  assertion?: Obligation;
   path?: string;
   locator?: Locator;
   /** @deprecated CSS/XPath is rejected at the safety boundary. */
@@ -124,7 +134,7 @@ export type LakdaConfig = {
     loginUrlPattern?: string;
     requiredLocator?: Locator;
   }>;
-  obligations: Array<{ expectedUrl?: string; visible?: Locator }>;
+  obligations: Obligation[];
   fixtureReset?: { url: string };
   safety: {
     allowHosts: string[];
