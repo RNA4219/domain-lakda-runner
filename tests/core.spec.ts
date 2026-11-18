@@ -200,8 +200,11 @@ test("replay checkpoints and final obligations support hidden, enabled, disabled
     expect(() => createActionPlan(loadConfig(undefined, { baseUrl: fixture.baseUrl, actionCatalog: [
       { id: "cross-origin", kind: "assert", assertion: { expectedUrl: "https://evil.example.test/" } },
     ] }))).toThrow(/approved origin/);
-    expect(() => createActionPlan(loadConfig(undefined, { baseUrl: fixture.baseUrl, actionCatalog: [
-      { id: "mutating-assertion", kind: "assert", assertion: { visible: { testId: "message" } }, mutates: true },
-    ] }))).toThrow(/invalid assertion/);
+    const mutatingAssertion = loadConfig(undefined, {
+      baseUrl: fixture.baseUrl, fixtureReset: { url: `${fixture.baseUrl}/reset` }, actionCatalog: [
+        { id: "mutating-assertion", kind: "assert", assertion: { visible: { testId: "message" } }, mutates: true },
+      ],
+    });
+    expect(() => createActionPlan(mutatingAssertion)).toThrow(/invalid assertion/);
   } finally { await fixture.close(); await rm(outputDir, { recursive: true, force: true }); }
 });
