@@ -603,3 +603,14 @@ LLM responseはデータとして扱い、`eval`、`Function` constructor、dyna
 
 
 
+
+
+### レビュー済みE2Eチェックポイント (2026-11)
+
+`regression-replay` の宣言型 `actionCatalog` / action-plan は `kind: "assert"` と
+`assertion: {"hidden": {"testId": "..."}}` のような単一predicateを指定できる。
+`obligations` と同じく `expectedUrl`, `visible`, `hidden`, `enabled`,
+`disabled`, `text: {locator, value}` をサポートする。
+assertionは状態を変更せずその位置で失敗を記録する。テキストは実際の
+`innerText` との完全一致で比較する。URLは承認済みorigin内に制限し、
+任意selectorや任意コードを許可しない。
