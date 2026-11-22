@@ -56,7 +56,7 @@ export function projectRunHistory(sourceId: string, mode: string, json: JsonRead
       for (const [index, raw] of plan.actions.entries()) {
         const action = object(raw, "planned action");
         const kind = stringValue(action.kind, "planned action kind");
-        if (!["navigate", "goto", "click", "fill", "check", "select", "press"].includes(kind)) throw new ReportInputError("invalid-history", "計画actionのkindが不正です");
+        if (!["navigate", "goto", "click", "fill", "check", "select", "press", "assert"].includes(kind)) throw new ReportInputError("invalid-history", "計画actionのkindが不正です");
         timeline.push(event(index, "planned-action", "計画: " + kind, [stringValue(action.id, "planned action id")]));
       }
     }
