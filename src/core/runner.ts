@@ -18,7 +18,7 @@ import { applyArtifactPolicy, aggregateOutcomes, type OutcomeDecision } from "./
 import { createActionPlan, validateActionPlan, workerSeed } from "./plan.js";
 import { assertSafeAction, safeActions } from "./safety.js";
 import { applyVideoRetention, captureFailureScreenshot, finalizeVideoCapture, videoRecordingOptions } from "./browser-artifacts.js";
-import type { Action, ActionPlan, ExplorationCaptureRuntime, LakdaConfig, Locator, LlmStatus, RunBatchResult, RunOutcome, RunResult, WorkerRunEntry } from "./types.js";
+import type { Action, ActionPlan, ExplorationCaptureRuntime, LakdaConfig, Locator, Obligation, LlmStatus, RunBatchResult, RunOutcome, RunResult, WorkerRunEntry } from "./types.js";
 import type { ExternalToolBridge } from "../adapters/external-bridges.js";
 import { prepareBinaryAttestationRun, type BinaryAttestationRunOptions, type PreparedBinaryAttestationRun } from "../exploration/attestation-preflight.js";
 import { completeBinaryAttestationRun } from "../exploration/attestation-run.js";
@@ -61,6 +61,10 @@ function locatorFor(page: Page, locator: Locator, actionId: string): PlaywrightL
 }
 
 async function executeAction(page: Page, action: Action, plan: ActionPlan, config: LakdaConfig, timeoutMs: number): Promise<void> {
+  if (action.kind === "assert") {
+    if (!await checkObligation(page, action.assertion!, config)) throw new Error(`assertion unmet: ${action.id}`);
+    return;
+  }
   if (action.kind === "navigate" || action.kind === "goto") {
     await timebox(page.goto(new URL(action.path ?? "/", plan.baseUrl).toString(), { waitUntil: "domcontentloaded", timeout: timeoutMs }), timeoutMs);
     return;
@@ -95,10 +99,29 @@ async function verifyPersona(page: Page, config: LakdaConfig, collector: Artifac
   }
 }
 
+async function checkObligation(page: Page, obligation: Obligation, config: LakdaConfig): Promise<boolean> {
+  try {
+    if (obligation.expectedUrl !== undefined) return page.url() === new URL(obligation.expectedUrl, config.baseUrl).toString();
+    for (const kind of ["visible", "hidden", "enabled", "disabled"] as const) {
+      const loc = obligation[kind];
+      if (!loc) continue;
+      const target = locatorFor(page, loc, "obligation");
+      if (kind === "visible") return await target.isVisible({ timeout: 1_000 });
+      if (kind === "hidden") return await target.isHidden({ timeout: 1_000 });
+      if (kind === "enabled") return await target.isEnabled({ timeout: 1_000 });
+      return await target.isDisabled({ timeout: 1_000 });
+    }
+    if (obligation.text) {
+      const value = await locatorFor(page, obligation.text.locator, "text obligation").innerText({ timeout: 1_000 });
+      return value === obligation.text.value;
+    }
+  } catch { return false; }
+  return false;
+}
+
 async function obligationsMet(page: Page, config: LakdaConfig): Promise<boolean> {
   for (const obligation of config.obligations) {
-    if (obligation.expectedUrl && page.url() !== new URL(obligation.expectedUrl, config.baseUrl).toString()) return false;
-    if (obligation.visible && !await locatorFor(page, obligation.visible, "obligation").isVisible({ timeout: 1_000 })) return false;
+    if (!await checkObligation(page, obligation, config)) return false;
   }
   return true;
 }
