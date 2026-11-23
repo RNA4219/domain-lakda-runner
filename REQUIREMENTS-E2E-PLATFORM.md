@@ -25,3 +25,14 @@ process-boundary conflicts; this change does not broaden them.
 
 Out of scope (K-01..K-07): exploration charter handoff, Gate accounting,
 schedule and summaries, notification and starter pack.
+
+## 製品アーキテクチャに沿ったドメイン被覆（確定）
+
+| ID | 製品担当者が必要とする結果 |
+|---|---|
+| DOM-01 | 対象製品・版に対して、業務、構成要素、方向付きの連携、そこで保証する振る舞いと出典、対象外の理由を記録できる。ケースがない項目も一覧に残る。 |
+| DOM-02 | 振る舞いから受入条件、ケース版、具体的な確認項目、選んだ実行回の証跡をたどれる。通過しただけの構成要素には合格を付けない。 |
+| DOM-03 | 対象の振る舞いを一度ずつ数え、設計被覆と今回の判定済み被覆を分ける。合格と不合格はともに判定済みに含める。対象が定義されていなければ被覆率を「算出できない」と示す。 |
+| DOM-04 | ケース未設計、設計済みで今回未判定、対象外、対応のないケースを識別する。未報告の再実行に前回の結果を引き継がない。 |
+
+Misskey のお気に入り登録・解除が合格しても、二重登録を拒否する条件は個別に確認するまで未確認として残る。[マッピング仕様と使い方](docs/spec/e2e-platform/SPEC-09-DOMAIN-COVERAGE.md)

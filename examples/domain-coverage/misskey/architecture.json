@@ -1,0 +1,41 @@
+{
+  "schema": "aym.architecture/v1",
+  "name": "お気に入りの登録・解除・一覧",
+  "nodes": [
+    {
+      "id": "menu",
+      "kind": "service",
+      "name": "ノートの操作メニュー"
+    },
+    {
+      "id": "favorites",
+      "kind": "service",
+      "name": "お気に入りの更新 API"
+    },
+    {
+      "id": "list",
+      "kind": "service",
+      "name": "お気に入り一覧画面"
+    },
+    {
+      "id": "query",
+      "kind": "service",
+      "name": "お気に入りの一覧 API"
+    }
+  ],
+  "connections": [
+    {
+      "from": "menu",
+      "to": "favorites",
+      "label": "登録・解除する",
+      "evidence": "packages/frontend/src/utility/get-note-menu.ts"
+    },
+    {
+      "from": "list",
+      "to": "query",
+      "label": "再読み込みで一覧を取得する",
+      "evidence": "packages/frontend/src/pages/favorites.vue"
+    }
+  ],
+  "findings": []
+}

@@ -29,6 +29,15 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
     },
   });
   const automaticOptions = new Set(["report", "report-dir", "report-profile", "report-config", "report-language"]);
+  if (parsed.positionals.join(" ") === "coverage map") {
+    const allowed = new Set(["config","input","runs-dir","format","out","help","version"]);
+    const seen = new Set<string>();
+    for (const token of parsed.tokens) {
+      if (token.kind !== "option") continue;
+      if (!allowed.has(token.name) || seen.has(token.name)) throw new Error("使用できない、または重複した引数: --" + token.name);
+      seen.add(token.name);
+    }
+  }
   if (["run", "replay", "explore run", "explore resume"].includes(parsed.positionals.join(" "))) {
     const seen = new Set<string>();
     for (const token of parsed.tokens) {
