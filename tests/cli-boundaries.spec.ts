@@ -10,6 +10,7 @@ test("CLI facade preserves the dispatcher binding and help contract", async () =
   expect(usage).toBe(`lakda ${LAKDA_VERSION}
 
 Commands:
+  lakda coverage map --config <domain-map.json> [--input <run.json>] [--runs-dir <dir>] [--format json|html] [--out <new-file>]
   lakda run --base-url <url> --mode <smoke|seeded-random|regression-replay|llm-explore|adaptive-explore> [--seed <int>] [--headed]
   lakda replay --input <action-sequence-or-adaptive-replay.json> --base-url <url> [--execution-mode real]
   lakda export hate --run-dir <run-dir> --out <artifact-manifest.json>
