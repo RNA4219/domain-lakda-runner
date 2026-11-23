@@ -1,0 +1,32 @@
+# 製品の構成とドメインテストの対応
+
+対象は要件 DOM-01〜04。製品担当者が対象版の業務と保証すべき振る舞いを決め、ケース設計者がそれを確かめる確認項目を登録する。製品概要のケース合格率と独立した読み取り専用の集計である。
+
+## 入力と操作
+
+`lakda coverage map --config map.json [--input 今回の結果.json] [--runs-dir runs] [--format json|html] [--out 新規ファイル]`。既定は標準出力への JSON。HTML はブラウザーで開ける。実行結果を省くと設計時点のマップになる。正常な集計は不合格や未設計が残っても終了 0。壊れた参照、異版の入力、不整合な証跡は診断を出して失敗する。既存の出力は保持する。
+
+1. 製品構成を `aym.architecture/v1` の JSON で用意する。`nodes` の ID と `connections` の接続元・接続先・ラベルで要素と連携を区別する。同方向でも意味の違う接続を別々に参照できる。接続の出典も保持する。[参考実装](https://github.com/RNA4219/ai-yori-murasaki/blob/0889033a2667d497394aae603e2614f9c37a4bf1/ai_yori_murasaki/web/architecture/model.mjs)
+2. `lakda/domain-map/v1` の `architecture` から構成ファイルを相対指定し、`product` と `version` を固定する。`behaviors` に ID、業務名、振る舞い、出典、受入条件、対象要素・連携を登録する。対象外は `excluded` に理由を残す。構成要素や接続に振る舞いが一つもなければ「振る舞い未登録」と表示する。
+3. `cases` は有効なケースの ID・版と `checks` を持つ。各確認項目にはケース内で一意な ID と、保証する振る舞いの ID を指定する。対応のないケースも登録できる。登録順を出力に保つ。[記入例](../../../examples/domain-coverage/misskey/map.json)
+4. 今回の証跡を指定する。汎用の `lakda/domain-run/v1` は `product, version, runId, cases` を持ち、ケースの `id, revision, checks`、確認項目の `id, result`（passed / failed / partial）を記録する。報告には元の実行 ID、証跡ファイルの SHA-256、該当項目の位置を残す。実行ごとに一つの結果ファイルを選ぶ。
+5. Misskey のような単一ケースの操作記録は `product, version, caseId, caseRevision, startedAt, steps` から取り込める。マップの `step.action` と一致する観測だけを使い、`step.equals` の全項目を照合する。観測なし、必要な値の欠落は未判定。観測値の不一致は不合格。ケース全体の合否を各操作に転記しない。
+6. Lakda の `lakda/e2e-case-index/v1` には `--runs-dir` を併用する。ローカルまたは CI の系列・実行回、製品コミット、対象環境、ケース版、受入条件、レビュー済み判定条件、manifest と証跡を照合する。マップは `environment` とケースの `obligations` を指定し、各確認項目の `obligation` は 1 始まり。個別判定のログを優先する。個別ログがない履歴では、唯一の判定条件について正常完了または明示的な期待値不一致が確定した場合だけ結果を採用する。
+
+## 被覆の読み方
+
+Misskey の記入例を試すには、リポジトリのルートで次を実行する。実証跡はローカルに保存したものを指定する。
+
+```powershell
+npm run build
+node dist/cli.js coverage map --config examples/domain-coverage/misskey/map.json --format html --out design.html
+node dist/cli.js coverage map --config examples/domain-coverage/misskey/map.json --input result.json --format html --out coverage.html
+```
+
+分母は対象内の振る舞い数。複数の要素・連携やケースに対応しても一度だけ数える。設計済みは一つ以上のケースで対応する確認項目が登録されている数。各ケース内ではその振る舞いに必要な確認項目すべての合格を要する。代替ケースが一つ完了すれば合格を確認でき、いずれかに明示的な不合格があれば不合格を優先する。未到達・未報告・旧ケース版には今回の判定を付けない。対象外は別に表示し、分母 0 の比率は JSON の null とする。
+
+## 受入条件
+
+- 登録・解除・二重登録の三項目で最初の二つだけを設計・確認すると、設計も今回判定済みも 2/3。空の再実行では設計 2/3、今回判定済み 0/3。
+- 登録が成功しても一覧に反映されなければ登録は不合格。解除まで到達しなければ解除は未判定。
+- 逆向き接続、存在しない振る舞い、重複する ID、異版、取り違えた manifest を検出する。対象外だけの地図、未割当ケース、観測の欠落も表示できる。

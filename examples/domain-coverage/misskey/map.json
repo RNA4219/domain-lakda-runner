@@ -1,0 +1,120 @@
+{
+  "schema": "lakda/domain-map/v1",
+  "product": "Misskey",
+  "version": "2026.11.0",
+  "architecture": "architecture.json",
+  "behaviors": [
+    {
+      "id": "add",
+      "domain": "お気に入り",
+      "title": "登録したノートが再読み込み後も一覧に残る",
+      "source": "packages/frontend/src/utility/get-note-menu.ts / packages/frontend/src/pages/favorites.vue",
+      "criterion": "AC-FAV-ADD",
+      "targets": [
+        {
+          "from": "menu",
+          "to": "favorites",
+          "label": "登録・解除する"
+        },
+        {
+          "from": "list",
+          "to": "query",
+          "label": "再読み込みで一覧を取得する"
+        }
+      ]
+    },
+    {
+      "id": "remove",
+      "domain": "お気に入り",
+      "title": "解除したノートが再読み込み後の一覧から消える",
+      "source": "packages/backend/src/server/api/endpoints/notes/favorites/delete.ts / packages/frontend/src/pages/favorites.vue",
+      "criterion": "AC-FAV-REMOVE",
+      "targets": [
+        {
+          "from": "menu",
+          "to": "favorites",
+          "label": "登録・解除する"
+        },
+        {
+          "from": "list",
+          "to": "query",
+          "label": "再読み込みで一覧を取得する"
+        }
+      ]
+    },
+    {
+      "id": "duplicate",
+      "domain": "お気に入り",
+      "title": "同じノートの二重登録を拒否する",
+      "source": "packages/backend/src/server/api/endpoints/notes/favorites/create.ts · ALREADY_FAVORITED",
+      "criterion": "AC-FAV-DUPLICATE",
+      "targets": [
+        "favorites"
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "id": "favorite-persistence",
+      "revision": "1",
+      "checks": [
+        {
+          "id": "create-request",
+          "behaviors": [
+            "add"
+          ],
+          "step": {
+            "action": "ノートメニューで登録",
+            "equals": {
+              "endpoint": "notes/favorites/create",
+              "httpStatus": 204
+            }
+          }
+        },
+        {
+          "id": "listed-after-add",
+          "behaviors": [
+            "add"
+          ],
+          "step": {
+            "action": "再読み込み後の登録確認",
+            "equals": {
+              "reload": true,
+              "httpStatus": 200,
+              "matchingIds": 1,
+              "visibleMatches": 1
+            }
+          }
+        },
+        {
+          "id": "delete-request",
+          "behaviors": [
+            "remove"
+          ],
+          "step": {
+            "action": "ノートメニューで解除",
+            "equals": {
+              "endpoint": "notes/favorites/delete",
+              "httpStatus": 204
+            }
+          }
+        },
+        {
+          "id": "absent-after-remove",
+          "behaviors": [
+            "remove"
+          ],
+          "step": {
+            "action": "再読み込み後の解除確認",
+            "equals": {
+              "reload": true,
+              "httpStatus": 200,
+              "matchingIds": 0,
+              "visibleMatches": 0
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
