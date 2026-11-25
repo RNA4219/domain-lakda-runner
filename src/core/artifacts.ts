@@ -17,7 +17,7 @@ export type RunMetadata = {
   reviewedObligationsSha256?: string;
   /** Explicit operator assertion; QEG still requires independent acceptance. */
   executionMode?: "real";
-  surfaceCoverage?: { schema: "lakda/surface-observations/v1" };
+  surfaceCoverage?: { schema: "lakda/surface-observations/v1"; target?: { product: string; version: string; environment: string } };
   runId: string;
   attempt: number;
   startedAt: string;
@@ -50,6 +50,7 @@ function commitSha(): string {
   try { return execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); }
   catch { return "0000000000000000000000000000000000000000"; }
 }
+export { commitSha as currentExecutionRevision };
 
 function runFolderName(runId: string): string {
   return runId.replace(/[^A-Za-z0-9._-]/g, "-");

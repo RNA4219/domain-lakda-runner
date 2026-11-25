@@ -13,5 +13,13 @@
 - [x] AC-S11: Service Worker を有効のまま、Worker 内完結と upstream fetch を検証する。同一 API の二重計上と Worker の実通信からの親画面紐付けを防ぐ。
 - [x] AC-S12: キャッシュが保持する serverAddr を実通信と誤認しない。CDP の非キャッシュ記録が一意に照合できない場合も unknown。
 - [x] AC-S13: CDP request event と response timing の基準時刻の差があっても、同じ実通信を一意に照合する。応答通知の遅延、cache、Worker の分類を維持する。
+- [x] AC-S14: password/api-key/token/cookieと衝突する公開IDを、replayの保存・scan・manifest・CLI再読込を通して保持する。一般の秘密値・PIIのredactionを維持する。
+- [x] AC-S15: DOMContentLoaded後に遅延開始するAPIをready条件まで観測する。ready timeout時の不在はunmeasuredとする。
+- [x] AC-S16: 対象製品の版が実行元Git SHAと異なる場合も、両方のbindingを独立照合して集計できる。対象版・環境・producer manifestの不一致は拒否する。
+- [x] AC-S17: 複数hash routeと同一URL内のDOM状態を区別する。動的値・非公開状態・曖昧状態を公開しない。
+- [x] AC-S18: 既存Playwright E2Eに公開SDKを付け、mock/real/unknownとoutcomeを分け、専用indexからJSON/HTMLへ到達を表示する。SDKはbrowserの所有権を奪わない。
+- [x] AC-S19: 新しい画面定義とSDKでも公開範囲縮小・digest・上限・一般証跡経路の制限、および旧記録との互換を維持する。
 
 実結果は [ローカル受入記録](../../acceptance/AC-20261125-runtime-surface-coverage.md)。外部製品の受入や QEG verdict ではない。
+
+AC-S14〜19の開発検証は `tests/surface-field-feedback.spec.ts`。通常suiteと区別したlocalhost機能受入は[専用記録](../../acceptance/AC-20261125-surface-field-feedback.md)を参照する。

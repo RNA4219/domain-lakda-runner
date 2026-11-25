@@ -33,7 +33,9 @@ export function readMeasurement(value: unknown): Measurement {
 /** Only digest-verified same-attempt test evidence is accepted. Errors never echo source values. */
 export async function readSurfaceIndex(catalog: Catalog, value: unknown, directory: string | ((ref: string) => string)): Promise<TestMeasurement[]> {
   try {
-    const index = obj(value); check(index.schemaVersion === "lakda/e2e-case-index/v1" && index.callerSha === catalog.version);
+    const index = obj(value), external = index.schemaVersion === "lakda/surface-run-index/v1";
+    check((external || index.schemaVersion === "lakda/e2e-case-index/v1") && index.callerSha === catalog.version);
+    if (external) check(index.executionOrigin === "local");
     const local = index.executionOrigin === "local", series = text(String(local ? index.localRunId : index.workflowRunId));
     check(/^[A-Za-z0-9_-]{1,80}$/.test(series));
     const seriesAttempt = local ? index.localRunAttempt : index.workflowRunAttempt;
@@ -55,8 +57,14 @@ export async function readSurfaceIndex(catalog: Catalog, value: unknown, directo
       const meta = obj(JSON.parse(snapshot.snapshots.get("run-metadata.json")!.bytes!.toString("utf8")));
       check(row.manifestSha256 === snapshot.manifestSha256 && row.runId === snapshot.manifest.run_id && row.runId === meta.runId &&
         ref === String(meta.runId).replaceAll(":", "-") && row.attempt === meta.attempt && meta.attempt === snapshot.manifest.run_attempt &&
-        meta.commitSha === catalog.version && snapshot.manifest.commit_sha === catalog.version && row.outcome === meta.outcome && row.reason === meta.terminationReason &&
-        row.actionSha256 === meta.replayInputSha256 && /^[a-f0-9]{64}$/.test(String(row.actionSha256)));
+        snapshot.manifest.commit_sha === meta.commitSha && row.outcome === meta.outcome && row.reason === meta.terminationReason);
+      if (external) check(meta.schemaVersion === "lakda/external-surface-run/v1" && obj(meta.surfaceCoverage).source === "external-playwright");
+      else check(row.actionSha256 === meta.replayInputSha256 && /^[a-f0-9]{64}$/.test(String(row.actionSha256)));
+      const binding = meta.surfaceCoverage === undefined ? undefined : obj(meta.surfaceCoverage).target;
+      if (binding !== undefined) {
+        const target = obj(binding);
+        check(target.product === catalog.product && target.version === catalog.version && target.environment === catalog.environment);
+      } else check(meta.commitSha === catalog.version); // Legacy runs bind target and producer together.
       check(typeof meta.runId === "string" && /^lakda:run-[A-Za-z0-9-]+$/.test(meta.runId));
       Object.assign(evidence, { runId: meta.runId, attempt: meta.attempt, manifestSha256: snapshot.manifestSha256 });
       const file = snapshot.snapshots.get(observationFile);
@@ -78,7 +86,9 @@ export function surfaceReport(catalog: Catalog, tests: TestMeasurement[] = []) {
   const currentScope = scope(catalog);
   const project = (kind: Observation["kind"], item: { id: string; name: string; channel: string; location: string; frequency: number; screen?: string; api?: string }, itemDigest: string): SurfaceRow => {
     const evidence: Evidence[] = [];
-    let measured = tests.length > 0;
+    // DOM state snapshots establish screen reach, not request-time attribution.
+    // Unsupported correlation must never be presented as an observed absence.
+    let measured = tests.length > 0 && !(kind === "relations" && catalog.screens.find(screen => screen.id === item.screen)?.state);
     for (const test of tests) {
       const m = test.measurement;
       const same = m && m.revision === catalog.revision && m.scope[kind].some(p => p.id === item.id && p.digest === itemDigest);
@@ -89,7 +99,7 @@ export function surfaceReport(catalog: Catalog, tests: TestMeasurement[] = []) {
     const state = (selected: Lane | "all"): State => evidence.some(e => selected === "all" || e.lane === selected) ? "observed" : measured ? "not_observed" : "unmeasured";
     return { kind, ...item, states: { all: state("all"), mock: state("mock"), real: state("real"), unknown: state("unknown") }, evidence };
   };
-  const screens = catalog.screens.map(s => project("screens", { id: s.id, name: s.name, channel: s.channel, location: s.origin + s.path, frequency: s.frequency }, definition(s)));
+  const screens = catalog.screens.map(s => project("screens", { id: s.id, name: s.name, channel: s.channel, location: s.origin + s.path + (s.hashRoute ? "#" + s.hashRoute : ""), frequency: s.frequency }, definition(s)));
   const apis = catalog.apis.map(a => project("apis", { id: a.id, name: a.name, channel: "", location: a.method + " " + a.origin + a.path, frequency: a.frequency }, definition(a)));
   const relations = catalog.relations.map(r => {
     const screen = catalog.screens.find(s => s.id === r.screen)!, api = catalog.apis.find(a => a.id === r.api)!;

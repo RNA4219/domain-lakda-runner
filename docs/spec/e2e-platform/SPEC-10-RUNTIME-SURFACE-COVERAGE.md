@@ -47,3 +47,13 @@ CLI の run/replay で `--surface-catalog` を指定したときも標準出力�
 旧結果の観測は unmeasured。既存 Lakda の `executionMode=real` を API の real 観測に流用しない。観測ファイルのない結果から URL 照合や合否による推測をしない。manifest に登録されたはずのファイルの欠落・改変は照合エラー。観測なしの旧形式は正常に表示する。
 
 検証項目は [CHECKLIST-10](CHECKLIST-10-RUNTIME-SURFACE-COVERAGE.md)。
+
+## 実利用フィードバックへの追加契約（2026-11-25 承認）
+
+1. 公開を許可して受け付けた識別子は、保存・scan・HATE export・再読込の後も同じ値を保持する。`reset-password:lookup`、`api-key:lookup` などを自由文中の秘密値の代入と混同しない。観測は型を検証してJSON化し、識別子の区切り文字をJSONの標準unicode escapeで表現する。汎用のredaction/secret/PII scanは変更しない。既存の壊れた保存済み観測は改変せず、再実行する。
+2. 画面には任意の `ready: { testId, timeoutMs }` を登録できる。既定timeoutは5000ms、上限30000ms。replayの各操作後および外部観測のcheckpoint/finalizeで、現在の公開画面が準備完了になるまで待つ。timeoutや識別不能な準備状態は観測をincompleteにし、不在をnot_observedへ昇格しない。未指定時のcompleteは実行期間内の観測完了を意味し、将来の通信やアプリ全体の準備完了を保証しない。
+3. カタログの製品・対象版・環境は対象側の宣言としてrun metadataへ記録する。既存commitSha/HATE commit_shaは実行元のrevisionとして維持する。集計は対象宣言・観測・indexの製品版を照合し、実行元SHAはmetadataとHATEの間で照合する。対象製品のcheckout、0埋めSHA、実行元SHAへの製品版の偽装を要求しない。対象版宣言を真正性の独立検証とは扱わない。
+4. 画面に任意の `hashRoute`（`/home/detail/{id}` 等の正規化済みtemplate）と `state: { testId }`（表示されるDOM状態の識別）を加える。APIのfragmentは禁止を維持する。hashの値・動的segment・DOM本文は保存せず、許可済みIDだけを記録する。複数状態が同時に一致したら曖昧として到達を付けない。DOM状態の観測はunknown laneで、DOM状態だけからAPIの関係を推測しない。DOM状態のAPI関係を計測できない不在はnot_observedではなくunmeasuredとする。非公開の重なる定義は公開要素の一意性を保守的に抑制する。
+5. 公開packageから `startSurfaceCoverage` を提供し、既存Playwright BrowserContextへ読取り専用で観測を付ける。BrowserContext・test runner・認証・routing・cache・Service Workerの所有権は呼出側にあり、Lakdaは外部テストの操作をreplayと称さない。finishは対象宣言、実行元revision、test ID/版、outcome、観測、scan済みHATE manifestを保存する。専用 `lakda/surface-run-index/v1` をcoverage surfacesへ渡せる。既存E2E indexと旧結果の読取りは維持する。
+
+これらは利用者の5項目の報告と追加承認を根拠とする。検証は指定PC上のlocalhost・合成データのみ。攻撃・侵入、本番配備、別PCへの委譲は対象外。

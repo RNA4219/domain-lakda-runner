@@ -28,6 +28,7 @@ import { AttestationContractError } from "../exploration/attestation-contracts.j
 import { sha256 } from "./redaction.js";
 import { PlatformRecording, validatePlatformRecording, type PlatformRecordingRuntime } from "./platform-recording.js";
 import { SurfaceObserver, validateSurfaceRuntime, type SurfaceRuntime } from "../surface-coverage/observer.js";
+import { serializeMeasurement } from "../surface-coverage/serialization.js";
 
 export type RunRuntimeContext = { surfaceCoverage?: SurfaceRuntime; platformRecording?: PlatformRecordingRuntime; workerIndex?: number; batchId?: string; clock?: () => number; actionBudget?: ActionBudget; adaptiveReplayPrefixActions?: number; adaptiveExpectedFingerprint?: string; controlFile?: string; explorationCapture?: ExplorationCaptureRuntime; adaptiveBridge?: ExternalToolBridge; requireBinaryAttestation?: boolean; attestationTrustStorePath?: string; artifactAttestorKeyIds?: readonly string[]; binaryAttestation?: BinaryAttestationRunOptions; replayEvidenceMode?: "real"; explorationTargetRevisionProbe?: { kind: "response-header" | "dom-meta"; name: string; expected: string } };
 
@@ -321,6 +322,7 @@ async function executePlan(config: LakdaConfig, plan: ActionPlan, collector: Art
       let actionStatus: "completed" | "failed" = "completed";
       try {
         await executeAction(page, action, plan, config, Math.min(30_000, Math.max(1, deadline - now())));
+        await surfaceObserver?.checkpoint(page, Math.max(0, deadline - now()));
         await verifyPersona(page, config, collector);
       } catch (error) {
         actionStatus = "failed";
@@ -390,6 +392,7 @@ async function executePlan(config: LakdaConfig, plan: ActionPlan, collector: Art
         try { await context.tracing.stop({ path: collector.paths.trace }); }
         catch (error) { collector.markArtifactFailure(); collector.addFailure("UI-008", error instanceof Error ? error.message : "trace failure"); }
       } else await context.tracing.stop().catch(() => undefined);
+      await surfaceObserver?.checkpoint(undefined, 0).catch(() => { stopped = false; });
       await context.close().catch(() => { stopped = false; });
       try { await finalizeVideoCapture(config.artifacts.video, collector.paths.runDir); }
       catch (error) { collector.markArtifactFailure(); collector.addFailure("UI-008", error instanceof Error ? error.message : "video retention failure"); }
@@ -397,7 +400,7 @@ async function executePlan(config: LakdaConfig, plan: ActionPlan, collector: Art
     await browser?.close().catch(() => { stopped = false; });
     if (surfaceObserver) {
       try {
-        await writeText(join(collector.paths.runDir, "surface-observations.json"), JSON.stringify(await surfaceObserver.finish(collector.metadata.runId, collector.metadata.attempt, stopped)));
+        await writeText(join(collector.paths.runDir, "surface-observations.json"), serializeMeasurement(await surfaceObserver.finish(collector.metadata.runId, collector.metadata.attempt, stopped)));
       } catch { collector.markArtifactFailure(); collector.addFailure("UI-008", "surface observation finalization failed"); }
     }
     if (stopped) collector.markCaptureStopped();
@@ -430,7 +433,8 @@ export async function runLakda(config: LakdaConfig, replayInput?: string, runtim
     if (resolvedRuntime.surfaceCoverage) {
       validateSurfaceRuntime(resolvedRuntime.surfaceCoverage);
       if (config.mode === "adaptive-explore") throw new Error("Surface coverage requires the browser replay executor");
-      collector.metadata.surfaceCoverage = { schema: "lakda/surface-observations/v1" };
+      const { product, version, environment } = resolvedRuntime.surfaceCoverage.catalog;
+      collector.metadata.surfaceCoverage = { schema: "lakda/surface-observations/v1", target: { product, version, environment } };
     }
     if (config.reviewedE2E && (!replayInput || config.mode !== "regression-replay")) throw new Error("reviewedE2E requires a deterministic replay input");
     if (resolvedRuntime.platformRecording) {

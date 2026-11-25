@@ -95,7 +95,7 @@ try {
   const importedVersion = execFileSync(process.execPath, [
     "--input-type=module",
     "--eval",
-    "import { LAKDA_VERSION } from 'domain-lakda-runner'; process.stdout.write(LAKDA_VERSION);",
+    "import { LAKDA_VERSION, startSurfaceCoverage, surfaceRunIndex } from 'domain-lakda-runner'; if (typeof startSurfaceCoverage !== 'function' || typeof surfaceRunIndex !== 'function') throw Error('surface coverage exports missing'); process.stdout.write(LAKDA_VERSION);",
   ], { cwd: consumer, encoding: "utf8" });
   if (importedVersion !== packageJson.version) {
     throw new Error("installed package export version mismatch");
@@ -198,6 +198,7 @@ try {
     isolatedInstall: true,
     cliHelp: true,
     packageImport: true,
+    surfaceCoverageImport: true,
     nativeEvidenceImport: true,
     signedNativeReportImport: true,
     nativeRunnerBridgeImport: true,
