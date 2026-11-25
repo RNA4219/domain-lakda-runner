@@ -18,7 +18,7 @@ export class SurfaceObserver {
   private entries = new Map<string, Observation>();
   private pending = new Set<Promise<void>>();
   private requests = new Map<Request, { api: string; screen?: string }>();
-  private network = new Map<Page, Map<string, { key: string; start: number; cached: boolean; response: boolean }>>();
+  private network = new Map<Page, Map<string, { key: string; start: number; wallTime: number; timestamp: number; cached: boolean; response: boolean }>>();
   private sessions: CDPSession[] = [];
   private networkWaiters = new Set<() => void>();
   private networkChanged = () => { for (const notify of this.networkWaiters) notify(); };
@@ -45,7 +45,7 @@ export class SurfaceObserver {
   };
   private page = (page: Page) => {
     page.on("framenavigated", this.navigation);
-    const records = new Map<string, { key: string; start: number; cached: boolean; response: boolean }>();
+    const records = new Map<string, { key: string; start: number; wallTime: number; timestamp: number; cached: boolean; response: boolean }>();
     this.network.set(page, records);
     // CDP is read-only. Never disable caches, routes or Service Workers to obtain coverage.
     const attaching = (async () => {
@@ -54,11 +54,18 @@ export class SurfaceObserver {
         if (records.size >= 20_000) return;
         const c = this.runtime.catalog;
         if (!match(c.apis.filter(p => p.method === e.request.method), e.request.url) && !match(c.screens, e.request.url)) return;
-        records.set(e.requestId, { key: digest([e.request.method, e.request.url]), start: e.wallTime * 1000, cached: false, response: false });
+        records.set(e.requestId, { key: digest([e.request.method, e.request.url]), start: e.wallTime * 1000, wallTime: e.wallTime, timestamp: e.timestamp, cached: false, response: false });
         this.networkChanged();
       });
       session.on("Network.requestServedFromCache", e => { const r = records.get(e.requestId); if (r) r.cached = true; });
-      session.on("Network.responseReceived", e => { const r = records.get(e.requestId); if (r) { r.response = true; r.cached ||= Boolean(e.response.fromDiskCache || e.response.fromPrefetchCache || e.response.fromServiceWorker); this.networkChanged(); } });
+      session.on("Network.responseReceived", e => { const r = records.get(e.requestId); if (r) {
+        r.response = true;
+        r.cached ||= Boolean(e.response.fromDiskCache || e.response.fromPrefetchCache || e.response.fromServiceWorker);
+        // Match Playwright's conversion from the response's monotonic requestTime
+        // to wall time. requestWillBeSent.wallTime alone is a different instant.
+        r.start = ((e.response.timing && !r.cached ? e.response.timing.requestTime - r.timestamp : 0) + r.wallTime) * 1000;
+        this.networkChanged();
+      } });
       await session.send("Network.enable");
     })().catch(() => { /* Without cache provenance the classification remains unknown. */ });
     this.attaching.push(attaching);

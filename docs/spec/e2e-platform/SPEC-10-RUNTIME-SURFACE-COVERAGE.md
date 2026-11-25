@@ -22,6 +22,8 @@ API の resource type は fetch/xhr に限定せず、登録した method と場
 
 Service Worker は無効化しない。Worker 内完結のページ側応答は unknown。透過 fetch ではページ側と Worker 側の両方にイベントが出るため、API 集計と観測記録は ID・lane の集合で一度だけ数える。現在の実装では Worker 所有通信に独立した cache provenance を照合できないため、実際に upstream を呼ぶ構成でも unknown とする。frame のない Worker request を親画面へ結び付けず、ページ側の関係も unknown のまま。対応を確実に観測できない browser/worker 構成は unknown または unmeasured とし、イベントの不在を実通信の不存在とはみなさない。[Playwright のイベント所有者の説明](https://playwright.dev/docs/service-workers#network-events-and-routing)
 
+通信開始時刻の照合には応答の `timing.requestTime` と request event の `timestamp` / `wallTime` から換算した時刻を使う。Playwright の `Request.timing().startTime` と同じ基準に揃え、request event の `wallTime` 単独とは比較しない。URL・method・開始時刻の一意性とcache除外は維持する。
+
 `surface-observations.json` は run ID、attempt、製品・対象版・環境、公開分母の digest、test ID・版、観測完了状態、公開 ID・lane の組だけを保存する。同一組を重複除去し上限を設け、超過・終了失敗・保留応答があれば incomplete。安全な記録は既存の artifact scan、容量判定、HATE digest を通る。カタログ原本、非公開 ID、元 URL を run にコピーしない。
 
 ## 集計と証跡

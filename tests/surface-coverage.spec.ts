@@ -94,7 +94,7 @@ test("browser observes real transport, fulfills and multiple screens without ret
   } finally { await context.close(); await fixture.close(); }
 });
 
-test("real transport waits for independently delivered CDP provenance", async ({ browser }) => {
+test("real transport correlates response timing after independently delivered CDP provenance", async ({ browser }) => {
   const fixture = await startFixture(() => ({ body: "<h1>Ready</h1>" })), context = await browser.newContext();
   const createSession = context.newCDPSession.bind(context);
   context.newCDPSession = async page => {
@@ -103,6 +103,12 @@ test("real transport waits for independently delivered CDP provenance", async ({
       if (key === "on") return (event: string, listener: (data: unknown) => void) => {
         target.on(event as "Network.responseReceived", data => {
           if (event === "Network.responseReceived") setTimeout(() => listener(data), 75);
+          else if (event === "Network.requestWillBeSent") {
+            // requestTime can precede requestWillBeSent.timestamp. Move the
+            // event's monotonic/wall anchor together without changing transport.
+            const eventData = data as unknown as { timestamp: number; wallTime: number };
+            listener({ ...eventData, timestamp: eventData.timestamp + 0.02, wallTime: eventData.wallTime + 0.02 });
+          }
           else listener(data);
         });
         return target;
