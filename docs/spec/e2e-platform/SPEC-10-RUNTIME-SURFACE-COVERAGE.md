@@ -16,7 +16,9 @@
 
 Playwright の BrowserContext の request と response、およびページの main-frame navigation を観測する。URL の文字列がテストコードに存在するだけでは到達にしない。SPA の History API による main-frame navigation も対象。iframe と worker の API 呼び出しは API 単体を記録できるが、親画面の関係を推測しない。request 発生時の main frame が一意に既知画面に対応するときだけその関係を記録する。過去に訪れた全画面との直積は作らない。
 
-実行設定は `catalog, testId, testRevision, lane`。lane は `mock | real | unknown`、既定 unknown。real は operator の実サーバー宣言、response の serverAddr、同じ URL・method・開始時刻に一意に対応するページ CDP の responseReceived と非キャッシュの観測が揃い、Service Worker 応答・Worker 所有 request でない場合だけ。serverAddr はキャッシュでも過去の接続先を返し得るため単独では使わない。CDP は読み取り専用で、cache・routing・Worker の設定を変更しない。CDP 記録には既知の場所の照合用 digest と時刻・cache flag のみを一時保持し、保存しない。照合不能、同時通信の曖昧さ、CDP 非対応は unknown。mock 宣言は実 transport があっても mock。Playwright fulfill、Service Worker、失敗リクエストなど分類できない呼び出しは unknown。real は本番接続や target authenticity、外部受入の証明ではない。
+API の resource type は fetch/xhr に限定せず、登録した method と場所に一致する通信を対象にする。API 自体への document navigation は API 単体の到達であり、遷移前に表示していた画面の関係を引き継がない。
+
+実行設定は `catalog, testId, testRevision, lane`。lane は `mock | real | unknown`、既定 unknown。real は operator の実サーバー宣言、response の serverAddr、同じ URL・method・開始時刻に一意に対応するページ CDP の responseReceived と非キャッシュの観測が揃い、Service Worker 応答・Worker 所有 request でない場合だけ。serverAddr はキャッシュでも過去の接続先を返し得るため単独では使わない。CDP は読み取り専用で、cache・routing・Worker の設定を変更しない。Playwright と独立した CDP セッションの通知順に依存しないよう、対応する応答通知を最大250ms待つ。期限内に照合できなければ unknown。CDP 記録には既知の場所の照合用 digest と時刻・cache flag のみを一時保持し、保存しない。照合不能、同時通信の曖昧さ、CDP 非対応は unknown。mock 宣言は実 transport があっても mock。Playwright fulfill、Service Worker、失敗リクエストなど分類できない呼び出しは unknown。real は本番接続や target authenticity、外部受入の証明ではない。
 
 Service Worker は無効化しない。Worker 内完結のページ側応答は unknown。透過 fetch ではページ側と Worker 側の両方にイベントが出るため、API 集計と観測記録は ID・lane の集合で一度だけ数える。現在の実装では Worker 所有通信に独立した cache provenance を照合できないため、実際に upstream を呼ぶ構成でも unknown とする。frame のない Worker request を親画面へ結び付けず、ページ側の関係も unknown のまま。対応を確実に観測できない browser/worker 構成は unknown または unmeasured とし、イベントの不在を実通信の不存在とはみなさない。[Playwright のイベント所有者の説明](https://playwright.dev/docs/service-workers#network-events-and-routing)
 

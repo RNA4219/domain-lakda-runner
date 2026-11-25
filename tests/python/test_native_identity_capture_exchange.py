@@ -7,6 +7,7 @@ from unittest.mock import patch
 import test_native_identity_capture_lifecycle as cases
 import test_native_identity_exchange as exchange_cases
 from native_identity_capture_exchange import NativeIdentityCaptures
+import native_identity_clock as clock
 
 
 class NativeCaptureExchangeTests(unittest.TestCase):
@@ -53,13 +54,19 @@ class NativeCaptureExchangeTests(unittest.TestCase):
         self.assertEqual(self.device.adb.snapshot.call_count, 2)
 
     def test_snapshot_does_not_replace_video_identity_and_stop_is_idempotent(self):
-        self.assertTrue(self.send(self.request("start"))["result"]["accepted"])
-        self.assertTrue(self.send(self.request(ordinal=2))["result"]["accepted"])
-        stop = self.request("stop", 3, 1)
-        result = self.send(stop)
-        self.assertTrue(result["result"]["stopped"])
-        self.assertTrue(result["result"]["artifactRefs"][0]["path"].endswith(".mp4"))
-        self.assertEqual(self.send(stop), result)
+        # This case tests capture identity/idempotency, not wall-clock changes while
+        # the monitor and screenshot guard run concurrently. Expiry/reversal have
+        # dedicated tests; keep this fixture's valid authorization time deterministic.
+        with patch.object(clock, "wall_milliseconds", return_value=clock.wall_milliseconds()):
+            self.assertTrue(self.send(self.request("start"))["result"]["accepted"])
+            self.assertTrue(self.send(self.request(ordinal=2))["result"]["accepted"])
+            stop = self.request("stop", 3, 1)
+            result = self.send(stop)
+            self.assertTrue(result["result"]["stopped"])
+            self.assertTrue(result["result"]["accepted"], result["result"])
+            self.assertEqual(len(result["result"]["artifactRefs"]), 1, result["result"])
+            self.assertTrue(result["result"]["artifactRefs"][0]["path"].endswith(".mp4"))
+            self.assertEqual(self.send(stop), result)
         self.device.stop_recording.assert_called_once()
         with self.assertRaisesRegex(Exception, "capture-unavailable"):
             self.send(self.request("stop", 4, 1))

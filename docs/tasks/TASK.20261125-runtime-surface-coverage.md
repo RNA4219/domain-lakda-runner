@@ -1,5 +1,5 @@
 ---
-status: active
+status: local_complete
 owner: RNA4219
 last_reviewed_at: 2026-11-25
 next_review_due: 2026-12-25
@@ -12,3 +12,7 @@ next_review_due: 2026-12-25
 変更対象: `src/surface-coverage/`、CLI dispatcher/parser/help/runtime、core runner、`scripts/local-console/`、platform replay と console、テスト、例、仕様・README。既存作業は専用 worktree により分離する。共有認証実装は変更しない。
 
 正本: [仕様と要件](../spec/e2e-platform/SPEC-10-RUNTIME-SURFACE-COVERAGE.md)、[受入条件](../spec/e2e-platform/CHECKLIST-10-RUNTIME-SURFACE-COVERAGE.md)。
+
+CI 修正範囲: `tests/python/test_native_identity_capture_exchange.py` の identity/idempotency fixture に有効な時計を固定し、artifact 配列を参照する前に accepted と件数を検証する。時刻失効・逆行の専用テストと本体の認証 guard は変更しない。
+
+結果: [受入記録](../acceptance/AC-20261125-runtime-surface-coverage.md)。[PR #25](https://github.com/RNA4219/domain-lakda-runner/pull/25) の通常チェック完了後にマージする。

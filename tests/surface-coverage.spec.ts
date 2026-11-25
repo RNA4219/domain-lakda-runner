@@ -94,6 +94,32 @@ test("browser observes real transport, fulfills and multiple screens without ret
   } finally { await context.close(); await fixture.close(); }
 });
 
+test("real transport waits for independently delivered CDP provenance", async ({ browser }) => {
+  const fixture = await startFixture(() => ({ body: "<h1>Ready</h1>" })), context = await browser.newContext();
+  const createSession = context.newCDPSession.bind(context);
+  context.newCDPSession = async page => {
+    const session = await createSession(page);
+    return new Proxy(session, { get(target, key) {
+      if (key === "on") return (event: string, listener: (data: unknown) => void) => {
+        target.on(event as "Network.responseReceived", data => {
+          if (event === "Network.responseReceived") setTimeout(() => listener(data), 75);
+          else listener(data);
+        });
+        return target;
+      };
+      const value = Reflect.get(target, key);
+      return typeof value === "function" ? value.bind(target) : value;
+    } });
+  };
+  try {
+    const observer = new SurfaceObserver(context, { catalog: readCatalog(rawCatalog(fixture.baseUrl)), testId: "TC-1", testRevision: "r1", lane: "real" });
+    const page = await context.newPage(); await observer.ready(); await page.goto(fixture.baseUrl + "/users/EXAMPLE");
+    await page.evaluate(() => fetch("/api/users/EXAMPLE").then(r => r.text()));
+    const measurement = await observer.finish("lakda:run-delayed-cdp", 1, true);
+    expect(measurement.observations).toContainEqual({ kind: "apis", id: "lookup", lane: "real" });
+  } finally { await context.close(); await fixture.close(); }
+});
+
 test("mock declaration and ambiguous templates never promote to real", async ({ browser }) => {
   const fixture = await startFixture(() => ({ body: "<h1>Ready</h1>" })), context = await browser.newContext();
   try {
@@ -194,6 +220,19 @@ test("warm HTTP cache with a remembered server address is never counted as real 
     expect(m.observations.filter(o => o.kind === "apis" && o.id === "lookup")).toEqual([{ kind: "apis", id: "lookup", lane: "unknown" }]);
     expect(m.observations.some(o => o.lane === "real")).toBe(false);
   } finally { await context.close(); await new Promise<void>(yes => server.close(() => yes())); }
+});
+
+test("API document navigation is observed without inheriting the preceding screen relation", async ({ browser }) => {
+  const fixture = await startFixture(() => ({ body: "<h1>Ready</h1>" })), context = await browser.newContext();
+  try {
+    const observer = new SurfaceObserver(context, { catalog: readCatalog(rawCatalog(fixture.baseUrl)), testId: "TC-1", testRevision: "r1", lane: "real" });
+    const page = await context.newPage(); await observer.ready(); await page.goto(fixture.baseUrl + "/mobile");
+    await page.goto(fixture.baseUrl + "/api/users/PRIVATE-DOCUMENT"); await context.close();
+    const m = await observer.finish("lakda:run-test-1", 1, true);
+    expect(m.observations).toContainEqual({ kind: "apis", id: "lookup", lane: "real" });
+    expect(m.observations.some(o => o.kind === "relations")).toBe(false);
+    expect(JSON.stringify(m)).not.toContain("PRIVATE-DOCUMENT");
+  } finally { await context.close(); await fixture.close(); }
 });
 
 test("runner persists digest-bound observation, CLI accepts index and rejects wrong attempt evidence", async () => {

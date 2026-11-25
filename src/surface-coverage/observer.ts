@@ -20,6 +20,8 @@ export class SurfaceObserver {
   private requests = new Map<Request, { api: string; screen?: string }>();
   private network = new Map<Page, Map<string, { key: string; start: number; cached: boolean; response: boolean }>>();
   private sessions: CDPSession[] = [];
+  private networkWaiters = new Set<() => void>();
+  private networkChanged = () => { for (const notify of this.networkWaiters) notify(); };
   private attaching: Promise<void>[] = [];
   private complete = true;
   private stopped = false;
@@ -53,31 +55,41 @@ export class SurfaceObserver {
         const c = this.runtime.catalog;
         if (!match(c.apis.filter(p => p.method === e.request.method), e.request.url) && !match(c.screens, e.request.url)) return;
         records.set(e.requestId, { key: digest([e.request.method, e.request.url]), start: e.wallTime * 1000, cached: false, response: false });
+        this.networkChanged();
       });
       session.on("Network.requestServedFromCache", e => { const r = records.get(e.requestId); if (r) r.cached = true; });
-      session.on("Network.responseReceived", e => { const r = records.get(e.requestId); if (r) { r.response = true; r.cached ||= Boolean(e.response.fromDiskCache || e.response.fromPrefetchCache || e.response.fromServiceWorker); } });
+      session.on("Network.responseReceived", e => { const r = records.get(e.requestId); if (r) { r.response = true; r.cached ||= Boolean(e.response.fromDiskCache || e.response.fromPrefetchCache || e.response.fromServiceWorker); this.networkChanged(); } });
       await session.send("Network.enable");
     })().catch(() => { /* Without cache provenance the classification remains unknown. */ });
     this.attaching.push(attaching);
   };
   async ready() { await Promise.all(this.attaching); }
-  private networkProof(request: Request): boolean {
+  private async networkProof(request: Request): Promise<boolean> {
     // Worker upstream fetches lack an independently correlated page CDP record.
     // serverAddr alone can describe a cached response, so they must stay unknown.
     if (request.serviceWorker()) return false;
     try {
       const records = this.network.get(request.frame().page());
       const key = digest([request.method(), request.url()]), start = request.timing().startTime;
-      const matches = [...(records?.values() ?? [])].filter(r => r.key === key && Math.abs(r.start - start) < 1);
-      return matches.length === 1 && matches[0].response && !matches[0].cached;
+      // Playwright and our read-only CDP session deliver independently. Wait for
+      // the matching response instead of treating their delivery order as evidence.
+      return await new Promise<boolean>(resolve => {
+        const finish = (value: boolean) => { clearTimeout(timer); this.networkWaiters.delete(check); resolve(value); };
+        const check = () => {
+          const matches = [...(records?.values() ?? [])].filter(r => r.key === key && Math.abs(r.start - start) < 1);
+          if (matches.length > 1) finish(false);
+          else if (matches.length === 1 && matches[0].response) finish(!matches[0].cached);
+        };
+        const timer = setTimeout(() => finish(false), 250);
+        this.networkWaiters.add(check); check();
+      });
     } catch { return false; }
   }
   private request = (request: Request) => {
-    if (!["xhr", "fetch"].includes(request.resourceType())) return;
     const api = match(this.runtime.catalog.apis.filter(p => p.method === request.method()), request.url());
     if (!api) return;
     let screen: string | undefined;
-    try { const frame = request.frame(); if (frame === frame.page().mainFrame()) screen = match(this.runtime.catalog.screens, frame.url())?.id; } catch { /* worker has no frame */ }
+    try { const frame = request.frame(); if (!request.isNavigationRequest() && frame === frame.page().mainFrame()) screen = match(this.runtime.catalog.screens, frame.url())?.id; } catch { /* worker has no frame */ }
     if (this.requests.size >= 20_000) { this.complete = false; return; }
     this.requests.set(request, { api: api.id, screen });
   };
@@ -92,19 +104,18 @@ export class SurfaceObserver {
   }
   private response = (response: Response) => {
     const job = (async () => {
-      let classification: Lane = this.runtime.lane === "mock" ? "mock" : "unknown";
-      if (this.runtime.lane === "real" && !response.fromServiceWorker() && await response.serverAddr() && this.networkProof(response.request())) classification = "real";
       const request = response.request();
+      let screen: string | undefined;
+      if (request.isNavigationRequest()) {
+        try { if (request.frame() === request.frame().page().mainFrame()) screen = match(this.runtime.catalog.screens, response.url())?.id; }
+        catch { /* detached frame */ }
+      }
+      if (!this.requests.has(request) && !screen) return;
+      let classification: Lane = this.runtime.lane === "mock" ? "mock" : "unknown";
+      if (this.runtime.lane === "real" && !response.fromServiceWorker() && await response.serverAddr() && await this.networkProof(response.request())) classification = "real";
       this.record(request, classification);
       // Document responses establish screen transport provenance; navigation alone stays unknown.
-      if (request.isNavigationRequest()) {
-        try {
-          if (request.frame() === request.frame().page().mainFrame()) {
-            const screen = match(this.runtime.catalog.screens, response.url());
-            if (screen) this.add("screens", screen.id, classification);
-          }
-        } catch { /* detached frame */ }
-      }
+      if (screen) this.add("screens", screen, classification);
     })().catch(() => { this.complete = false; });
     this.pending.add(job); void job.finally(() => this.pending.delete(job));
   };
