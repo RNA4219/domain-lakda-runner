@@ -1,0 +1,41 @@
+{
+  "feature_id": "ORDER-V02",
+  "spec_revision": "spec-1",
+  "manual_cases": [
+    {
+      "tc_id": "TC-V02",
+      "revision": "case-1",
+      "content_hash": "fixture-order-1",
+      "oracle_revision": "oracle-1",
+      "title": "注文内容と一覧を確認する",
+      "priority": "P1",
+      "primary_view": "black",
+      "steps": [
+        "注文画面を開く",
+        "金額を確認する",
+        "注文を送信する",
+        "完了画面を開く"
+      ],
+      "expected_results": [
+        "最終一覧が2件ある",
+        "確認金額は900円",
+        "送信後も確認金額が表示されている",
+        "送信により一覧が1件増える"
+      ],
+      "oracle": {
+        "type": "specified",
+        "refs": [
+          "AC-COUNT",
+          "AC-AMOUNT",
+          "AC-DELTA"
+        ]
+      },
+      "trace_to": [
+        "AC-COUNT",
+        "AC-AMOUNT",
+        "AC-DELTA"
+      ],
+      "status": "active"
+    }
+  ]
+}

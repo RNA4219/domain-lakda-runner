@@ -1,0 +1,35 @@
+{
+  "approvedBindingSha256": "d38158bac72dcfa41ba3a76b47d97b279bffcc4cc01c639613b86a0adf7726ea",
+  "caseContentHash": "shipping-faq-1",
+  "caseId": "TC-SHIPPING",
+  "caseRevision": "case-1",
+  "expectedResults": [
+    "配送日数の目安が表示される"
+  ],
+  "featureId": "SHIPPING",
+  "machineChecks": [
+    {
+      "kind": "visible",
+      "locator": {
+        "testId": "shipping-answer"
+      }
+    }
+  ],
+  "oracleRefs": [
+    "AC-SHIPPING"
+  ],
+  "oracleRevision": "oracle-1",
+  "reviewRef": "shipping-faq-example-v1",
+  "reviewedBy": "lakda-onboarding-fixture",
+  "schemaVersion": "manual-bb/e2e-scenario/v1",
+  "sourceCaseSetSha256": "0e5abaaf0b9bcfda18d82e8b63f36f85ff4fcbc74c48be06a5a0090a74113eee",
+  "sourceFeatureSha256": "9f1d4ad449ecd809248b0e7e8dea2778a114297c19d9c7b4a2405c3de3c4c49f",
+  "specRevision": "spec-1",
+  "steps": [
+    "配送のご案内を開く",
+    "配送日数の質問を開く"
+  ],
+  "traceTo": [
+    "AC-SHIPPING"
+  ]
+}

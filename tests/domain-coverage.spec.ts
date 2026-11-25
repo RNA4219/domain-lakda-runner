@@ -85,7 +85,16 @@ for (const width of [390,1280]) {
     await page.goto(pathToFileURL(out).href);
     await expect(page.getByRole("heading",{level:1})).toHaveText("Misskeyの検証範囲");
     await expect(page.getByText(/今回判定済み 2 \/ 3/)).toBeVisible();
-    await page.getByRole("link",{name:template.behaviors[0].title}).first().click();
+    await page.getByRole("link",{name:"システム構成図",exact:true}).click();
+    await expect(page.locator("#diagram .node")).toHaveCount(graph.nodes.length);
+    const edge = page.locator('.wire').filter({has:page.locator('.edge[data-from="menu"][data-to="favorites"]')});
+    await edge.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.locator("#findings")).toContainText("get-note-menu.ts");
+    await page.locator("#mapped-behaviors").getByRole("link",{name:template.behaviors[0].title,exact:true}).click();
+    await expect(page.locator("article:target")).toBeVisible();
+    await expect(page.locator("article:target")).toContainText(template.behaviors[0].criterion);
+    await page.locator("#coverage table").getByRole("link",{name:template.behaviors[0].title}).first().click();
     const target = page.locator("article:target");
     await target.locator("summary").click();
     await expect(target.getByText(/matchingIds.*期待 1.*観測 1/)).toBeVisible();
@@ -94,3 +103,50 @@ for (const width of [390,1280]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 }
+
+test("製品の指摘と複数の接続理由を保ち、別の図の同名要素には受入条件を表示しない", async ({page},info) => {
+  await mkdir(info.outputDir,{recursive:true});
+  const graphFile = info.outputPath("architecture.json"), config = info.outputPath("map.json"), out = info.outputPath("coverage.html");
+  const markers = "</script><b>端末の記録</b><!--MODULES-->";
+  const otherEdge = {...graph.connections[0],label:"状態を照合する",evidence:"照合の設計書"};
+  const own = {...graph, connections:[...graph.connections,otherEdge], findings:[
+    {node:"favorites",severity:"high",title:"レビュー時の確認事項",evidence:markers,action:"確認記録を読む"}
+  ]};
+  const raw = structuredClone(template);
+  raw.behaviors[2].targets.push(otherEdge);
+  await writeFile(graphFile,JSON.stringify(own));
+  await writeFile(config,JSON.stringify(raw));
+  expect(await runCli(["coverage","map","--config",config,"--format","html","--out",out])).toBe(0);
+  await page.goto(pathToFileURL(out).href+"#architecture");
+  await expect(page.locator("#findings")).toContainText(markers);
+  await expect(page.locator("#mapped-behaviors a")).toHaveText(raw.behaviors[2].title);
+  const wire=page.locator('.wire').filter({has:page.locator('.edge[data-from="menu"][data-to="favorites"]')});
+  await wire.press("Enter");
+  await expect(page.locator("#findings")).toContainText("照合の設計書");
+  await expect(page.locator("#mapped-behaviors a")).toHaveCount(3);
+  await page.locator("#file").setInputFiles({name:"他の製品.json",mimeType:"application/json",
+    buffer:Buffer.from(JSON.stringify({...own,name:"別の製品"}))});
+  await expect(page.locator("#name")).toHaveText("別の製品");
+  await wire.press("Enter");
+  await expect(page.locator("#mapped-behaviors")).toBeHidden();
+  await page.locator(".guide summary").click();
+  await page.locator("#product-map").click();
+  await expect(page.locator("#mapped-behaviors a")).toHaveText(raw.behaviors[2].title);
+});
+
+test("描画上限を超える構成でもレポートと別の見本を開ける", async ({page},info) => {
+  await mkdir(info.outputDir,{recursive:true});
+  const config=info.outputPath("map.json"), out=info.outputPath("coverage.html");
+  const extra=Array.from({length:100},(_,i)=>({id:"extra-"+i,name:"追加要素 "+i,kind:"service"}));
+  await writeFile(config,JSON.stringify(template));
+  await writeFile(info.outputPath("architecture.json"),JSON.stringify({...graph,nodes:[...graph.nodes,...extra]}));
+  expect(await runCli(["coverage","map","--config",config,"--format","html","--out",out])).toBe(0);
+  await page.goto(pathToFileURL(out).href);
+  await expect(page.getByRole("cell",{name:/追加要素 99/})).toBeVisible();
+  await page.getByRole("link",{name:"システム構成図",exact:true}).click();
+  await expect(page.getByRole("alert")).toContainText("最大100件");
+  await page.locator("#reset").click();
+  await expect(page.locator(".node")).toHaveCount(6);
+  await page.getByRole("link",{name:"検証結果",exact:true}).click();
+  await expect(page.getByRole("heading",{name:"Misskeyの検証範囲"})).toBeVisible();
+});

@@ -1,0 +1,82 @@
+:root {
+  color-scheme: light;
+  --ink: #181d25;
+  --blue: #1d3049;
+  --night: #152638;
+  --on-night: #f7fafb;
+  --night-muted: #ced8df;
+  --control-radius: 4px;
+  --response: 145ms cubic-bezier(.2,.7,.3,1);
+  --muted: #556170;
+  --paper: #f7f8f4;
+  --white: #fff;
+  --line: #c9cdd0;
+  --soft: #e7ecef;
+  --signal: #ffe579;
+  --selection: #f8ecb9;
+  --red: #a63728;
+  --focus: #3571bc;
+  --page-width: min(1248px, calc(100% - 80px));
+  font-family: "BIZ UDPGothic", Meiryo, sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+  font-synthesis: none;
+}
+*, *::before, *::after { box-sizing: border-box }
+body { margin: 0; color: var(--ink); background: var(--paper) }
+button, select, input { font-family: inherit }
+a { color: inherit; text-underline-offset: .22em }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px }
+[hidden] { display: none !important }
+.app-header { color: var(--on-night); background: var(--night); border-bottom: 1px solid var(--night) }
+.app-bar, .app-main { width: var(--page-width); margin-inline: auto }
+.app-bar { display: flex; align-items: center; gap: 19px; min-height: 60px }
+.app-main { padding-bottom: 60px }
+.brand {
+  display: inline-flex; align-items: center; gap: 8px; flex: none;
+  font: 700 29px/.95 "Bahnschrift", Arial, sans-serif; letter-spacing: -.07em; color: var(--on-night);
+}
+.brand::before {
+  content: ""; width: 23px; height: 22px; background: var(--signal);
+  clip-path: polygon(0 100%,0 52%,47% 0,76% 0,24% 58%,24% 77%,44% 77%,83% 33%,100% 33%,100% 48%,54% 100%);
+}
+.app-label, .home-link, .map-link, .header-meta { color: var(--muted); font-size: 13px; font-weight: 600; line-height: 1.5 }
+.app-header :is(.app-label,.home-link,.map-link,.header-meta) { color: var(--night-muted) }
+.home-link, .map-link { display: inline-flex; align-items: center; min-height: 44px; white-space: nowrap }
+.map-link { margin-inline-start: auto }
+.map-link + .execute { margin-inline-start: 0 }
+.header-meta { margin-inline-start: auto; text-align: end }
+.execute { margin-inline-start: auto }
+.execute, .primary-action {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px;
+  padding: 8px 15px; border: 1px solid var(--blue); border-radius: var(--control-radius); font: inherit;
+  font-weight: bold; text-decoration: none; color: white; background: var(--blue); cursor: pointer;
+}
+.app-header .execute { color: var(--night); background: var(--signal); border-color: transparent; font-size: 14px }
+.app-header .execute:hover { background: #fff0ad }
+.app-header :focus-visible { outline-color: var(--signal) }
+.execute:hover, .primary-action:hover { background: #394b74 }
+.primary-action:disabled { background: var(--muted); cursor: wait }
+/* A single disclosure mark keeps native keyboard and expanded-state semantics. */
+details > summary { list-style: none; cursor: pointer }
+details > summary::-webkit-details-marker { display: none }
+details > summary::before {
+  content: ""; display: inline-block; width: .52em; height: .52em; margin-inline: .1em .72em;
+  vertical-align: .13em; border: solid currentColor; border-width: 0 .13em .13em 0; transform: rotate(-45deg);
+}
+details[open] > summary::before { transform: rotate(45deg) }
+@media (prefers-reduced-motion: no-preference) {
+  details > summary::before { transition: transform var(--response) }
+  .time, .suites a, .screen-nav a { transition: background-color var(--response), box-shadow var(--response) }
+}
+@media (max-width: 730px) {
+  :root { --page-width: calc(100% - 32px) }
+  .app-bar { min-height: 54px; gap: 12px }
+  .brand { font-size: 25px }
+  .app-label, .home-link, .map-link, .header-meta, .execute { font-size: 12px }
+  .app-bar:has(.map-link) { flex-wrap: wrap; column-gap: 9px; row-gap: 2px; padding-block: 4px }
+  .app-bar:has(.map-link) .app-label { display: none }
+}
+@media(forced-colors:active) {
+  .brand::before { background: CanvasText }
+}

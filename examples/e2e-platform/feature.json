@@ -1,0 +1,9 @@
+{
+  "feature_id": "SHIPPING",
+  "revision": "spec-1",
+  "title": "配送のご案内",
+  "acceptance_criteria": ["配送日数の目安が表示される"],
+  "source_refs": [
+    {"id": "AC-SHIPPING", "kind": "ac", "excerpt": "配送日数の目安が表示される"}
+  ]
+}

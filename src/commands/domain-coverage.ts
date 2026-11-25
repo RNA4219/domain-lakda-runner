@@ -8,7 +8,6 @@ import { label, readMap, requireValue } from "../domain-coverage/model.js";
 import { readObservations, type Run } from "../domain-coverage/observations.js";
 import { readCaseIndex } from "../domain-coverage/lakda-index.js";
 import { coverageReport } from "../domain-coverage/report.js";
-import { renderCoverage } from "../domain-coverage/html.js";
 import { reserveReportOutput } from "../reporting/output-transaction.js";
 
 export async function domainCoverageCommand(flags: Flags): Promise<number> {
@@ -17,7 +16,8 @@ export async function domainCoverageCommand(flags: Flags): Promise<number> {
   requireValue(config && ["json","html"].includes(format), "--config と出力形式 json / html を確認してください");
   const raw = object(parseJson(await readFile(config),"マッピング"),"マッピング");
   const path = resolve(dirname(config),label(raw.architecture,"構成ファイル"));
-  const map = readMap(raw,parseJson(await readFile(path),"構成図"));
+  const architecture = parseJson(await readFile(path),"構成図");
+  const map = readMap(raw,architecture);
   let run: Run | null = null, evidence = null;
   if (input) {
     const bytes = await readFile(input), data = object(parseJson(bytes,"実行記録"),"実行記録");
@@ -34,7 +34,8 @@ export async function domainCoverageCommand(flags: Flags): Promise<number> {
   const pathToInput = input && relative(out ? dirname(resolve(out)) : process.cwd(),resolve(input));
   const href = pathToInput && (isAbsolute(pathToInput) ? pathToFileURL(resolve(input!)).href
     : "./" + pathToInput.split(sep).map(encodeURIComponent).join("/"));
-  const output = (format === "json" ? JSON.stringify(report,null,2) : renderCoverage(report,href)) + "\n";
+  const output = (format === "json" ? JSON.stringify(report,null,2)
+    : (await import("../domain-coverage/html.js")).renderCoverage(report,href,architecture)) + "\n";
   if (!out) process.stdout.write(output);
   else {
     const sources = [config,path,...(input ? [input] : []),...(dir ? [dir] : [])];

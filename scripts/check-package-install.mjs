@@ -83,6 +83,12 @@ try {
     access(join(bridgeRoot, "native_identity_transport_protocol.py")),
   ]);
   const help = execFileSync(process.execPath, [cli, "--help"], { cwd: consumer, encoding: "utf8" });
+  const architectureReport = execFileSync(process.execPath, [
+    cli, "coverage", "map", "--config", join(consumer,"node_modules/domain-lakda-runner/examples/domain-coverage/misskey/map.json"), "--format", "html"
+  ], { cwd: consumer, encoding: "utf8" });
+  if (!architectureReport.includes('id="diagram"') || !architectureReport.includes('type="importmap"')) {
+    throw new Error("インストールした CLI で構成図付きの HTML を生成できません");
+  }
   if (!help.includes("lakda") || !help.includes("runs list") || !help.includes("runs compare") || !help.includes("report generate") || !help.includes("report verify")) {
     throw new Error("installed package CLI help is incomplete");
   }

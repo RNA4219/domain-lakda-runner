@@ -1,0 +1,13 @@
+{
+  "caseId": "TC-SHIPPING",
+  "filesSha256": {
+    "action-sequence.json": "d0fa7b6cc7c6eb8760101cd8411748d4deb669b0bbe6104ad357ce36b4e3d578",
+    "lakda.config.json": "d93f2aa9f1674301bffa2a7a3e5b2b0a9f6c6a0711ef6e80fa2a67cc12dbd430",
+    "scenario.json": "414b83ee1427d01d7b37733827b79428e42aa7c2dde5d935b724e3642f05afe7",
+    "scenario.md": "0154b80d69b11c332d7c16bc8ca1b735746a8587db6eb7572dbba7749d409dae",
+    "scenario.spec.ts": "eb65dbd08f5d9c9561cd017b8fd240c5b0946e36b10363bc589ad381e337d5a0"
+  },
+  "schemaVersion": "manual-bb/e2e-export/v1",
+  "sourceCaseSetSha256": "0e5abaaf0b9bcfda18d82e8b63f36f85ff4fcbc74c48be06a5a0090a74113eee",
+  "sourceFeatureSha256": "9f1d4ad449ecd809248b0e7e8dea2778a114297c19d9c7b4a2405c3de3c4c49f"
+}

@@ -12,6 +12,24 @@ Lakdaは、Web・ゲーム・認可済みセキュリティ探索を共通の状
 > [!NOTE]
 > 現在の候補版は `0.5.0-rc.2` です。code revision `600a037efec8617d2090b1c8be408a1d1b9b1c5a` の公開・非破壊[reference staging](https://rna4219.github.io/domain-lakda-runner/)に対するQEG `go`は、履歴として保持しますが、現在のsource revisionを承認するものではありません。現在の候補版はfreeze SHAごとにdeterministic、adaptive、exploration、package、reference staging、実Qwen、RanD、Code-to-gate、HATE、manual-bb、QEGを再実行するまで`pending_external`です。任意の本番・実機・security targetへの包括承認も示しません。詳細は[品質証跡記録](docs/acceptance/AC-20260716-19.reference-staging-qeg-go.md)を参照してください。
 
+## E2E プラットフォームを試す
+
+ブラウザーで「配送の質問を開くと、お届けまでの日数が分かる」というケースを1件実行できます。サンプルのページとテストは同梱しています。
+
+Git で取得したこのリポジトリのルートで実行します。Node.js 24.6.0、npm 11.5.1、録画用の FFmpeg（libx264）と ffprobe を使います。録画ツールは PATH に追加してください。
+
+```sh
+npm ci
+npm run platform:setup
+npm run platform
+```
+
+表示された URL を開き、「第1回を開始」を押します。「1件すべて合格」が出たら、「ケースの結果・操作ログ」から今回の記録を開けます。終了は Ctrl+C、次回の起動は `npm run platform` です。
+
+画面上部の「システム構成図」から、テストを実行する前でも製品の構成を確認できます。「構成ファイルを開く」で構成図、CloudFormation、複数の `package.json` を読み込み、箱や線を選ぶと接続の理由と出典を読めます。
+
+自分の製品には `npm run platform -- --init ../my-product/platform.json` で設定のひな形を作れます。登録するファイル、起動方法、結果の保存先は[製品への導入手順](examples/e2e-platform/README.md)を参照してください。
+
 ## ライセンス
 
 このバージョンは、RNA Third-Party Service Attribution License 1.0に基づくsource-availableソフトウェアです。

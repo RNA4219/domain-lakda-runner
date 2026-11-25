@@ -1,0 +1,13 @@
+{
+  "schema": "lakda/domain-map/v1",
+  "architecture": "shipping-architecture.json",
+  "product": "shipping-demo",
+  "version": "bundled-demo",
+  "environment": "local-fixture",
+  "behaviors": [
+    {"id":"delivery-days","domain":"配送の問い合わせ","title":"質問を開くと配送日数の目安が表示される","criterion":"AC-SHIPPING","source":"feature.json · AC-SHIPPING","targets":["faq"]}
+  ],
+  "cases": [
+    {"id":"TC-SHIPPING","revision":"case-1","obligations":[{"visible":{"testId":"shipping-answer"}}],"checks":[{"id":"配送日数の表示","behaviors":["delivery-days"],"obligation":1}]}
+  ]
+}

@@ -18,12 +18,7 @@ export function workerSeed(baseSeed: number, workerIndex = 0): number {
   return (baseSeed + workerIndex) >>> 0;
 }
 
-export function canonicalJson(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  const record = value as Record<string, unknown>;
-  return `{${Object.keys(record).sort().map(key => `${JSON.stringify(key)}:${canonicalJson(record[key])}`).join(",")}}`;
-}
+export { canonicalJson } from "./canonical-json.js";
 
 export function createActionPlan(config: LakdaConfig, mode: ActionPlan["mode"] | undefined = undefined, workerIndex = 0): ActionPlan {
   const selectedMode: RunMode = mode ?? config.mode;

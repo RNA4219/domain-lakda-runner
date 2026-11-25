@@ -1,0 +1,20 @@
+{
+  "productName": "自社製品の受入テスト",
+  "baseUrl": "http://127.0.0.1:18943/",
+  "store": ".lakda/platform",
+  "target": {
+    "directory": "public",
+    "observation": "qa/observation.json",
+    "binding": "qa/build-binding.json"
+  },
+  "suites": [
+    {
+      "id": "acceptance",
+      "name": "基本操作の受入",
+      "checkout": ".",
+      "scenarios": "qa/exports",
+      "featureSpec": "qa/feature.json",
+      "manualCaseSet": "qa/cases.json"
+    }
+  ]
+}

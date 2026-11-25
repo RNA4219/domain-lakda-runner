@@ -1,0 +1,95 @@
+{
+  "schemaVersion": "manual-bb/e2e-binding/v1",
+  "featureId": "ORDER-V02",
+  "specRevision": "spec-1",
+  "baseUrl": "http://127.0.0.1:18892/",
+  "featureSha256": "09cd47e87998821ddf24944e0579038af06f75f6cc3c1b3c2944b38bbe21bedd",
+  "caseSetSha256": "af42cb4bb614f5fc51474b1eb56c9e9f21ffa8771221e7b74bfeace636cc745f",
+  "seed": 4219,
+  "cases": [
+    {
+      "caseId": "TC-V02",
+      "revision": "case-1",
+      "contentHash": "fixture-order-1",
+      "oracleRevision": "oracle-1",
+      "reviewedBy": "local-v02-fixture",
+      "reviewRef": "SPEC-06/V02",
+      "actions": [
+        {
+          "id": "open",
+          "kind": "navigate",
+          "path": "/"
+        },
+        {
+          "id": "confirm",
+          "kind": "click",
+          "locator": {
+            "testId": "confirm"
+          }
+        },
+        {
+          "id": "submit",
+          "kind": "click",
+          "locator": {
+            "testId": "submit"
+          }
+        },
+        {
+          "id": "finish",
+          "kind": "click",
+          "locator": {
+            "testId": "finish"
+          }
+        }
+      ],
+      "checks": [
+        {
+          "text": "最終一覧が2件ある",
+          "kind": "countEquals",
+          "locator": {
+            "testId": "orders"
+          },
+          "itemLocator": {
+            "testId": "order"
+          },
+          "value": 2,
+          "acceptanceRef": "AC-COUNT"
+        },
+        {
+          "text": "確認金額は900円",
+          "kind": "amountEquals",
+          "locator": {
+            "testId": "total"
+          },
+          "currency": "JPY",
+          "format": "jpy-yen-suffix",
+          "minorUnits": 900,
+          "acceptanceRef": "AC-AMOUNT",
+          "afterActionId": "confirm"
+        },
+        {
+          "text": "送信後も確認金額が表示されている",
+          "kind": "visible",
+          "locator": {
+            "testId": "total"
+          },
+          "acceptanceRef": "AC-AMOUNT",
+          "afterActionId": "submit"
+        },
+        {
+          "text": "送信により一覧が1件増える",
+          "kind": "countDelta",
+          "locator": {
+            "testId": "orders"
+          },
+          "itemLocator": {
+            "testId": "order"
+          },
+          "value": 1,
+          "acceptanceRef": "AC-DELTA",
+          "afterActionId": "submit"
+        }
+      ]
+    }
+  ]
+}

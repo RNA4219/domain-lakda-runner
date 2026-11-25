@@ -1,0 +1,134 @@
+// ai-yori-murasaki の構成図から移植。ライセンスは vendor/architecture/LICENSE。
+export const architectureTemplate = `<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' data:; style-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title><!--TITLE--></title>
+<style>
+:root {color-scheme:light;--ink:#181d25;--muted:#556170;--line:#c9cdd0;--accent:#1d3049;--paper:#f7f8f4;--rust:#983819;--tint:#f9ece4}
+* {box-sizing:border-box}
+body {margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 "BIZ UDPGothic",Meiryo,sans-serif}
+[hidden] {display:none!important}
+button,select,input {font:inherit}
+button,select,.file {cursor:pointer}
+button,a,select {touch-action:manipulation}
+a {color:var(--accent);text-underline-offset:3px}
+:focus-visible {outline:3px solid #3571bc;outline-offset:3px}
+.skip {position:absolute;top:-80px;left:16px;background:#fff;padding:8px;z-index:5}
+.skip:focus {top:12px}
+.top {background:#152638;color:#f7fafb}
+.top-inner,main {width:min(100% - 48px,1380px);margin:auto}
+.top-inner {min-height:66px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand {display:flex;align-items:center;gap:8px;font:700 29px/.95 Bahnschrift,Arial,sans-serif;letter-spacing:-.07em}
+.brand::before {content:"";width:23px;height:22px;background:#ffe579;clip-path:polygon(0 100%,0 52%,47% 0,76% 0,24% 58%,24% 77%,44% 77%,83% 33%,100% 33%,100% 48%,54% 100%)}
+.top nav {display:flex;flex-wrap:wrap;gap:16px}.top nav a {color:inherit;display:inline-flex;align-items:center;min-height:44px}.top nav [aria-current]{text-decoration-thickness:2px}
+main {padding:24px 0 48px}
+.heading,.toolbar,.panel-head,.picker,.source-row,.mode,.flag-list {display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.heading {justify-content:space-between;align-items:end}
+h1,h2,h3,p {margin:0}
+h1 {margin-top:2px;font-size:clamp(26px,3.2vw,42px);line-height:1.25;letter-spacing:-.035em;overflow-wrap:anywhere}
+h2 {font-size:20px;line-height:1.45} h3 {font-size:17px}
+.context,.meta,.kind,.hint {font-size:15px;color:var(--muted)}
+.source-row {margin-top:10px;gap:8px 16px}.source {display:inline-flex;align-items:center;gap:6px;font-weight:650}
+.source:before {content:"";width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.toolbar {gap:8px}.btn,.file,.mode button,.chip {display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:7px 12px;border:1px solid var(--line);border-radius:5px;background:#fff;color:var(--accent);font-weight:650;text-decoration:none}
+.file {background:var(--accent);color:#fff;border-color:var(--accent);position:relative;overflow:hidden}
+.file input {position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.file:focus-within {outline:3px solid #87639c;outline-offset:3px}
+.guide {margin:12px 0 16px;color:var(--muted);max-width:88ch}
+summary {cursor:pointer;width:fit-content;padding:5px 0;color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+.guide p {margin:5px 0}.notice {margin:12px 0;padding:10px 14px;border-left:3px solid var(--rust);background:var(--tint);overflow-wrap:anywhere}
+.workspace {display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,340px);gap:16px;align-items:start}
+.map-panel,.detail {background:white;border:1px solid var(--line);border-radius:12px;min-width:0}
+.panel-head {justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}
+.mode {gap:2px;padding:3px;border-radius:6px;background:#e7ecef}.mode button {min-height:38px;border:0;background:transparent;font-size:15px}.mode button[aria-pressed=true] {background:var(--accent);color:white}
+.canvas-tools {display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 14px;border-bottom:1px solid var(--line)}
+.canvas-tools button {min-height:44px;padding:4px 10px;border:1px solid #c9bfce;border-radius:6px;background:#fff;color:var(--accent)}
+.canvas-tools button:disabled {opacity:.5;cursor:default}
+.canvas-tools output {min-width:4ch;text-align:center;font-variant-numeric:tabular-nums;font-size:14px}
+.canvas-help {margin:0;color:var(--muted);font-size:14px;padding:7px 16px}
+.map-frame {height:clamp(310px,61vh,650px);overflow:hidden;background:var(--paper);border-block:1px solid var(--line)}
+#diagram {display:block;width:100%;height:100%;touch-action:none;user-select:none;cursor:grab}
+#diagram.dragging,#diagram.dragging * {cursor:grabbing}
+.wire {cursor:pointer;outline:none}.wire-hit {fill:none;stroke:transparent;stroke-width:18;vector-effect:non-scaling-stroke;pointer-events:stroke}
+.wire.selected .edge,.wire:focus-visible .edge {stroke:#553264;stroke-width:4}
+.wire:hover .edge {stroke:#553264;stroke-width:3.5}
+.node {touch-action:none}
+.lane {fill:#fff;fill-opacity:.61;stroke:#d9d3dd;stroke-dasharray:4 5}
+.lane-title {fill:#55475f;font-size:14px;font-weight:700}
+.edge {fill:none;stroke:#8c8192;stroke-width:1.8;vector-effect:non-scaling-stroke}.edge.near {stroke:#674779;stroke-width:2.7}
+.node {cursor:grab;outline:none}.node .box {fill:#fff;stroke:#afa4b6;stroke-width:1.5}
+.node.near .box {stroke:#80648e}.node.flagged .box {stroke:#bd714e}.node.selected .box {stroke:#604076;stroke-width:3;fill:#faf6fd}
+.node.selected.flagged .box {stroke:#a44624;fill:#fff7f0}
+.node:focus-visible .box,.node:hover .box {stroke:#36263f;stroke-width:3}
+.node-title {fill:var(--ink);font-size:15px;font-weight:700}.node-type {fill:#615668;font-size:12px}
+.glyph {fill:none;stroke:currentColor;stroke-width:1.65;stroke-linejoin:round;stroke-linecap:round}
+.alert-icon {fill:#9b3c1d}.alert-text {fill:white;font-size:12px;font-weight:800}
+.node-issue {fill:#873a1d;font-size:12px}
+.graph-footer {padding:12px 18px 15px;border-top:1px solid var(--line)}
+.flag-list {gap:6px 8px}.flag-list h3 {margin-right:4px}.chip {min-height:36px;border-color:#d6ab94;background:#fff7f1;color:#84381e;font-size:14px}
+.flag-list:not(:empty) {padding:9px 18px;border-bottom:1px solid var(--line)}
+.detail {padding:18px}.detail h2 {font-size:24px;overflow-wrap:anywhere}.detail p,.detail dd,.detail li,.meta {overflow-wrap:anywhere}
+.detail .description {margin:5px 0 16px}.detail section {border-top:1px solid var(--line);padding-top:14px;margin-top:14px}
+.finding {margin-top:10px;padding:12px;border-left:3px solid #af5638;background:#fcf3ed;border-radius:0 6px 6px 0}
+.finding h3 {margin:4px 0 8px}.level {color:#783016;font-size:14px;font-weight:750}
+dl {margin:0}dt {font-weight:700;font-size:14px;color:#624e46}dd {margin:0 0 8px}dd:last-child {margin:0}
+.links {list-style:none;margin:8px 0 0;padding:0}.links li {padding:8px 0;border-top:1px solid #ece8ee}.links li:first-child {border:0}
+.link {border:0;background:transparent;padding:3px 0;color:var(--accent);font-weight:650;text-decoration:underline;text-align:left}
+.link-evidence {font-size:14px;color:var(--muted)}
+.connection-record {padding:10px 12px;margin-top:8px;border-left:3px solid var(--accent);background:#edf1f3}
+.connection-record h4 {margin:0 0 5px}
+.connection-choice {display:grid;gap:4px;font-size:14px;margin-top:12px;color:var(--muted)}
+.connection-choice select {min-width:0;width:100%;min-height:40px;color:var(--ink);background:white}
+.picker {padding:0 18px 12px;align-items:center}.picker label {font-size:14px;font-weight:650}.picker select {width:min(100%,280px);min-height:40px;padding:5px 7px;border:1px solid #b9abbf;background:#fff;border-radius:5px;color:var(--ink)}
+.sr {clip-path:inset(50%);position:absolute;width:1px;height:1px;overflow:hidden;white-space:nowrap}
+.return-map {display:none}.btn:hover,.chip:hover {border-color:#6d497c}
+@media(min-width:901px){.detail {position:sticky;top:12px}}
+@media(max-width:900px){.workspace{grid-template-columns:1fr}.return-map{display:inline-flex;margin-top:12px}.detail {scroll-margin-top:8px}}
+@media(max-width:620px){.top-inner,main{width:calc(100% - 24px)}.top-inner{min-height:56px}.top nav{gap:9px}.brand{font-size:25px;gap:6px}.top nav a{font-size:14px}main{padding-top:16px}.heading{gap:12px}.panel-head{padding:10px 12px;gap:8px}.mode button{font-size:14px}.picker{padding:0 12px 12px}.graph-footer{padding:10px 12px}.mode{gap:0}.map-frame{max-height:420px}.detail{padding:14px}}
+@media(prefers-reduced-motion:no-preference){.node .box,.edge{transition:stroke .14s ease,fill .14s ease}}
+/* 被覆レポートの見出し・表・根拠は JavaScript が無効な閲覧環境でも読める。 */
+.coverage {max-width:68rem;margin-inline:auto;overflow-wrap:anywhere}
+.scope-head{display:flex;justify-content:space-between;align-items:end;gap:1.5rem;border-bottom:2px solid var(--accent);padding:1rem 0 1.4rem}.scope-head h1{font-size:clamp(2rem,4vw,3rem);line-height:1.15}.eyebrow,.scope-head>div>p:last-child,.fraction{color:var(--muted)}.fraction strong{display:block;color:var(--ink);font-size:2rem;line-height:1.2;font-variant-numeric:tabular-nums}.suite-switch{display:flex;flex-wrap:wrap;gap:.4rem 1.2rem;padding-top:.5rem}.suite-switch a, .to-review a,.scope-table summary{display:inline-flex;align-items:center;min-height:44px}.suite-switch [aria-current]{font-weight:bold;text-decoration-thickness:2px}.to-review ul{list-style:none;padding:0}.to-review li{display:flex;align-items:baseline;gap:1rem;border-bottom:1px solid var(--line);padding:.25rem 0}.to-review li span{flex:none;font-size:.9rem}.to-review li a{font-weight:650}.scope-table{margin-top:1.5rem}.scope-table summary{display:list-item;cursor:pointer;line-height:44px}.coverage article:target h3{color:var(--accent)}
+@media(max-width:640px){.scope-head{display:block}.fraction strong{display:inline;font-size:1.4rem;margin-inline:.4rem}.coverage .fraction{margin-top:1rem}.to-review li{align-items:start;gap:.65rem}.to-review li span{padding-top:.55rem}.top:has(nav a:nth-child(3)) .top-inner{flex-wrap:wrap;gap:0;padding:.4rem 0}.top:has(nav a:nth-child(3)) nav{column-gap:.8rem}}
+.coverage h1,.coverage h2,.coverage h3,.coverage p {margin:.35em 0}.coverage h2 {margin-top:1.7em}
+.coverage article {padding:1rem 0;border-top:1px solid var(--line)}.coverage article:target {outline:2px solid #257181;outline-offset:3px}
+.coverage table {border-collapse:collapse;width:100%}.coverage td,.coverage th {text-align:left;vertical-align:top;padding:.55em;border-bottom:1px solid var(--line)}
+.coverage .failed {color:#932a22}.coverage small {color:var(--muted)}.coverage ul,#mapped-behaviors ul {padding-left:1.4rem}
+#architecture:focus,#coverage:focus {outline:none}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">本文へ移る</a>
+<header class="top"><div class="top-inner"><strong class="brand">Lakda</strong><nav aria-label="製品の画面"><!--NAV--></nav></div></header>
+<main id="main" tabindex="-1">
+<!--COVERAGE-->
+<section id="architecture" tabindex="-1" aria-label="システム構成図" <!--MAP_VISIBILITY-->>
+<div class="heading"><div><p class="context">システム構成図</p><h1 id="name">構成図を読み込み中</h1><div class="source-row"><span class="source" id="source"></span><span class="meta" id="counts"></span></div></div>
+<div class="toolbar"><button type="button" class="btn" id="reset" hidden>見本に戻す</button><label class="file">構成ファイルを開く<input id="file" type="file" multiple accept=".json,.yaml,.yml" aria-label="構成ファイルを開く"></label></div></div>
+<details class="guide"><summary>読み込めるファイルと見本</summary>
+<p>構成図（JSON・YAML）では、リポジトリ、AWS リソース、接続の理由、対象ごとの指摘を指定できます。<a id="download" download="architecture-sample.json">編集用の見本 JSON を保存</a></p>
+<p>CloudFormation（JSON・YAML）はリソースと設定上の依存関係を読み取ります。package.json は repository を指定したものを順に追加すると、読み込んだリポジトリ間の依存が線になります。</p>
+<p>ファイルはこのタブで処理します。上限は1ファイル1 MiB、1回100ファイル・合計4 MiB、構成要素100件、接続300件です。</p>
+<button type="button" class="link" id="product-map"><!--PRODUCT_LABEL--></button></details>
+<p id="error" class="notice" role="alert" hidden></p><span class="sr" id="status" role="status"></span>
+<div class="workspace" id="workspace" hidden>
+<section class="map-panel" aria-labelledby="map-title"><div class="panel-head"><h2 id="map-title">構成と接続</h2>
+<div class="mode" role="group" aria-label="図の表示範囲"><button id="all" aria-pressed="true">構成全体</button><button id="repos" aria-pressed="false">リポジトリ間</button></div></div>
+<div id="flags" class="flag-list"></div>
+<div class="canvas-tools" role="group" aria-label="図の操作">
+<button type="button" id="zoom-out" aria-label="縮小">−</button><output id="zoom-value" aria-label="表示倍率">100%</output><button type="button" id="zoom-in" aria-label="拡大">＋</button>
+<button type="button" id="fit-map">全体を表示</button><button type="button" id="reset-layout" disabled>配置を戻す</button></div>
+<div class="map-frame" id="frame" tabindex="0" role="region" aria-label="構成図" aria-describedby="canvas-help canvas-keys"><svg id="diagram" role="group" aria-label="構成要素と依存関係の図"></svg></div>
+<p class="canvas-help" id="canvas-help">ホイールで拡大・縮小。箱をドラッグして配置し、余白をドラッグして移動できます。線を選ぶと接続の根拠を読めます。</p>
+<p class="sr" id="canvas-keys">Tabで箱と線を選び、Enterで詳細を開きます。矢印キーは箱にフォーカスがあると箱を、それ以外は図全体を移動します。＋と−で拡大・縮小、Homeで全体を表示します。</p>
+<div class="graph-footer"><p id="note" class="hint"></p></div>
+<div class="picker"><label for="choose">構成要素を選択</label><select id="choose"></select><label><input type="checkbox" id="nearby"> 直接つながる要素だけ表示</label></div></section>
+<aside class="detail" id="detail" tabindex="-1" aria-labelledby="detail-name"><p class="kind" id="detail-kind"></p><h2 id="detail-name"></h2><p class="description" id="description"></p><section id="mapped-behaviors" hidden><h3>保証する振る舞い</h3><div id="behavior-list"></div></section><section><h3 id="finding-count"></h3><div id="findings"></div></section><section><h3 id="links-title">この要素の接続</h3><ul class="links" id="links"></ul></section><button class="btn return-map" id="return">図に戻る</button></aside>
+</div></section></main>
+<script type="application/json" id="map-data"><!--DATA--></script>
+<!--MODULES-->
+</body></html>
+`;

@@ -1,0 +1,7 @@
+{
+  "schema": "aym.architecture/v1",
+  "name": "配送案内の構成",
+  "nodes": [{"id":"faq","name":"配送の質問と回答","kind":"service","type":"Web画面","description":"注文からお届けまでの日数を案内する。"}],
+  "connections": [],
+  "findings": []
+}

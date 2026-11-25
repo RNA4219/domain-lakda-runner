@@ -1,0 +1,27 @@
+{
+  "feature_id": "ORDER-V02",
+  "revision": "spec-1",
+  "title": "注文確認",
+  "acceptance_criteria": [
+    "最終一覧が2件ある",
+    "確認金額は900円",
+    "送信により一覧が1件増える"
+  ],
+  "source_refs": [
+    {
+      "id": "AC-COUNT",
+      "kind": "ac",
+      "excerpt": "最終一覧が2件ある"
+    },
+    {
+      "id": "AC-AMOUNT",
+      "kind": "ac",
+      "excerpt": "確認金額は900円"
+    },
+    {
+      "id": "AC-DELTA",
+      "kind": "ac",
+      "excerpt": "送信により一覧が1件増える"
+    }
+  ]
+}

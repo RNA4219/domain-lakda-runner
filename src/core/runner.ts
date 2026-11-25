@@ -16,6 +16,7 @@ import { exportHate } from "./hate.js";
 import { LocalLlmClient, LlmContractError, probeLlm } from "./llm.js";
 import { applyArtifactPolicy, aggregateOutcomes, type OutcomeDecision } from "./outcome.js";
 import { createActionPlan, validateActionPlan, workerSeed } from "./plan.js";
+import { canonicalJson } from "./canonical-json.js";
 import { assertSafeAction, safeActions } from "./safety.js";
 import { applyVideoRetention, captureFailureScreenshot, finalizeVideoCapture, videoRecordingOptions } from "./browser-artifacts.js";
 import type { Action, ActionPlan, ExplorationCaptureRuntime, LakdaConfig, Locator, LlmStatus, RunBatchResult, RunOutcome, RunResult, WorkerRunEntry } from "./types.js";
@@ -25,8 +26,9 @@ import { completeBinaryAttestationRun } from "../exploration/attestation-run.js"
 import { createAttestationStopCheck } from "../exploration/attestation-control.js";
 import { AttestationContractError } from "../exploration/attestation-contracts.js";
 import { sha256 } from "./redaction.js";
+import { PlatformRecording, validatePlatformRecording, type PlatformRecordingRuntime } from "./platform-recording.js";
 
-export type RunRuntimeContext = { workerIndex?: number; batchId?: string; clock?: () => number; actionBudget?: ActionBudget; adaptiveReplayPrefixActions?: number; adaptiveExpectedFingerprint?: string; controlFile?: string; explorationCapture?: ExplorationCaptureRuntime; adaptiveBridge?: ExternalToolBridge; requireBinaryAttestation?: boolean; attestationTrustStorePath?: string; artifactAttestorKeyIds?: readonly string[]; binaryAttestation?: BinaryAttestationRunOptions; replayEvidenceMode?: "real"; explorationTargetRevisionProbe?: { kind: "response-header" | "dom-meta"; name: string; expected: string } };
+export type RunRuntimeContext = { platformRecording?: PlatformRecordingRuntime; workerIndex?: number; batchId?: string; clock?: () => number; actionBudget?: ActionBudget; adaptiveReplayPrefixActions?: number; adaptiveExpectedFingerprint?: string; controlFile?: string; explorationCapture?: ExplorationCaptureRuntime; adaptiveBridge?: ExternalToolBridge; requireBinaryAttestation?: boolean; attestationTrustStorePath?: string; artifactAttestorKeyIds?: readonly string[]; binaryAttestation?: BinaryAttestationRunOptions; replayEvidenceMode?: "real"; explorationTargetRevisionProbe?: { kind: "response-header" | "dom-meta"; name: string; expected: string } };
 
 type LiveSelection = { kind: "action"; action: Action } | { kind: "stop" } | { kind: "hold" };
 type LiveSelector = (page: Page, priorAction: Action | undefined) => Promise<LiveSelection>;
@@ -103,6 +105,72 @@ async function obligationsMet(page: Page, config: LakdaConfig): Promise<boolean>
   return true;
 }
 
+type ReviewedCheck = LakdaConfig["obligations"][number];
+
+function parseAmount(text: string, format: "jpy-yen-suffix" | "usd-dollar-prefix"): number | null {
+  const value = text.trim();
+  const match = format === "jpy-yen-suffix"
+    ? /^(-?)([0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)円$/.exec(value)
+    : /^(-?)\$([0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)\.([0-9]{2})$/.exec(value);
+  if (!match) return null;
+  const digits = match[2].replace(/,/g, "") + (format === "usd-dollar-prefix" ? match[3] : "");
+  const result = Number(digits) * (match[1] ? -1 : 1);
+  return Number.isSafeInteger(result) ? result : null;
+}
+
+async function countItems(page: Page, check: NonNullable<ReviewedCheck["countDelta"]>): Promise<number | null> {
+  const container = locatorFor(page, check.locator, "reviewed count");
+  if (await container.count() !== 1) return null;
+  const item = check.itemLocator.testId ? container.getByTestId(check.itemLocator.testId)
+    : container.getByRole(check.itemLocator.role!, { name: check.itemLocator.name!, exact: true });
+  const count = await item.count();
+  return await container.count() === 1 ? count : null;
+}
+
+function reviewedLog(collector: ArtifactCollector, index: number, check: ReviewedCheck, result: string, observation: { before?: number | null; observed?: number | null } = {}): void {
+  collector.log("info", JSON.stringify({ index: index + 1, ...(check.acceptanceRef ? { acceptanceRef: check.acceptanceRef } : {}), ...(check.afterActionId ? { actionId: check.afterActionId } : {}), ...observation, result }), "reviewed-oracle");
+}
+
+async function evaluateReviewedChecks(page: Page, config: LakdaConfig, collector: ArtifactCollector, deadline: number, now: () => number, actionId?: string, baselines = new Map<number, number>()): Promise<ExecutionResult> {
+  const { expect } = await import("playwright/test");
+  for (const [index, check] of config.obligations.entries()) {
+    if (check.afterActionId !== actionId) continue;
+    const remaining = deadline - now();
+    if (remaining <= 0) { reviewedLog(collector, index, check, "partial"); return { outcome: "partial", terminationReason: "duration_limit" }; }
+    const timeout = Math.min(5_000, remaining);
+    const label = `obligation ${index + 1}`;
+    let observed: number | null = null;
+    const before = baselines.get(index);
+    try {
+      if (check.visible) await expect(locatorFor(page, check.visible, label)).toBeVisible({ timeout });
+      else if (check.textEquals) await expect(locatorFor(page, check.textEquals.locator, label)).toHaveText(check.textEquals.text, { timeout });
+      else if (check.amountEquals || check.countEquals || check.countDelta) {
+        await expect.poll(async () => {
+          if (check.amountEquals) {
+            const loc = locatorFor(page, check.amountEquals.locator, label);
+            const values = await loc.allTextContents();
+            observed = values.length === 1 ? parseAmount(values[0], check.amountEquals.format) : null;
+            return observed === check.amountEquals.minorUnits;
+          }
+          const spec = (check.countEquals ?? check.countDelta)!;
+          observed = await countItems(page, spec);
+          return observed !== null && (check.countDelta ? observed - before! === spec.value : observed === spec.value);
+        }, { timeout }).toBe(true);
+      } else await expect(page).toHaveURL(new URL(check.expectedUrl!, config.baseUrl).href, { timeout });
+      reviewedLog(collector, index, check, "passed", check.countDelta ? { before, observed } : check.amountEquals || check.countEquals ? { observed } : {});
+    } catch (error) {
+      if (page.isClosed() || !(error instanceof Error && "matcherResult" in error)) throw new Error(`Cannot evaluate reviewed ${label}`, { cause: error });
+      const partial = now() >= deadline || remaining <= 5_000;
+      reviewedLog(collector, index, check, partial ? "partial" : "failed", check.countDelta ? { before, observed } : check.amountEquals || check.countEquals ? { observed } : {});
+      if (partial) return { outcome: "partial", terminationReason: "duration_limit" };
+      collector.addFailure("UI-009", `Reviewed ${label} did not match`);
+      return { outcome: "failed", terminationReason: "obligations_unmet" };
+    }
+  }
+  if (now() >= deadline) return { outcome: "partial", terminationReason: "duration_limit" };
+  return actionId === undefined && collector.failures.length ? { outcome: "failed", terminationReason: "machine_failure" } : { outcome: "passed", terminationReason: "completed" };
+}
+
 function attachPageRules(page: Page, collector: ArtifactCollector, config: LakdaConfig): void {
   page.on("pageerror", error => collector.addFailure("UI-001", error.message));
   page.on("crash", () => collector.addFailure("UI-002", "page crash"));
@@ -175,6 +243,7 @@ async function executePlan(config: LakdaConfig, plan: ActionPlan, collector: Art
   let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
   let context: BrowserContext | undefined;
   let page: Page | undefined;
+  let platformRecording: PlatformRecording | undefined;
   let harTempDir: string | undefined;
   let harTempPath: string | undefined;
   let final: ExecutionResult = { outcome: "error", terminationReason: "executor_error" };
@@ -189,6 +258,10 @@ async function executePlan(config: LakdaConfig, plan: ActionPlan, collector: Art
     context = await browser.newContext({ storageState: existsSync(storageState) ? storageState : undefined, recordVideo: videoRecordingOptions(config.artifacts.video, collector.paths.runDir), recordHar: harTempPath ? { path: harTempPath, content: "omit" } : undefined });
     await context.tracing.start({ screenshots: true, snapshots: true, sources: false });
     page = await context.newPage();
+    if (runtime.platformRecording) {
+      try { platformRecording = await PlatformRecording.start(page, runtime.platformRecording, collector.paths.runDir, config.artifacts.maxRunBytes, collector.metadata.runId, collector.metadata.attempt); }
+      catch { collector.markPlatformRecordingFailure(); collector.addFailure("UI-008", "platform recording start failed"); return finish({ outcome: "error", terminationReason: "artifact_failure" }); }
+    }
     collector.markCaptureAvailable();
     attachRules(page, context, collector, config);
     if (config.persona !== "guest") {
@@ -216,6 +289,29 @@ async function executePlan(config: LakdaConfig, plan: ActionPlan, collector: Art
       assertSafeAction(action, config);
       if (now() >= deadline) return finish({ outcome: "partial", terminationReason: "duration_limit" });
       if (runtime.actionBudget && !runtime.actionBudget.tryConsume()) return finish({ outcome: "partial", terminationReason: "rate_limit" });
+      const baselines = new Map<number, number>();
+      for (const [checkIndex, check] of config.obligations.entries()) {
+        if (!config.reviewedE2E || check.afterActionId !== action.id || !check.countDelta) continue;
+        const remaining = deadline - now();
+        if (remaining <= 0) {
+          reviewedLog(collector, checkIndex, check, "partial", { before: null, observed: null });
+          return finish({ outcome: "partial", terminationReason: "duration_limit" });
+        }
+        let baseline: number | null = null;
+        try {
+          const { expect } = await import("playwright/test");
+          await expect.poll(async () => { baseline = await countItems(page!, check.countDelta!); return baseline !== null; }, { timeout: Math.min(5_000, remaining) }).toBe(true);
+        } catch (error) {
+          if (page.isClosed() || !(error instanceof Error && "matcherResult" in error)) throw new Error("Cannot evaluate reviewed baseline", { cause: error });
+          const partial = now() >= deadline || remaining <= 5_000;
+          reviewedLog(collector, checkIndex, check, partial ? "partial" : "failed", { before: null, observed: null });
+          if (partial) return finish({ outcome: "partial", terminationReason: "duration_limit" });
+          collector.addFailure("UI-009", `Reviewed obligation ${checkIndex + 1} baseline unavailable`);
+          return finish({ outcome: "failed", terminationReason: "obligations_unmet" });
+        }
+        baselines.set(checkIndex, baseline!);
+      }
+      const recordingVisibleBefore = !platformRecording || await page.evaluate(() => document.visibilityState === "visible").catch(() => false);
       const actionStartedAt = new Date().toISOString();
       const actionStartedClock = performance.now();
       let actionStatus: "completed" | "failed" = "completed";
@@ -224,10 +320,31 @@ async function executePlan(config: LakdaConfig, plan: ActionPlan, collector: Art
         await verifyPersona(page, config, collector);
       } catch (error) {
         actionStatus = "failed";
+        if (config.reviewedE2E) {
+          if (now() >= deadline) return finish({ outcome: "partial", terminationReason: "duration_limit" });
+          const navigation = action.kind === "navigate" || action.kind === "goto";
+          const networkError = navigation && error instanceof Error && /^page\.goto: (net::ERR_[A-Z_]+)/.exec(error.message);
+          const navigationTimeout = navigation && error instanceof Error && (error.name === "TimeoutError" || error.message === "action timeout");
+          if (networkError || navigationTimeout || page.isClosed()) {
+            const reason = networkError ? networkError[1] : navigationTimeout ? "navigation timed out" : "browser page closed";
+            collector.addFailure("UI-008", `Cannot complete reviewed action: ${reason}`);
+            return finish({ outcome: "error", terminationReason: "executor_error" });
+          }
+          collector.addFailure("UI-006", `Reviewed action failed: ${action.id}`);
+          return finish({ outcome: "failed", terminationReason: "machine_failure" });
+        }
         collector.addFailure("UI-006", error instanceof Error ? error.message : "action timeout");
         break;
       } finally {
+        if (platformRecording) {
+          const recordingVisibleAfter = !page.isClosed() && await page.evaluate(() => document.visibilityState === "visible").catch(() => false);
+          platformRecording.recordAction(index + 1, action.id, performance.timeOrigin + actionStartedClock, recordingVisibleBefore && recordingVisibleAfter);
+        }
         collector.recordActionExecution(action, actionStartedAt, new Date().toISOString(), Math.max(0, Math.round((performance.now() - actionStartedClock) * 1000) / 1000), actionStatus);
+      }
+      if (config.reviewedE2E && config.obligations.some(check => check.afterActionId === action.id)) {
+        const checked = await evaluateReviewedChecks(page, config, collector, deadline, now, action.id, baselines);
+        if (checked.outcome !== "passed") return finish(checked);
       }
       if (config.artifacts.domSnapshots) {
         try { await writeDomSnapshot(page, collector, config, ++snapshotIndex, action.id); collector.recordDomSnapshot(); }
@@ -237,6 +354,10 @@ async function executePlan(config: LakdaConfig, plan: ActionPlan, collector: Art
       index += 1;
     }
     if (forcedOutcome) return finish({ outcome: forcedOutcome, terminationReason: forcedOutcome === "passed" ? "completed" : "machine_failure" });
+    if (config.reviewedE2E) {
+      if (index < plan.actions.length) return finish({ outcome: "partial", terminationReason: "max_actions" });
+      return finish(await evaluateReviewedChecks(page, config, collector, deadline, now));
+    }
     if (selector && index >= config.maxActions && config.obligations.length > 0 && !await obligationsMet(page, config)) return finish({ outcome: "partial", terminationReason: "max_actions" });
     if (!await obligationsMet(page, config)) return finish({ outcome: "partial", terminationReason: "obligations_unmet" });
     if (collector.failures.length) return finish({ outcome: "failed", terminationReason: "machine_failure" });
@@ -250,6 +371,14 @@ async function executePlan(config: LakdaConfig, plan: ActionPlan, collector: Art
   } finally {
     let stopped = true;
     if (context) {
+      if (platformRecording) {
+        try { await platformRecording.finish(); collector.markPlatformVideo(); }
+        catch (error) {
+          collector.markPlatformRecordingFailure();
+          const safeReasons = ["recording page alignment unavailable", "recording interval invalid", "recording measurement invalid", "recording final frame unavailable", "recording action alignment unavailable", "recording frames unavailable", "recording frame timestamp missing", "recording frame timestamp reversed", "recording frame write failed", "recording limit exceeded", "recording viewport unavailable", "recording page unavailable"];
+          collector.addFailure("UI-008", error instanceof Error && safeReasons.includes(error.message) ? error.message : "platform recording failed");
+        }
+      }
       const nonPass = final.outcome !== "passed" || collector.failures.length > 0;
       if (nonPass && page) {
         try { await captureFailureScreenshot(context, page, collector.paths.screenshot); }
@@ -279,8 +408,9 @@ export async function runLakda(config: LakdaConfig, replayInput?: string, runtim
   const actionBudget = runtime.actionBudget ?? new ActionBudget(config.safety.maxActionsPerMinute, runtime.clock);
   const resolvedRuntime = { ...runtime, actionBudget };
   const collector = await ArtifactCollector.create(config, config.mode, resolvedRuntime);
-  if (replayInput && config.mode === "regression-replay") {
-    collector.metadata.replayInputSha256 = sha256(await readFile(replayInput));
+  const replayBytes = replayInput && config.mode === "regression-replay" ? await readFile(replayInput) : undefined;
+  if (replayBytes) {
+    collector.metadata.replayInputSha256 = sha256(replayBytes);
     if (runtime.replayEvidenceMode === "real") collector.metadata.executionMode = "real";
   }
   let plan: ActionPlan = { schemaVersion: "lakda/action-plan/v1", mode: config.mode === "adaptive-explore" ? "smoke" : config.mode, seed: config.seed, baseUrl: config.baseUrl ?? "", actions: [] };
@@ -288,19 +418,30 @@ export async function runLakda(config: LakdaConfig, replayInput?: string, runtim
   let execution!: ExecutionResult;
   let binaryHandoff: PreparedBinaryAttestationRun | undefined;
   try {
+    if (config.reviewedE2E && (!replayInput || config.mode !== "regression-replay")) throw new Error("reviewedE2E requires a deterministic replay input");
+    if (resolvedRuntime.platformRecording) {
+      if (!config.reviewedE2E || config.mode !== "regression-replay") throw new Error("platform recording requires reviewed replay");
+      validatePlatformRecording(resolvedRuntime.platformRecording, replayBytes);
+    }
     if (resolvedRuntime.binaryAttestation) {
       binaryHandoff = await prepareBinaryAttestationRun(resolvedRuntime.binaryAttestation, collector.paths.runDir, collector.metadata.runId,
         resolvedRuntime.attestationTrustStorePath, resolvedRuntime.artifactAttestorKeyIds, resolvedRuntime.requireBinaryAttestation);
       collector.metadata.artifactPolicy.binaryAttestationBinding = { ...binaryHandoff.binding };
     }
     if (replayInput) {
-      const replay = await readJson(replayInput);
+      const replay: unknown = replayBytes ? JSON.parse(replayBytes.toString("utf8")) : await readJson(replayInput);
       if (isAdaptiveReplayTrace(replay)) {
         if (config.mode !== "adaptive-explore") throw new Error("adaptive replayにはmode=adaptive-exploreの設定が必要です");
         execution = !actionBudget.canConsume() ? { outcome: "partial", terminationReason: "rate_limit" } : await runAdaptiveExplore(config, collector, resolvedRuntime, replay, resolvedRuntime.adaptiveReplayPrefixActions);
       } else {
         plan = validateActionPlan(replay, config);
         plan.mode = "regression-replay";
+        if (config.reviewedE2E) {
+          for (const check of config.obligations) {
+            if (check.afterActionId && plan.actions.filter(action => action.id === check.afterActionId).length !== 1) throw new Error("Reviewed action reference must identify exactly one action");
+          }
+        }
+        if (config.reviewedE2E) collector.metadata.reviewedObligationsSha256 = sha256(canonicalJson(config.obligations));
         execution = !actionBudget.canConsume() ? { outcome: "partial", terminationReason: "rate_limit" } : await executePlan(config, plan, collector, resolvedRuntime);
       }
     } else if (!actionBudget.canConsume()) {
@@ -343,6 +484,13 @@ export async function runLakda(config: LakdaConfig, replayInput?: string, runtim
     execution = { outcome: "error", terminationReason: "executor_error" };
   }
 
+  if (resolvedRuntime.platformRecording) {
+    const evaluated = ["completed", "machine_failure", "obligations_unmet"].includes(execution.terminationReason);
+    collector.metadata.platformRecording = { machineResult: evaluated
+      ? { status: "evaluated", outcome: execution.outcome, terminationReason: execution.terminationReason }
+      : { status: "not_evaluated" } };
+  }
+  if (collector.platformRecordingFailure) execution = { outcome: "error", terminationReason: "artifact_failure" };
   if (execution.outcome !== "error" && collector.artifactFailure) execution = { outcome: "error", terminationReason: "artifact_failure" };
   if (execution.outcome !== "error" && collector.executorFailure) execution = { outcome: "error", terminationReason: "executor_error" };
   let handoffSafe = !(resolvedRuntime.binaryAttestation && collector.captureState === "active");

@@ -1,0 +1,20 @@
+{
+  "productName": "配送のご案内（サンプル）",
+  "baseUrl": "http://127.0.0.1:18943/",
+  "store": "../../.lakda/platform-demo",
+  "target": {
+    "directory": "site",
+    "indexSha256": "0b6f34e66c4b2e60053ad72c57a6cdfb1252e6ecc5626954cdafb4caefe3e7b7"
+  },
+  "suites": [
+    {
+      "id": "shipping",
+      "coverageMap": "shipping-map.json",
+      "name": "配送案内の受入",
+      "checkout": "../..",
+      "scenarios": "examples/e2e-platform/exports",
+      "featureSpec": "feature.json",
+      "manualCaseSet": "cases.json"
+    }
+  ]
+}
