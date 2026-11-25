@@ -86,7 +86,9 @@ export function surfaceReport(catalog: Catalog, tests: TestMeasurement[] = []) {
   const currentScope = scope(catalog);
   const project = (kind: Observation["kind"], item: { id: string; name: string; channel: string; location: string; frequency: number; screen?: string; api?: string }, itemDigest: string): SurfaceRow => {
     const evidence: Evidence[] = [];
-    let measured = tests.length > 0;
+    // DOM state snapshots establish screen reach, not request-time attribution.
+    // Unsupported correlation must never be presented as an observed absence.
+    let measured = tests.length > 0 && !(kind === "relations" && catalog.screens.find(screen => screen.id === item.screen)?.state);
     for (const test of tests) {
       const m = test.measurement;
       const same = m && m.revision === catalog.revision && m.scope[kind].some(p => p.id === item.id && p.digest === itemDigest);

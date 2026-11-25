@@ -94,7 +94,7 @@ test("existing Playwright context records hash routes and same-URL DOM states wi
     const index = surfaceRunIndex([record]), tests = await readSurfaceIndex(readCatalog(raw), index, join(out, "runs")), report = surfaceReport(readCatalog(raw), tests);
     expect(report.screens.every(row => row.states.all === "observed")).toBe(true);
     expect(report.relations.find(row => row.id === "hash-detail:lookup")!.states.real).toBe("observed");
-    expect(report.relations.find(row => row.id === "state-a:lookup")!.states.all).toBe("not_observed");
+    expect(report.relations.find(row => row.id === "state-a:lookup")!.states.all).toBe("unmeasured");
     expect(await readdir(record.runDirectory)).not.toContain("action-sequence.json");
     await save(join(out, "index.json"), index);
     const output = await exec(process.execPath, [resolve("dist/cli.js"), "coverage", "surfaces", "--config", join(out, "catalog.json"), "--input", join(out, "index.json"), "--runs-dir", join(out, "runs"), "--format", "html"]);

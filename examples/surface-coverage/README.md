@@ -43,6 +43,7 @@ index は同じ回の `lakda/e2e-case-index/v1`。`--runs-dir` は index の各 
 `hashRoute` と `ready` は任意です。API側のpathにはfragmentを指定しません。同じURL内で差し替わる画面は、各画面に `"state": { "testId": "detail-screen" }` のような表示要素を登録します。複数が同時に表示されたときは曖昧として到達を付けません。DOM状態の到達は分類不能（unknown）で、DOM状態だけからAPIとの関係を推測しません。hash routeは値を保存せず、登録したtemplateのIDだけを記録します。
 
 state/readyのtestIdは `data-testid` 属性の値です。画面状態の取得はブラウザー内で行い、初期化中の短い遷移も上限付きの一時バッファで保持します。DOM本文や非公開状態のselector値は観測ファイルへ保存しません。バッファ上限を超えた場合はincompleteとして扱います。
+DOM状態とAPIの対応を計測できない関係は「未計測」です。画面とAPIの両方に到達していても、関係を推測して「到達」や「観測なし」へ変更しません。
 
 readyが期限内に満たされなければ観測はincompleteになり、呼ばれなかったAPIは未計測になります。ready未指定時の「観測なし」は、実行期間内で観測しなかったという意味です。後で始まる通信の不存在を示しません。準備完了条件はテストの合否を変更するoracleではありません。
 
