@@ -12,5 +12,6 @@
 - [x] AC-S10: npm run platform の同じ実行回の画面、CLI JSON/HTML、既存テスト、package を検証する。
 - [x] AC-S11: Service Worker を有効のまま、Worker 内完結と upstream fetch を検証する。同一 API の二重計上と Worker の実通信からの親画面紐付けを防ぐ。
 - [x] AC-S12: キャッシュが保持する serverAddr を実通信と誤認しない。CDP の非キャッシュ記録が一意に照合できない場合も unknown。
+- [x] AC-S13: CDP request event と response timing の基準時刻の差があっても、同じ実通信を一意に照合する。応答通知の遅延、cache、Worker の分類を維持する。
 
 実結果は [ローカル受入記録](../../acceptance/AC-20261125-runtime-surface-coverage.md)。外部製品の受入や QEG verdict ではない。
