@@ -1,5 +1,6 @@
 import type { BrowserContext, CDPSession, Frame, Page, Request, Response } from "playwright";
-import { check, digest, lane, match, relationId, scope, type Catalog, type Lane } from "./catalog.js";
+import { check, digest, lane, match, matchStaticScreen, relationId, scope, type Catalog, type Lane } from "./catalog.js";
+import { ScreenObservation } from "./screens.js";
 
 export interface SurfaceRuntime { catalog: Catalog; testId: string; testRevision: string; lane: Lane }
 export interface Observation { kind: "screens" | "apis" | "relations"; id: string; lane: Lane }
@@ -25,8 +26,10 @@ export class SurfaceObserver {
   private attaching: Promise<void>[] = [];
   private complete = true;
   private stopped = false;
+  private screens: ScreenObservation;
   constructor(private context: BrowserContext, private runtime: SurfaceRuntime) {
     validateSurfaceRuntime(runtime);
+    this.screens = new ScreenObservation(context, runtime.catalog, screen => this.add("screens", screen.id, runtime.lane === "mock" ? "mock" : "unknown"), () => { this.complete = false; });
     context.on("page", this.page);
     for (const page of context.pages()) this.page(page);
     context.on("request", this.request);
@@ -40,7 +43,8 @@ export class SurfaceObserver {
   }
   private navigation = (frame: Frame) => {
     if (frame !== frame.page().mainFrame()) return;
-    const screen = match(this.runtime.catalog.screens, frame.url());
+    void this.screens.capture(frame.page()).catch(() => { this.complete = false; });
+    const screen = matchStaticScreen(this.runtime.catalog, frame.url());
     if (screen) this.add("screens", screen.id, this.runtime.lane === "mock" ? "mock" : "unknown");
   };
   private page = (page: Page) => {
@@ -70,7 +74,11 @@ export class SurfaceObserver {
     })().catch(() => { /* Without cache provenance the classification remains unknown. */ });
     this.attaching.push(attaching);
   };
-  async ready() { await Promise.all(this.attaching); }
+  async ready() { await Promise.all([...this.attaching, this.screens.ready()]); }
+  async checkpoint(page?: Page, maximumMs = 30_000) {
+    await this.screens.checkpoint(page, maximumMs);
+    await Promise.all([...this.pending]);
+  }
   private async networkProof(request: Request): Promise<boolean> {
     // Worker upstream fetches lack an independently correlated page CDP record.
     // serverAddr alone can describe a cached response, so they must stay unknown.
@@ -96,7 +104,7 @@ export class SurfaceObserver {
     const api = match(this.runtime.catalog.apis.filter(p => p.method === request.method()), request.url());
     if (!api) return;
     let screen: string | undefined;
-    try { const frame = request.frame(); if (!request.isNavigationRequest() && frame === frame.page().mainFrame()) screen = match(this.runtime.catalog.screens, frame.url())?.id; } catch { /* worker has no frame */ }
+    try { const frame = request.frame(); if (!request.isNavigationRequest() && frame === frame.page().mainFrame()) screen = matchStaticScreen(this.runtime.catalog, frame.url())?.id; } catch { /* worker has no frame */ }
     if (this.requests.size >= 20_000) { this.complete = false; return; }
     this.requests.set(request, { api: api.id, screen });
   };
@@ -114,7 +122,7 @@ export class SurfaceObserver {
       const request = response.request();
       let screen: string | undefined;
       if (request.isNavigationRequest()) {
-        try { if (request.frame() === request.frame().page().mainFrame()) screen = match(this.runtime.catalog.screens, response.url())?.id; }
+        try { if (request.frame() === request.frame().page().mainFrame()) screen = matchStaticScreen(this.runtime.catalog, response.url())?.id; }
         catch { /* detached frame */ }
       }
       if (!this.requests.has(request) && !screen) return;
@@ -128,6 +136,7 @@ export class SurfaceObserver {
   };
   private failed = (request: Request) => this.record(request, "unknown");
   async finish(runId: string, attempt: number, stopped: boolean): Promise<Measurement> {
+    await this.screens.finish();
     this.context.off("page", this.page).off("request", this.request).off("response", this.response).off("requestfailed", this.failed);
     for (const page of this.context.pages()) page.off("framenavigated", this.navigation);
     await Promise.all([...this.pending]);

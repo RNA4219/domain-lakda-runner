@@ -1,4 +1,6 @@
 export const LAKDA_VERSION = "0.5.0-rc.2";
+export { startSurfaceCoverage, surfaceRunIndex } from "./surface-coverage/playwright.js";
+export type { SurfaceCoverageOptions, SurfaceCoverageSession, SurfaceRunRecord, SurfaceTestOutcome } from "./surface-coverage/playwright.js";
 export type { ArtifactVideoMode, LlmDecision, RunBatchResult, RunMode, RunOptions, RunOutcome, RunResult, TerminationReason, WorkerRunEntry } from "./core/types.js";
 export type { CountChange, CoverageValueComparison, RunArtifactIntegrity, RunComparison, RunCoverageSummary, RunDetail, RunGraphSummary, RunIndex, RunSummary, SetComparison, TransitionComparison, ValueComparison } from "./runs/types.js";
 export { ADAPTIVE_SCHEMA_VERSION, assertAdaptiveContract, assertCandidateDiscoveryResult, assertNoSensitivePublicData } from "./adaptive/contracts.js";

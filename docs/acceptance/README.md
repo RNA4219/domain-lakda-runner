@@ -5,6 +5,7 @@ last_updated: 2026-11-25
 ---
 
 画面・API の実行カバレッジ: [2026-11-25 ローカル受入](AC-20261125-runtime-surface-coverage.md)。
+実利用フィードバック5項目の修正・追加: [受入手順と記録の入口](AC-20261125-surface-field-feedback.md)。
 
 # 受入・実環境索引
 

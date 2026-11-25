@@ -15,17 +15,23 @@ export function lane(value: unknown): Lane { check(lanes.includes(value as Lane)
 export const relationId = (s: string, a: string) => s + ":" + a;
 
 export interface Place { id: string; name: string; origin: string; path: string; frequency: number }
-export interface Screen extends Place { channel: string }
+export interface Screen extends Place {
+  channel: string; hashRoute?: string; state?: { testId: string }; ready?: { testId: string; timeoutMs: number };
+}
 export interface Api extends Place { method: string }
 export interface Catalog {
   schema: "lakda/surface-catalog/v1"; product: string; version: string; environment: string; revision: string;
   screens: Screen[]; apis: Api[]; relations: { screen: string; api: string }[];
 }
 const ambiguousPlaces = new WeakMap<Place, Place[]>();
-function place(raw: Record<string, unknown>): Place {
-  const origin = text(raw.origin), path = text(raw.path), url = new URL(origin);
-  check(["http:", "https:"].includes(url.protocol) && url.origin === origin && !url.username && !url.password);
+function template(value: unknown): string {
+  const path = text(value);
   check(path === "/" || /^\/(?:[A-Za-z0-9_~-]+(?:\.[A-Za-z0-9_~-]+)*|\{[A-Za-z][A-Za-z0-9_]*\})(?:\/(?:[A-Za-z0-9_~-]+(?:\.[A-Za-z0-9_~-]+)*|\{[A-Za-z][A-Za-z0-9_]*\}))*$/.test(path));
+  return path;
+}
+function place(raw: Record<string, unknown>): Place {
+  const origin = text(raw.origin), path = template(raw.path), url = new URL(origin);
+  check(["http:", "https:"].includes(url.protocol) && url.origin === origin && !url.username && !url.password);
   check(typeof raw.frequency === "number" && Number.isFinite(raw.frequency) && raw.frequency >= 0);
   return { id: id(raw.id), name: text(raw.name), origin, path, frequency: raw.frequency };
 }
@@ -35,7 +41,18 @@ export function readCatalog(value: unknown): Catalog {
     const raw = obj(value);
     keys(raw, ["schema", "product", "version", "environment", "revision", "screens", "apis", "relations", "publication"]);
     check(raw.schema === "lakda/surface-catalog/v1");
-    const screens = unique(array(raw.screens).map(v => { const r = obj(v); keys(r, ["id", "name", "origin", "path", "frequency", "channel"]); return { ...place(r), channel: text(r.channel) }; }), r => r.id);
+    const screens: Screen[] = unique(array(raw.screens).map(v => {
+      const r = obj(v); keys(r, ["id", "name", "origin", "path", "frequency", "channel", "hashRoute", "state", "ready"]);
+      const screen: Screen = { ...place(r), channel: text(r.channel) };
+      if (r.hashRoute !== undefined) screen.hashRoute = template(r.hashRoute);
+      if (r.state !== undefined) { const state = obj(r.state); keys(state, ["testId"]); screen.state = { testId: text(state.testId) }; }
+      if (r.ready !== undefined) {
+        const ready = obj(r.ready); keys(ready, ["testId", "timeoutMs"]); const timeoutMs = ready.timeoutMs ?? 5000;
+        check(Number.isSafeInteger(timeoutMs) && Number(timeoutMs) >= 1 && Number(timeoutMs) <= 30_000);
+        screen.ready = { testId: text(ready.testId), timeoutMs: Number(timeoutMs) };
+      }
+      return screen;
+    }), r => r.id);
     const apis = unique(array(raw.apis).map(v => { const r = obj(v); keys(r, ["id", "name", "origin", "path", "frequency", "method"]); const method = text(r.method); check(/^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)$/.test(method)); return { ...place(r), method }; }), r => r.id);
     const screenIds = new Set(screens.map(s => s.id)), apiIds = new Set(apis.map(a => a.id));
     const relations = unique(array(raw.relations).map(v => { const r = obj(v); keys(r, ["screen", "api"]); const screen = id(r.screen), api = id(r.api); check(screenIds.has(screen) && apiIds.has(api)); return { screen, api }; }), r => relationId(r.screen, r.api));
@@ -47,7 +64,9 @@ export function readCatalog(value: unknown): Catalog {
     const unambiguous = <T extends Place>(items: T[], allowed: Set<string>) => items.filter(p => allowed.has(p.id)).map(p => {
       const visible = { ...p };
       ambiguousPlaces.set(visible, items.filter(other => other.id !== p.id && other.origin === p.origin &&
-        (!("method" in p) || (other as Place & { method?: string }).method === p.method) && overlaps(other.path, p.path)));
+        (!("method" in p) || (other as Place & { method?: string }).method === p.method) && overlaps(other.path, p.path) &&
+        (!("hashRoute" in p) || !("hashRoute" in other) || overlaps(String(p.hashRoute), String(other.hashRoute))) &&
+        !("state" in p && "state" in other && allowed.has(other.id))));
       return visible;
     });
     const visibleScreens = unambiguous(screens, allowedScreens), visibleApis = unambiguous(apis, allowedApis);
@@ -60,21 +79,34 @@ function overlaps(a: string, b: string): boolean {
   const left = a.split("/"), right = b.split("/");
   return left.length === right.length && left.every((s, i) => s === right[i] || s.startsWith("{") || right[i].startsWith("{"));
 }
-export function match<T extends Place>(items: T[], rawUrl: string): T | undefined {
+export function matching<T extends Place>(items: T[], rawUrl: string): T[] {
   try {
     const url = new URL(rawUrl);
-    const matches = (p: Place) => {
-      const template = p.path.split("/"), actual = url.pathname.split("/");
-      return p.origin === url.origin && template.length === actual.length &&
-        template.every((part, i) => part.startsWith("{") ? actual[i].length > 0 : part === actual[i]);
+    const matchesPath = (path: string, actualPath: string) => {
+      const template = path.split("/"), actual = actualPath.split("/");
+      return template.length === actual.length && template.every((part, i) => part.startsWith("{") ? actual[i].length > 0 : part === actual[i]);
     };
-    const found = items.filter(p => matches(p) && !(ambiguousPlaces.get(p) ?? []).some(matches));
-    return found.length === 1 ? found[0] : undefined;
-  } catch { return undefined; }
+    const matches = (p: Place) => {
+      return p.origin === url.origin && matchesPath(p.path, url.pathname) &&
+        (!("hashRoute" in p) || url.hash.startsWith("#/") && matchesPath(String(p.hashRoute), url.hash.slice(1).split(/[?#]/, 1)[0]));
+    };
+    return items.filter(p => matches(p) && !(ambiguousPlaces.get(p) ?? []).some(matches));
+  } catch { return []; }
+}
+export function match<T extends Place>(items: T[], rawUrl: string): T | undefined {
+  const found = matching(items, rawUrl);
+  return found.length === 1 ? found[0] : undefined;
+}
+export function matchStaticScreen(catalog: Catalog, rawUrl: string): Screen | undefined {
+  const found = matching(catalog.screens, rawUrl);
+  return found.length === 1 && !found[0].state ? found[0] : undefined;
 }
 export function definition(p: Place | { screen: string; api: string }): string {
   // Frequency and human labels can change without falsifying execution identity.
-  return "screen" in p ? digest([p.screen, p.api]) : digest([p.id, p.origin, p.path, "method" in p ? p.method : "", "channel" in p ? p.channel : ""]);
+  if ("screen" in p) return digest([p.screen, p.api]);
+  const base: unknown[] = [p.id, p.origin, p.path, "method" in p ? p.method : "", "channel" in p ? p.channel : ""];
+  if ("hashRoute" in p || "state" in p || "ready" in p) base.push({ hashRoute: "hashRoute" in p ? p.hashRoute : null, state: "state" in p ? p.state : null, ready: "ready" in p ? p.ready : null });
+  return digest(base);
 }
 export const scope = (c: Catalog) => ({ screens: c.screens.map(p => ({ id: p.id, digest: definition(p) })), apis: c.apis.map(p => ({ id: p.id, digest: definition(p) })),
   relations: c.relations.map(p => ({ id: relationId(p.screen, p.api), digest: digest([definition(p), definition(c.screens.find(s => s.id === p.screen)!), definition(c.apis.find(a => a.id === p.api)!)]) })) });
