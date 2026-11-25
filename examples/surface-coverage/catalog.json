@@ -1,0 +1,24 @@
+{
+  "schema": "lakda/surface-catalog/v1",
+  "product": "example-product",
+  "version": "REPLACE_WITH_PRODUCT_COMMIT_SHA",
+  "environment": "local",
+  "revision": "inventory-1",
+  "screens": [
+    { "id": "customer", "name": "Customer detail", "channel": "customer-web", "origin": "http://127.0.0.1:18943", "path": "/customers/{id}", "frequency": 700 },
+    { "id": "admin", "name": "Administration", "channel": "admin-web", "origin": "http://127.0.0.1:18943", "path": "/admin", "frequency": 20 },
+    { "id": "mobile", "name": "Mobile home", "channel": "mobile", "origin": "http://127.0.0.1:18943", "path": "/mobile", "frequency": 12000 },
+    { "id": "legacy", "name": "Legacy home", "channel": "legacy", "origin": "http://127.0.0.1:18943", "path": "/legacy", "frequency": 8000 }
+  ],
+  "apis": [
+    { "id": "lookup", "name": "Read customer", "method": "GET", "origin": "http://127.0.0.1:18943", "path": "/api/customers/{id}", "frequency": 20000 },
+    { "id": "update", "name": "Update customer", "method": "PATCH", "origin": "http://127.0.0.1:18943", "path": "/api/customers/{id}", "frequency": 1000 }
+  ],
+  "relations": [
+    { "screen": "customer", "api": "lookup" },
+    { "screen": "admin", "api": "update" },
+    { "screen": "mobile", "api": "lookup" },
+    { "screen": "legacy", "api": "lookup" }
+  ],
+  "publication": { "screens": ["customer", "mobile", "legacy"], "apis": ["lookup"] }
+}

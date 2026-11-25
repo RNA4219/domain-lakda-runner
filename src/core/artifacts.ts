@@ -17,6 +17,7 @@ export type RunMetadata = {
   reviewedObligationsSha256?: string;
   /** Explicit operator assertion; QEG still requires independent acceptance. */
   executionMode?: "real";
+  surfaceCoverage?: { schema: "lakda/surface-observations/v1" };
   runId: string;
   attempt: number;
   startedAt: string;

@@ -9,13 +9,14 @@ const help = `使い方
   node scripts/e2e-platform-replay.mjs --scenario-dir <dir> --case <id> --base-url <url>
     --plan <plan.json> --output-dir <dir> --ffmpeg <絶対パス> --ffprobe <絶対パス>
     [--observations <file>] [--input-profiles <json-file>] [--execution-mode real]
+    [--surface-catalog <file>] [--surface-lane mock|real|unknown]
 
 録画計画と承認済みのエクスポートを照合し、指定ケースだけを Chromium で実行します。
 実行前に Lakda のルートで npm run build を実行してください。
 観察対象を指定した計画は、作成時と同じ観察ファイルを使います。
 `;
 const required = ["scenario-dir", "case", "base-url", "plan", "output-dir", "ffmpeg", "ffprobe"];
-const optional = ["observations", "input-profiles", "execution-mode"];
+const optional = ["observations", "input-profiles", "execution-mode", "surface-catalog", "surface-lane"];
 
 class PreflightError extends Error {}
 
@@ -26,6 +27,7 @@ function argumentsForReplay() {
   if (new Set(names).size !== names.length) throw new Error();
   if (values.help === true && names.length === 1) return null;
   if (values.help || required.some(key => !values[key]) || names.some(key => !values[key]) ||
+      (values["surface-lane"] && !values["surface-catalog"]) ||
       !isAbsolute(values.ffmpeg) || !isAbsolute(values.ffprobe) ||
       (values["execution-mode"] !== undefined && values["execution-mode"] !== "real")) throw new Error();
   return values;
@@ -89,13 +91,17 @@ async function replay() {
   }
 
   const { runLakda } = await import("../dist/core/runner.js");
+  const { loadCatalog, lane } = await import("../dist/surface-coverage/catalog.js");
+  const surfaceCoverage = args["surface-catalog"] ? { catalog: await loadCatalog(args["surface-catalog"]), testId: recording.caseId,
+    testRevision: recording.caseRevision, lane: lane(args["surface-lane"] ?? "unknown") } : undefined;
   const { createPlatformMediaProcessor } = await import("./e2e-platform-media.mjs");
   const processor = await createPlatformMediaProcessor({ ffmpeg: args.ffmpeg, ffprobe: args.ffprobe });
   const result = await runLakda(config, actionPath, {
+    surfaceCoverage,
     platformRecording: { plan: { ...recording, policyVersion: "1" }, configBytes, process: processor },
     ...(args["execution-mode"] === "real" ? { replayEvidenceMode: "real" } : {}),
   });
-  process.stdout.write(JSON.stringify(result) + "\n");
+  process.stdout.write(JSON.stringify(surfaceCoverage ? { runId: result.runId, attempt: result.attempt, outcome: result.outcome, exitCode: result.exitCode } : result) + "\n");
   return result.exitCode;
 }
 

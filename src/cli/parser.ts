@@ -15,6 +15,7 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
     tokens: true,
     strict: true,
     options: {
+      "surface-catalog": { type: "string" }, "surface-lane": { type: "string" }, "test-id": { type: "string" }, "test-revision": { type: "string" },
       "base-url": { type: "string" }, mode: { type: "string" }, seed: { type: "string" }, headed: { type: "boolean" },
       "output-dir": { type: "string" }, persona: { type: "string" }, config: { type: "string" }, input: { type: "string" },
       "run-dir": { type: "string" }, out: { type: "string" }, browser: { type: "string" }, help: { type: "boolean" }, version: { type: "boolean" },
@@ -29,7 +30,7 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
     },
   });
   const automaticOptions = new Set(["report", "report-dir", "report-profile", "report-config", "report-language"]);
-  if (parsed.positionals.join(" ") === "coverage map") {
+  if (["coverage map", "coverage surfaces"].includes(parsed.positionals.join(" "))) {
     const allowed = new Set(["config","input","runs-dir","format","out","help","version"]);
     const seen = new Set<string>();
     for (const token of parsed.tokens) {

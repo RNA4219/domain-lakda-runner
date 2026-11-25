@@ -9,6 +9,7 @@ requirements: ../../../REQUIREMENTS-E2E-PLATFORM.md
 # E2E Platform Specifications
 
 Each SPEC has exactly one checklist with the same numeric identifier.
+The [runtime screen/API specification](SPEC-10-RUNTIME-SURFACE-COVERAGE.md) has its [acceptance checklist](CHECKLIST-10-RUNTIME-SURFACE-COVERAGE.md) and [usage example](../../../examples/surface-coverage/README.md).
 Implementation and evidence must be reviewed separately.
 Unknown and pending checks remain unchecked.
 
