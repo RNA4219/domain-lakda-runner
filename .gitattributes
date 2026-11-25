@@ -1,4 +1,6 @@
 vendor/hate/v1/artifact-manifest.schema.json text eol=lf
+tests/fixtures/reviewed-v02/binding.json text eol=lf
+examples/e2e-platform/** text eol=lf
 docs/release-gate/qeg-*/** -text
 docs/release-gate/history/release-p6-rc.yml.txt -text
 tools/airtest-poco-bridge/locks/** text eol=lf

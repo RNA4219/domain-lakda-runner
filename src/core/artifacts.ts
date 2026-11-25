@@ -13,6 +13,8 @@ export type RunMetadata = {
   schemaVersion: "lakda/run-metadata/v1";
   /** Exact replay input bytes, for external evidence reconciliation. */
   replayInputSha256?: string;
+  /** SHA-256 of the ordered, canonical JSON obligations evaluated by reviewed replay. */
+  reviewedObligationsSha256?: string;
   /** Explicit operator assertion; QEG still requires independent acceptance. */
   executionMode?: "real";
   runId: string;
@@ -30,6 +32,7 @@ export type RunMetadata = {
   outcome?: RunOutcome;
   exitCode?: number;
   terminationReason?: TerminationReason;
+  platformRecording?: { machineResult: { status: "evaluated"; outcome: RunOutcome; terminationReason: TerminationReason } | { status: "not_evaluated" } };
   llmStatus: LlmStatus;
   artifactPolicy: { classification: LakdaConfig["artifacts"]["classification"]; maxRunBytes: number; expectations: ArtifactExpectations; binaryAttestationRequired?: boolean; attestationTrustStorePath?: string; artifactAttestorKeyIds?: string[]; binaryAttestationBinding?: AttestationBinding };
   operatorControl?: { command: "pause" | "kill"; requestId?: string };
@@ -59,11 +62,16 @@ export class ArtifactCollector {
   readonly llmEvidence: LlmEvidence[] = [];
   private readonly actionExecutions: ActionExecutionRecord[] = [];
   artifactFailure = false;
+  platformRecordingFailure = false;
   executorFailure = false;
   findingDetected = false;
   captureState: "not-started" | "active" | "stopped" = "not-started";
 
   private constructor(paths: ArtifactCollector["paths"], metadata: RunMetadata, private readonly videoRequested: ArtifactVideoMode, private readonly harRequested: boolean) { this.paths = paths; this.metadata = metadata; }
+
+  private platformVideo = false;
+
+  markPlatformVideo(): void { this.platformVideo = true; }
 
   private captureCapabilities: Required<CaptureCapabilities> = { screenshot: false, trace: false, video: false };
 
@@ -111,6 +119,8 @@ export class ArtifactCollector {
 
   markArtifactFailure(): void { this.artifactFailure = true; }
 
+  markPlatformRecordingFailure(): void { this.platformRecordingFailure = true; this.markArtifactFailure(); }
+
   markExecutorFailure(): void { this.executorFailure = true; }
 
   markFinding(): void { this.findingDetected = true; }
@@ -138,7 +148,7 @@ export class ArtifactCollector {
     this.metadata.llmStatus = llmStatus;
     this.metadata.artifactPolicy.expectations.trace = this.captureCapabilities.trace && (outcome !== "passed" || this.findingDetected);
     this.metadata.artifactPolicy.expectations.screenshot = this.captureCapabilities.screenshot && (outcome !== "passed" || this.findingDetected);
-    this.metadata.artifactPolicy.expectations.video = this.captureCapabilities.video && (shouldRetainVideo(this.videoRequested, outcome) || (this.findingDetected && this.videoRequested !== false));
+    this.metadata.artifactPolicy.expectations.video = this.platformVideo || this.captureCapabilities.video && (shouldRetainVideo(this.videoRequested, outcome) || (this.findingDetected && this.videoRequested !== false));
     await writeJsonAtomic(this.paths.metadata, this.metadata);
     await writeCanonicalJson(this.paths.actionSequence, plan);
     if (this.metadata.mode !== "adaptive-explore") await writeCanonicalJson(join(this.paths.runDir, "action-execution.json"), { schemaVersion: "lakda/action-execution/v1", runId: this.metadata.runId, attempt: this.metadata.attempt, executions: this.actionExecutions });

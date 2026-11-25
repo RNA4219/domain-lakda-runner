@@ -1,0 +1,21 @@
+{
+  "schema": "aym.architecture/v1",
+  "name": "Lakda のローカル E2E プラットフォーム",
+  "nodes": [
+    {"id":"manual-bb","kind":"repository","name":"manual-bb-test-harness","type":"ケース設計","description":"仕様の受入条件と、承認した操作・期待値をケース単位で書き出します。"},
+    {"id":"lakda","kind":"repository","name":"domain-lakda-runner","type":"テスト実行","description":"登録済みのケースと製品の版を照合し、その回の結果を集計します。"},
+    {"id":"console","kind":"service","name":"ローカルコンソール","type":"実行と閲覧","description":"利用者がスイートを選んで開始し、完了した回の結果を開く画面です。"},
+    {"id":"browser","kind":"service","name":"Chromium","type":"Playwright","description":"レビュー済みの操作を行い、受入条件を照合します。"},
+    {"id":"product","kind":"external","name":"テスト対象の製品","type":"ローカル配信"},
+    {"id":"store","kind":"store","name":"実行履歴","type":"ケース索引・操作ログ・録画"}
+  ],
+  "connections": [
+    {"from":"lakda","to":"manual-bb","label":"承認済みケースを取り込む","evidence":"scripts/e2e-ci-results.mjs の discover がエクスポートの manifest とケースを照合。"},
+    {"from":"console","to":"lakda","label":"テストを開始する","evidence":"scripts/local-console/execution.mjs の start が実行回を予約。"},
+    {"from":"lakda","to":"browser","label":"操作列を再生する","evidence":"scripts/e2e-platform-replay.mjs が regression-replay を実行。"},
+    {"from":"browser","to":"product","label":"画面を操作する","evidence":"scripts/e2e-local-console.mjs が登録済みの配信ファイルを baseUrl で提供。"},
+    {"from":"lakda","to":"store","label":"今回の結果を保存する","evidence":"scripts/e2e-local-results.mjs がケースの予定と今回の run を照合し索引を発行。"},
+    {"from":"console","to":"store","label":"ケースの結果を表示する","evidence":"scripts/local-console/execution.mjs の refresh が今回の索引と操作記録を表示用のページにまとめる。"}
+  ],
+  "findings": []
+}

@@ -1,0 +1,41 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>注文の確認</title>
+<button data-testid="confirm">金額を確認</button>
+<section hidden id="confirmation">
+  <span data-testid="total"></span>
+  <ul data-testid="orders"><li data-testid="order">既存注文</li></ul>
+  <button data-testid="submit">送信</button>
+  <button data-testid="finish">終了</button>
+</section>
+<aside data-testid="order">集計対象外の行</aside>
+<script>
+const button = id => document.querySelector('[data-testid="' + id + '"]');
+const list = button("orders");
+let dropAtFinish = false;
+let lateFinalCount = false;
+button("confirm").onclick = async () => {
+  const response = await fetch("/confirm", { method: "POST" });
+  const fixture = await response.json();
+  dropAtFinish = fixture.dropRow;
+  lateFinalCount = fixture.lateFinalCount;
+  button("total").textContent = fixture.amount;
+  if (fixture.missingList) list.remove();
+  document.querySelector("#confirmation").hidden = false;
+};
+button("submit").onclick = async () => {
+  const response = await fetch("/submit", { method: "POST" });
+  if ((await response.json()).addRow) list.append(list.firstElementChild.cloneNode(true));
+};
+button("finish").onclick = async () => {
+  if (dropAtFinish) list.lastElementChild.remove();
+  if (lateFinalCount) {
+    list.lastElementChild.remove();
+    list.remove();
+    setTimeout(() => document.querySelector("#confirmation").append(list), 2500);
+    setTimeout(() => list.append(list.firstElementChild.cloneNode(true)), 6800);
+  }
+  await fetch("/finish", { method: "POST" });
+  document.body.dataset.finished = "true";
+};
+</script>

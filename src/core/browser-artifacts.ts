@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { BrowserContext, Page } from "playwright";
 import type { ArtifactVideoMode, RunOutcome } from "./types.js";
 
-const screenshotMaskStyle = '[data-lakda-sensitive], input[type="password"], input[name*="token" i], input[name*="secret" i] { color: transparent !important; text-shadow: 0 0 12px #000 !important; background: #000 !important; }';
+const screenshotMaskSelector = '[data-lakda-sensitive], input[type="password"], input[name*="token" i], input[name*="secret" i]';
 
 export function videoRecordingOptions(mode: ArtifactVideoMode, runDir: string): { dir: string } | undefined {
   return mode === false ? undefined : { dir: join(runDir, "artifacts", "video") };
@@ -42,7 +42,10 @@ export async function captureFailureScreenshot(context: BrowserContext, preferre
     ? preferredPage
     : context.pages().filter(candidate => !candidate.isClosed()).at(-1);
   if (!page) throw new Error("screenshot target is unavailable");
-  try { await page.addStyleTag({ content: screenshotMaskStyle }); }
-  catch (error) { throw new Error(`screenshot masking failed: ${error instanceof Error ? error.message : "unknown"}`, { cause: error }); }
-  await page.screenshot({ path, fullPage: true });
+  try {
+    const mask = page.frames().map(frame => frame.locator(screenshotMaskSelector));
+    await page.screenshot({ path, fullPage: true, mask, maskColor: "#000000" });
+  } catch (error) {
+    throw new Error(`screenshot masking failed: ${error instanceof Error ? error.message : "unknown"}`, { cause: error });
+  }
 }

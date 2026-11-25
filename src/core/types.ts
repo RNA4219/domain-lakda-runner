@@ -36,7 +36,7 @@ export type FailureSeverity = "warning" | "failure";
 
 export type Failure = {
   failureId: string;
-  ruleId: "UI-001" | "UI-002" | "UI-003" | "UI-004" | "UI-005" | "UI-006" | "UI-007" | "UI-008";
+  ruleId: "UI-001" | "UI-002" | "UI-003" | "UI-004" | "UI-005" | "UI-006" | "UI-007" | "UI-008" | "UI-009";
   severity: FailureSeverity;
   message: string;
 };
@@ -124,7 +124,9 @@ export type LakdaConfig = {
     loginUrlPattern?: string;
     requiredLocator?: Locator;
   }>;
-  obligations: Array<{ expectedUrl?: string; visible?: Locator }>;
+  reviewedE2E?: true;
+  reviewedOracleVersion?: 2;
+  obligations: Array<{ afterActionId?: string; acceptanceRef?: string; expectedUrl?: string; visible?: Locator; textEquals?: { locator: Locator; text: string }; amountEquals?: { locator: Locator; currency: "JPY" | "USD"; format: "jpy-yen-suffix" | "usd-dollar-prefix"; minorUnits: number }; countEquals?: { locator: Locator; itemLocator: Locator; value: number }; countDelta?: { locator: Locator; itemLocator: Locator; value: number } }>;
   fixtureReset?: { url: string };
   safety: {
     allowHosts: string[];

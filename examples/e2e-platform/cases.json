@@ -1,0 +1,20 @@
+{
+  "feature_id": "SHIPPING",
+  "spec_revision": "spec-1",
+  "manual_cases": [
+    {
+      "tc_id": "TC-SHIPPING",
+      "revision": "case-1",
+      "content_hash": "shipping-faq-1",
+      "oracle_revision": "oracle-1",
+      "title": "配送の質問を開くと、お届けまでの日数が分かる",
+      "priority": "P1",
+      "primary_view": "black",
+      "steps": ["配送のご案内を開く", "配送日数の質問を開く"],
+      "expected_results": ["配送日数の目安が表示される"],
+      "oracle": {"type": "specified", "refs": ["AC-SHIPPING"]},
+      "trace_to": ["AC-SHIPPING"],
+      "status": "active"
+    }
+  ]
+}

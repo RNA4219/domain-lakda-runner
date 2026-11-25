@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>テストを実行 | Lakda</title>
+<style>
+/*RESULT_CHROME*/
+.run-page { line-height: 1.65 }
+.hero { padding: clamp(22px, 3vw, 44px) 0 24px; border-bottom: 2px solid var(--blue) }
+.scope, .meta { color: var(--muted); font-size: 14px; margin: 0 }
+.scope b { color: var(--ink); font: 600 14px Consolas, monospace }
+h1, h2, h3, .cases p { overflow-wrap: anywhere }
+h1 { color: var(--blue); font-size: clamp(32px, 4vw, 54px); line-height: 1.22; letter-spacing: -.045em; margin: 10px 0 0 }
+.layout { display: grid; grid-template-columns: minmax(196px, .65fr) minmax(0, 1.65fr); gap: clamp(25px, 4vw, 66px); padding-top: 27px }
+nav h2, .small { color: var(--muted); font-size: 14px; margin: 0 0 10px }
+.suites { border-top: 1px solid var(--line) }
+.suites a { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 13px; min-height: 48px; border-bottom: 1px solid var(--line); text-decoration: none; overflow-wrap: anywhere }
+.suites a::after { content: "›" / ""; font: 24px/1 Arial, sans-serif }
+.suites a:hover { background: var(--soft) }
+.suites a[aria-current] { color: white; background: var(--blue); box-shadow: inset 4px 0 var(--signal); font-weight: bold }
+.panel { min-width: 0 }
+.run-page:not([data-passed]) .panel { background: var(--white); border-top: 3px solid var(--blue); padding: clamp(16px,2.4vw,32px) }
+.panel h2 { font-size: clamp(23px, 2.6vw, 36px); letter-spacing: -.04em; line-height: 1.35; margin: 5px 0 22px }
+.cases { list-style: none; border-top: 2px solid var(--blue); padding: 0; margin: 0 0 22px }
+.cases li { background: var(--paper); padding: 16px 20px; border-bottom: 1px solid var(--line) }
+.cases h3 { font-size: 19px; line-height: 1.45; margin: 0 }
+.cases p { margin: 5px 0 0; text-wrap: pretty }
+.cases a, .secondary { display: inline-flex; align-items: center; min-height: 44px; color: var(--blue) }
+.secondary { margin: 4px 18px 4px 0 }
+#note:empty { display: none }
+#note { font-weight: bold }
+#finish { font-size: 18px; margin: 10px 0 0 }
+#case-details { margin: 18px 0; border-block: 1px solid var(--line) }
+#case-details summary { cursor: pointer; padding: 12px 0; font-weight: bold }
+#case-details .cases { border: 0; margin-bottom: 4px }
+.meta[data-live=true]::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--blue); margin-right: 8px }
+@media (max-width: 730px) {
+  .hero { padding: 19px 0 16px }
+  .layout { grid-template-columns: minmax(0,1fr); gap: 22px; padding-top: 18px }
+  .suites { display: flex; flex-wrap: wrap; gap: 6px; border: 0 }
+  .suites a { border: 1px solid var(--line); min-height: 44px; padding: 8px 10px; font-size: 14px }
+  .suites a::after { display: none }
+  .panel h2 { margin-bottom: 16px }
+  .cases li { padding: 13px 14px }
+  .primary-action { width: 100% }
+  .scope, .meta { font-size: 13px }
+}
+
+/* 完了した回は、受付番号と結論を同じ完了票に収める。 */
+body[data-passed] .hero, body[data-passed] .layout { max-width: 940px }
+body[data-passed] .hero{padding:0;border:0;margin:0}
+body[data-passed] .scope{display:block;margin:25px 0 16px}
+body[data-passed] .pass-slip{background:var(--blue);color:white;display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:clamp(22px,4vw,58px);align-items:center;padding:clamp(24px,4vw,60px)}
+body[data-passed] .end-mark{width:clamp(75px,10vw,150px);aspect-ratio:1;border-radius:50%;background:var(--signal);display:grid;place-items:center;grid-row:1/3}
+body[data-passed] .end-mark::after{content:"";width:42%;height:23%;border:solid var(--blue);border-width:0 0 clamp(5px,.7vw,10px) clamp(5px,.7vw,10px);transform:translateY(-20%) rotate(-45deg)}
+body[data-passed] #page-title{color:white;margin:0;line-height:1.22;font-size:clamp(28px,4vw,53px);letter-spacing:-.04em}
+body[data-passed] .round-label{display:block;font-size:16px;letter-spacing:.015em;font-weight:500;margin-bottom:9px;color:#dbe1ec}
+body[data-passed] #finish{font-size:16px;line-height:1.65;margin:10px 0 0;color:#f4f5fb}
+body[data-passed] .layout{padding:0;display:block}
+body[data-passed] .layout nav,body[data-passed] #phase,body[data-passed] #title{display:none}
+body[data-passed] .panel{max-width:none;padding:0;border:0}
+body[data-passed] #results{margin:0;padding:17px 0;border-bottom:1px solid var(--line);font-size:15px}
+body[data-passed] #case-details{border:0;margin:0}
+body[data-passed] #case-details summary{padding:16px 0;font-size:16px}
+body[data-passed] #actions{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 20px;border-top:1px solid var(--line);padding-top:6px}
+body[data-passed] .secondary{margin:0;padding:10px 0}
+@media(max-width:730px){
+ body[data-passed] .pass-slip{grid-template-columns:auto minmax(0,1fr);gap:12px 16px;padding:26px 17px}
+ body[data-passed] .end-mark{width:57px;grid-row:auto}body[data-passed] #finish{grid-column:1/-1;margin:0}
+ body[data-passed] .round-label{font-size:14px;margin-bottom:4px}body[data-passed] #page-title{font-size:clamp(22px,7vw,34px)}
+ body[data-passed] .scope{margin:16px 0 12px}
+}
+body[data-passed] .scope{color:var(--muted)}body[data-passed] .scope b{background:none;padding:0}.end-mark{display:none}
+</style>
+</head>
+<body class="run-page"><header class="app-header"><div class="app-bar"><strong class="brand">Lakda</strong><a class="home-link" href="/">← テスト概要</a><a class="map-link" href="/architecture">システム構成図</a></div></header>
+<main class="app-main"><section class="hero"><p class="scope"><span id="product"></span>　<span id="env"></span>　<span style="white-space:nowrap">対象版 <b id="revision"></b></span></p><div class="pass-slip"><i class="end-mark" aria-hidden="true"></i><h1 id="page-title">テストを実行</h1><p id="finish" hidden></p></div></section>
+<div class="layout"><nav aria-label="登録スイート"><h2>スイートを選択</h2><div class="suites" id="suites"></div></nav><section class="panel"><p class="meta" id="phase" role="status"></p><h2 id="title"></h2><p id="note" role="status"></p><p id="results" hidden></p><h3 class="small" id="list-heading"></h3><ul class="cases" id="cases"></ul><details id="case-details" hidden><summary>ケースの結果・操作ログ</summary></details><div id="actions"></div></section></div></main>
+<script>
+const el=id=>document.getElementById(id);
+const node=(tag,text)=>{const n=document.createElement(tag);if(text!=null)n.textContent=text;return n;};
+const labels={passed:"合格",failed:"不合格",unreported:"未報告",not_run:"未実行",partial:"部分実行",error:"実行エラー"};
+const query=new URLSearchParams(location.search);
+const route=(id,n)=>"/run?suite="+encodeURIComponent(id)+(n?"&attempt="+n:"");
+function link(label,href,cls){const a=node("a",label);a.href=href;if(cls)a.className=cls;return a;}
+async function get(url){const response=await fetch(url);if(!response.ok)throw Error("今回の記録を取得できません。");return response.json();}
+function showCases(cases){
+  const reasons={duration_limit:"制限時間に到達",artifact_failure:"証跡の保存に失敗",executor_error:"実行基盤でエラー"};
+  el("cases").replaceChildren(...cases.map(c=>{
+    const li=node("li");li.append(node("h3","「"+c.title+"」"));
+    for(const t of c.criteria??[])li.append(node("p",t));
+    if(c.outcome)li.append(node("p",labels[c.outcome]+(reasons[c.reason]?" · "+reasons[c.reason]:"")));
+    if(c.href){
+      const target=new URL(c.href,location.href);target.searchParams.set("entry","run");
+      const log=link("今回の操作ログを見る →",target.href);
+      log.id="case-"+c.id;li.append(log);
+    }
+    else if(c.outcome==="error" || c.outcome==="partial")li.append(node("small","今回の操作ログと動画は閲覧できません。"));
+    return li;
+  }));
+}
+async function main(){
+ const catalog=await get("/api/suites"),product=catalog.product;
+ if(catalog.hasResults===false)document.querySelector(".home-link").hidden=true;
+ const selected=query.get("suite")??catalog.busy??catalog.suites[0]?.id;
+ const suite=catalog.suites.find(s=>s.id===selected);
+ el("product").textContent=product.name;el("env").textContent=product.environment==="windows-loopback-local"?"Windows ローカル":product.environment;
+ el("revision").textContent=product.revision.slice(0,8);el("revision").title=product.revision;
+ for(const s of catalog.suites){const a=link(s.name,route(s.id));if(s.id===selected)a.setAttribute("aria-current","page");el("suites").append(a);}
+ if(!suite)throw Error("登録されたスイートがありません。");
+ el("title").textContent=suite.name;
+ const requested=query.get("attempt");
+ if(requested!==null && !/^[1-9]\d*$/.test(requested))throw Error("実行回が不正です。");
+ const n=requested?Number(requested):suite.latest?.state==="running"?suite.latest.number:null;
+ if(suite.hasCoverageMap)document.querySelector(".map-link").href="/coverage?suite="+encodeURIComponent(suite.id)+(n?"&attempt="+n:"")+"#architecture";
+ if(n){
+   el("actions").append(link("この回の検証範囲","/coverage?suite="+encodeURIComponent(suite.id)+"&attempt="+n,"secondary"));
+   const job=await get("/api/runs/"+suite.id+"/"+n);
+   if(!requested)history.replaceState(null,"",route(suite.id,n));
+   el("page-title").textContent=job.state==="running"?"テストを実行中":"第"+n+"回の実行結果";
+   document.title=el("page-title").textContent+" | Lakda";
+   el("phase").textContent="第"+n+"回 · "+({running:"実行中",complete:"実行完了",error:"処理エラー",interrupted:"中断"})[job.state];
+   el("phase").dataset.live=String(job.state==="running");el("note").textContent=job.message;
+   el("list-heading").textContent=job.state==="running"?"今回の予定ケース":"ケース別の結果";
+   if(job.state==="running"){
+     showCases(suite.cases);setTimeout(()=>mainRefresh(suite,n),700);return;
+   }
+   showCases(job.cases);const t=job.totals;
+   el("results").hidden=false;
+   if(t){
+     const rate=t.successRate===null?"合格率は算出できない":"合格率 "+(t.successRate*100).toLocaleString("ja-JP",{maximumFractionDigits:1})+"%";
+     el("results").append("判定済み "+t.evaluated+"／"+t.planned+"件　"+rate,document.createElement("br"),"リリース判定　未発行");
+   }else el("results").textContent="今回の索引は未発行です。";
+   if(t && t.planned>1)el("results").append(document.createElement("br"),Object.entries(labels).filter(([k])=>t[k]>0).map(([k,label])=>label+" "+t[k]+"件").join("　"));
+   const allPassed=job.state==="complete" && t?.planned>0 && t.passed===t.planned;
+   if(allPassed){
+     document.body.dataset.passed="";
+     const round=node("span","第"+n+"回　");round.className="round-label";
+     el("page-title").replaceChildren(round,document.createTextNode(t.passed+"件すべて合格"));
+     document.title=el("page-title").textContent+" | "+suite.name;
+     el("finish").textContent=suite.name+" · この回の自動テストの確認は完了です。";el("finish").hidden=false;
+     el("list-heading").hidden=true;
+     el("case-details").append(el("cases"));el("case-details").hidden=false;
+   }
+   el("actions").append(link("テスト概要へ","/","secondary"),link("再実行の予定を見る →",route(suite.id),allPassed?"secondary":"button primary-action"));
+   const origin=Array.from(el("cases").querySelectorAll("a[id]")).find(a=>location.hash==="#"+encodeURIComponent(a.id));
+   if(origin){
+     if(allPassed)el("case-details").open=true;
+     origin.focus({preventScroll:true});origin.scrollIntoView({block:"center"});
+   }
+   return;
+ }
+ el("phase").textContent="第"+suite.next+"回 · 開始前";el("list-heading").textContent="予定ケースと受入条件";showCases(suite.cases);
+ if(suite.next===1)el("note").textContent="開始すると、以下のケースを Chromium で実行し、結果と操作ログを保存します。";
+ const button=node("button","第"+suite.next+"回を開始");button.type="button";button.className="button primary-action";
+ if(catalog.busy){button.disabled=true;el("note").textContent="別のテストを実行中です。";el("actions").append(link("実行中のテストを見る",route(catalog.busy),"secondary"));}
+ button.onclick=async()=>{button.disabled=true;try{const response=await fetch("/api/runs/"+suite.id+"/"+suite.next,{method:"POST",headers:{"X-Lakda-Action":"start"}});if(!response.ok)throw Error("開始できませんでした。スイートを選び直して実行状況を確認してください。");location.assign(route(suite.id,suite.next));}catch(e){el("note").textContent=e.message;button.disabled=false;}};
+ el("actions").append(button);
+ el("actions").append(link("検証範囲を見る","/coverage?suite="+encodeURIComponent(suite.id),"secondary"));
+ if(suite.latest)el("actions").append(document.createElement("br"),link("第"+suite.latest.number+"回の結果を見る",route(suite.id,suite.latest.number),"secondary"));
+}
+async function mainRefresh(suite,n){try{const job=await get("/api/runs/"+suite.id+"/"+n);if(job.state==="running")setTimeout(()=>mainRefresh(suite,n),700);else location.reload();}catch(e){el("note").textContent=e.message+" 再読み込みでこの回を確認できます。";}}
+main().catch(e=>el("note").textContent=e.message);
+</script></body></html>

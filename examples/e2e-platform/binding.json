@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "manual-bb/e2e-binding/v1",
+  "featureId": "SHIPPING",
+  "specRevision": "spec-1",
+  "baseUrl": "http://127.0.0.1:18943/",
+  "featureSha256": "9f1d4ad449ecd809248b0e7e8dea2778a114297c19d9c7b4a2405c3de3c4c49f",
+  "caseSetSha256": "0e5abaaf0b9bcfda18d82e8b63f36f85ff4fcbc74c48be06a5a0090a74113eee",
+  "seed": 1,
+  "cases": [
+    {
+      "caseId": "TC-SHIPPING",
+      "revision": "case-1",
+      "contentHash": "shipping-faq-1",
+      "oracleRevision": "oracle-1",
+      "reviewedBy": "lakda-onboarding-fixture",
+      "reviewRef": "shipping-faq-example-v1",
+      "actions": [
+        {"id": "open", "kind": "navigate", "path": "/"},
+        {"id": "question", "kind": "click", "locator": {"testId": "shipping-question"}}
+      ],
+      "checks": [
+        {"text": "配送日数の目安が表示される", "kind": "visible", "locator": {"testId": "shipping-answer"}}
+      ]
+    }
+  ]
+}

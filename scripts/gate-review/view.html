@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; media-src blob:; base-uri 'none'; form-action 'none'">
+<title>実行レビュー | Lakda</title>
+<style>
+/*RESULT_CHROME*/
+.gate-page { --quiet: var(--muted); --good: var(--blue); --unmet: var(--red); --wash: var(--soft); line-height: 1.6 }
+* { box-sizing:border-box }
+[hidden] { display:none !important }
+body,h1,h2,p,ol,dl,dd { margin:0 }
+body { font-size:1.125rem }
+a { color:inherit }
+button,select { font:inherit }
+button,select,summary { cursor:pointer }
+:focus-visible { outline:3px solid var(--focus); outline-offset:3px }
+.mast-inner { justify-content: space-between; flex-wrap: wrap; gap: 0 16px }
+.toolbar { min-width: 0; display: flex; align-items: center; gap: 19px }
+.record-picker { min-width:0; display:flex; align-items:center; gap:8px; font-size:1rem; color:var(--quiet) }
+.record-picker span { flex:none; color:var(--night-muted) }
+.record-picker select { min-width:0; max-width:100%; min-height:44px; padding:5px 8px; border:1px solid var(--muted); border-radius:0; background:var(--white); color:var(--ink) }
+.screen-nav { display:flex; flex:none; gap:12px }
+.screen-nav a { position:relative; display:flex; align-items:center; justify-content:center; gap:7px; min-height:52px; padding:6px 8px; text-decoration:none; font-size:1rem; color:var(--quiet) }
+.screen-nav a[aria-current] { color:var(--blue); background:var(--soft); font-weight:700 }
+.screen-nav a[aria-current]::after { content:""; position:absolute; bottom:0; inset-inline:6px; border-bottom:4px solid currentColor }
+.screen-nav a:hover[href] { background:var(--wash) }
+.nav-note { font-size:.75rem }
+.nav-note:empty { display:none }
+.icon { position:relative; width:21px; height:21px; flex:none; display:inline-block }
+.icon::before,.icon::after { content:""; position:absolute }
+.flag::before { top:1px; left:3px; height:19px; border-left:2px solid }
+.flag::after { top:2px; left:6px; width:13px; height:10px; background:currentColor; clip-path:polygon(0 0,100% 0,72% 50%,100% 100%,0 100%) }
+.route::before { inset:3px 3px 4px 4px; border-left:2px solid; border-bottom:2px solid; border-radius:0 0 0 4px }
+.route::after { left:1px; top:1px; width:7px; height:7px; border-radius:50%; background:currentColor; box-shadow:13px 13px currentColor }
+.play::before { inset:2px 0; border:2px solid; border-radius:3px }
+.play::after { top:6px; left:8px; border-left:7px solid; border-block:4px solid transparent }
+.content { padding-block:clamp(22px,4.2vw,58px) 42px }
+.scopebar { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 16px; padding-bottom:12px; border-bottom:3px solid var(--ink); font-size:1rem; color:var(--quiet) }
+#verdict { font-weight:700; color:var(--ink) }
+[data-state=no_go] #verdict::before { content:"× " / "" } [data-state=go] #verdict::before { content:"✓ " / "" }
+.panel { margin-block:clamp(22px,3.2vw,44px) }
+h1 { font-size:clamp(1.85rem,3.3vw,3.1rem); line-height:1.25; overflow-wrap:anywhere; letter-spacing:-.025em }
+#headline { font-size:clamp(2rem,5.15vw,4.5rem); line-height:1.21; letter-spacing:-.035em }
+#headline span { display:block; max-width:100% }
+#headline[data-unmet] span:last-child { color:var(--unmet) }
+#when { margin-top:14px; color:var(--quiet) }
+#unchecked { margin-top:18px }
+#unchecked h2 { font-size:1rem; margin:0 0 4px }
+#unchecked ul { margin:0; padding-inline-start:1.25em; overflow-wrap:anywhere }
+#unchecked ul:has(> :only-child) { list-style:none; padding:0 }
+.track,.log { list-style:none; padding:0 }
+.track { margin-top:20px; max-width:45rem }
+.track li { position:relative; padding-left:39px }
+.track li:not(:last-child)::before { content:""; position:absolute; left:10px; top:24px; bottom:-24px; border-left:2px solid var(--muted) }
+.mark { position:absolute; top:14px; left:0; width:22px; height:22px; border:2px solid currentColor; display:grid; place-items:center; border-radius:50%; background:var(--paper); color:var(--quiet); font:700 13px/1 sans-serif }
+.mark[data-tone=good] { color:var(--good) }
+.event { display:block; padding:8px 4px 14px 0; line-height:1.45; text-decoration:none }
+.event-meta { display:flex; flex-wrap:wrap; align-items:baseline; gap:10px; font-size:.94rem; color:var(--quiet) }
+.event-meta time,.log time { font-variant-numeric:tabular-nums }
+.event-meta .state { font-size:.88rem }
+.rowtext { font-weight:700; font-size:clamp(1.125rem,2vw,1.55rem); overflow-wrap:anywhere }
+.jump { margin-left:.5em; font-size:.95rem; color:var(--quiet) }
+.event[href]:hover .rowtext,.event[href]:focus-visible .rowtext { text-decoration:underline }
+.track li[data-kind=condition][data-tone=bad] :is(.rowtext,.mark) { color:var(--unmet) }
+.media-grid { margin-top:20px; max-width:48rem }
+.log { border-top:2px solid var(--ink) }
+.log li { border-bottom:1px solid var(--line) }
+.time { width:100%; border:0; padding:13px 8px; min-height:48px; display:grid; grid-template-columns:max-content minmax(0,1fr); align-items:baseline; gap:clamp(12px,2vw,28px); text-align:left; background:transparent; color:var(--ink); font-size:1.17rem; font-weight:700 }
+.time time { font-size:.94rem; color:var(--quiet); font-weight:400 }
+.time span { overflow-wrap:anywhere }
+.time:hover,.time[aria-pressed=true] { background:var(--wash) }
+.time[aria-pressed=true] { background:var(--selection); box-shadow:inset 3px 0 var(--blue) }
+#cue,#video-status { color:var(--quiet); font-size:1rem; margin-top:6px }
+#cue:empty,#video-status:empty { margin:0 }
+.media-pane { margin-top:12px; min-width:0 }
+.video-controls { display:flex; align-items:baseline; flex-wrap:wrap; gap:0 16px }
+#choose { display:inline-flex; align-items:center; gap:8px; min-height:44px; background:transparent; color:var(--ink); border:1px solid var(--muted); border-radius:0; font-size:1rem; padding:6px 12px }
+#choose::before { content:""; border-left:8px solid; border-block:5px solid transparent }
+#location { max-width:100%; font-size:.94rem }
+#path { overflow-wrap:anywhere }
+#video { display:block; width:100%; max-height:55vh; background:#171b1c; margin-bottom:8px }
+@media(min-width:760px) {
+  .media-grid:has(#video:not([hidden])) { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.6fr); gap:28px; align-items:start; max-width:none }
+  .media-grid:has(#video:not([hidden])) .media-pane { margin-top:0 }
+}
+#limit,summary,details dl { font-size:1rem }
+#limit { color:var(--quiet) }
+footer { margin-top:24px; border-top:1px solid var(--line) }
+summary { color:var(--quiet); padding:10px 0; min-height:44px; width:fit-content }
+details dl>div { display:grid; grid-template-columns:minmax(6em,22%) minmax(0,1fr); gap:10px; padding:4px 0 }
+dt { color:var(--quiet) } dd,details li { overflow-wrap:anywhere }
+details h2 { margin-top:8px; font-size:1rem } details ol { padding-left:1.5em }
+.sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap }
+@media(max-width:759px) {
+  .toolbar { width: 100%; display: grid; grid-template-columns: max-content minmax(0,1fr); gap: 0 12px; padding-block: 8px }
+  .toolbar .home-link { justify-self: start }
+  .record-picker { grid-column: 1 / -1; font-size: .875rem }
+  .record-picker select { flex: 1; width: 0 }
+  .screen-nav { position:fixed; z-index:5; inset:auto 0 0; background:var(--paper); border-top:1px solid var(--line); padding-bottom:env(safe-area-inset-bottom); gap:0 }
+  .screen-nav a { flex:1; min-width:0; flex-direction:column; gap:2px; min-height:64px; padding:7px 3px; line-height:1.35; text-align:center }
+  .screen-nav a[aria-current]::after { bottom:auto; top:0; inset-inline:12% }
+  .screen-nav a[aria-disabled] .icon { display:none }
+  html { scroll-padding-bottom:calc(96px + env(safe-area-inset-bottom)) }
+  .content { padding-bottom:calc(104px + env(safe-area-inset-bottom)) }
+  .scopebar { font-size:.94rem; gap:2px 10px }
+  #headline { font-size:clamp(1.875rem,8.3vw,3rem) }
+  .track { margin-top:13px }
+  .event { padding-bottom:11px }
+  .media-grid { margin-top:14px }
+}
+@media(min-width:760px) {
+  .screen-nav a { color:var(--night-muted) }
+  .screen-nav a[aria-current],.screen-nav a:hover[href] { color:var(--on-night); background:#2c4055 }
+  .screen-nav a[aria-current]::after { border-color:var(--signal) }
+}
+@media(forced-colors:active) {
+  .time[aria-pressed=true] { outline:2px solid Highlight; outline-offset:-2px }
+}
+</style>
+</head>
+<body class="gate-page" data-entry="1/conclusion">
+<header class="mast app-header"><div class="mast-inner app-bar">
+  <div class="toolbar"><strong class="brand">Lakda</strong><!--OVERVIEW_LINK-->
+    <label class="record-picker"><span>記録</span><select id="pick" aria-label="表示する記録"></select></label></div>
+  <nav id="views" class="screen-nav" aria-label="この実行の画面">
+    <a id="to-conclusion" role="link" aria-label="判定"><i class="icon flag" aria-hidden="true"></i><span class="screen-label">判定</span></a>
+    <a id="to-steps" role="link" aria-label="操作の流れ"><i class="icon route" aria-hidden="true"></i><span class="screen-label">操作の流れ</span><small class="nav-note"></small></a>
+    <a id="open-case" role="link" aria-label="動画・ログ"><i class="icon play" aria-hidden="true"></i><span class="screen-label">動画・ログ</span><small class="nav-note"></small></a>
+  </nav>
+</div></header>
+<main class="content app-main">
+<article id="sheet">
+  <div class="scopebar"><span id="context"></span><strong id="verdict"></strong></div>
+  <section id="conclusion" class="panel">
+    <h1 id="headline" tabindex="-1"></h1><p id="when" hidden></p>
+    <section id="unchecked" aria-labelledby="unchecked-title" hidden>
+      <h2 id="unchecked-title">今回確認できなかった条件</h2><ul id="unchecked-criteria"></ul>
+    </section>
+  </section>
+  <section id="steps" class="panel" hidden><h1 id="task" tabindex="-1">操作の流れ</h1><ol class="track" id="track"></ol></section>
+  <section id="evidence" class="panel" hidden>
+    <h1 id="evidence-title" tabindex="-1">操作ログ</h1>
+    <div class="media-grid">
+      <div class="log-pane"><ol class="log" id="timeline" aria-label="操作ログ"></ol><p id="cue" aria-live="polite"></p></div>
+      <div class="media-pane">
+        <video id="video" hidden controls preload="metadata" playsinline aria-label="この実行回の動画"></video>
+        <div class="video-controls"><button type="button" id="choose">この回の動画を選ぶ</button><input hidden id="file" type="file" accept="video/mp4,.mp4" aria-label="元の動画">
+          <details id="location"><summary>動画の保存場所</summary><p id="path"></p></details>
+        </div>
+        <p id="video-status" role="status"></p>
+      </div>
+    </div>
+  </section>
+  <p id="limit"></p>
+</article>
+<footer><details id="details"><summary>記録の詳細</summary>
+  <dl id="scope"></dl>
+  <section id="source"><h2>判定理由の原文</h2><ol id="reasons"></ol></section>
+</details></footer>
+</main>
+<script type="application/json" id="case-data">/*CASE_DATA*/</script>
+<script type="application/json" id="data">/*GATE_RECORDS*/</script>
+<script>
+"use strict";
+/*PLAYBACK*/
+const withReturn=(/*REVIEW_NAVIGATION*/)();
+const records = JSON.parse(document.getElementById("data").textContent);
+const caseModel = JSON.parse(document.getElementById("case-data").textContent);
+const reviewPage = /*REVIEW_PAGE*/;
+const el = id => document.getElementById(id);
+const node = (tag, value) => { const item = document.createElement(tag); item.textContent = value; return item; };
+const names = {go:"go", no_go:"no_go", conditional_go:"conditional_go", disqualified:"証跡不適格", unissued:"判定未発行"};
+const exclusions = {"production and staging":"本番・ステージング環境","organizational release approval":"組織のリリース承認","other cases and product-wide risk or coverage":"他のケース、製品全体のリスク・カバレッジ"};
+const statuses = {completed:"完了", failed:"失敗", skipped:"未実施", partial:"部分実行", error:"エラー"};
+function product(r) {
+  return r.target?.projectId === "domain-lakda-runner/report-viewer" ? "Lakda 実行レポート" : r.target?.projectId || r.caseId;
+}
+function setMark(mark,tone) {
+  mark.dataset.tone=tone;
+  mark.textContent=tone==="good" ? "✓" : tone==="bad" ? "×" : "·";
+}
+function trackRow(title, status, tone, caption, href) {
+  const row=document.createElement("li");
+  row.dataset.tone=tone;
+  row.dataset.kind=href ? "action" : "condition";
+  const mark=document.createElement("span");
+  mark.className="mark"; mark.setAttribute("aria-hidden","true"); setMark(mark,tone);
+  const label=node("span",title), state=node("span",status);
+  label.className="rowtext";
+  state.className="state";
+  const entry=document.createElement(href ? "a" : "div");
+  entry.className="event";
+  const meta=document.createElement("span"); meta.className="event-meta";
+  meta.append(node(href ? "time" : "span",caption),state);
+  entry.append(meta,label);
+  if (href) {
+    entry.href=href;
+    const arrow=node("span","↗"); arrow.className="jump"; arrow.setAttribute("aria-hidden","true");
+    const destination=node("span","の操作ログを開く"); destination.className="sr-only";
+    entry.append(destination,arrow);
+  }
+  row.append(mark,entry); return row;
+}
+const seconds = offsetMs => (offsetMs/1000).toFixed(3)+" 秒";
+
+let shownRun=null, logLabels=[];
+function markLog(action) {
+  for (const button of el("timeline").querySelectorAll("button")) {
+    const active=Number(button.dataset.sequence)===action?.sequence;
+    button.setAttribute("aria-pressed",String(active));
+  }
+  const index=shownRun?.actions.indexOf(action) ?? -1;
+  el("cue").textContent=index>=0 ? logLabels[index]+" の開始　"+(action.offsetMs/1000).toFixed(3)+" 秒" : "";
+}
+const playback=bindPlayback(el("video"),el("file"),el("choose"),el("video-status"), ms=>{
+  if (shownRun) markLog(shownRun.actions.findLast(a=>a.offsetMs<=ms+.001));
+});
+function renderMedia(run,review) {
+  if (run===shownRun) return;
+  shownRun=run;
+  el("location").open=false; el("cue").textContent="";
+  el("timeline").replaceChildren();
+  const allowed=playback.reset(run?.video,"");
+  el("location").hidden=!allowed;
+  el("path").textContent=allowed ? playback.fileLocation(run.video.file) : "";
+  if (!run) return;
+  logLabels=review.actions.map(action=>action.name);
+  const remaining=caseModel.actions.slice();
+  run.actions.forEach((a,i)=>{
+    const pos=remaining.indexOf(a.actionId);
+    if (pos>=0) remaining.splice(pos,1);
+    const row=document.createElement("li"), button=document.createElement("button");
+    button.type="button"; button.className="time"; button.dataset.sequence=a.sequence;
+    button.setAttribute("aria-pressed","false");
+    const suffix=a.status==="completed" ? "" : "（"+(statuses[a.status] ?? a.status)+"）";
+    button.append(node("time",seconds(a.offsetMs)),node("span",(logLabels[i] ?? a.actionId)+suffix));
+    button.onclick=()=>{markLog(a); playback.seek(a.offsetMs/1000);};
+    row.append(button); el("timeline").append(row);
+  });
+  for (const id of remaining) el("timeline").append(node("li",id+"　記録なし"));
+  const requested=new URLSearchParams(location.search).get("sequence");
+  const target=run.actions.find(action=>String(action.sequence)===requested);
+  if (target) { markLog(target); playback.seek(target.offsetMs/1000); }
+}
+function readView() {
+  const route=/^#record-(\d+)(?:\/(steps|conclusion|evidence))?$/.exec(location.hash);
+  const [initial, layout]=document.body.dataset.entry.split("/");
+  const n=Number(route?.[1] ?? initial);
+  return { index:n>=1 && n<=records.length ? n-1 : 0, layout:route ? (route[2] || "conclusion") : layout };
+}
+function render() {
+  const switching=el("views").contains(document.activeElement);
+  const selection=readView(), i=selection.index, r=records[i], trace=r.trace, review=trace?.review;
+  const view=review ? selection.layout : "conclusion";
+  if (view==="evidence" && caseModel?.gateRecord!==i+1) {
+    location.replace(withReturn(trace.page)); return;
+  }
+  const local=r.origin==="ローカル", prefix=(caseModel ? reviewPage : "")+"#record-"+(i+1);
+  document.body.dataset.view=view;
+  el("sheet").dataset.state=r.state;
+  el("pick").selectedIndex=i;
+  el("details").open=false;
+  for (const key of ["conclusion","steps"]) {
+    const link=el("to-"+key);
+    if (key==="steps" && !review) {
+      link.removeAttribute("href"); link.setAttribute("aria-disabled","true");
+    } else {
+      link.href=withReturn(prefix+"/"+key); link.removeAttribute("aria-disabled");
+    }
+    if (key===view) link.setAttribute("aria-current","page"); else link.removeAttribute("aria-current");
+    el(key).hidden=view!==key;
+  }
+  const outcome=names[r.state], reasons=r.reasons ?? [];
+  el("verdict").textContent=(local && trace ? "ローカル判定　" : "")+outcome;
+  el("context").textContent=r.overview ? r.overview.title+" · 第"+r.overview.attempt+"回" : product(r);
+  el("limit").hidden=r.state==="unissued";
+  el("limit").textContent=local || r.scope?.notEvaluated?.includes("organizational release approval")
+    ? "組織のリリース承認は評価対象外です。" : "組織による承認は別途確認が必要です。";
+  const failed=review?.soleConditionFailed && r.state==="no_go" && trace.blockers?.some(b=>b.includes("EAC-03"));
+  const subject=review?.button;
+  const expected=review?.expected ?? [], actions=review?.actions ?? [];
+  const headline=el("headline"); headline.replaceChildren();
+  headline.toggleAttribute("data-unmet",Boolean(failed));
+  if (failed && subject) {
+    headline.append(node("span",subject+"の"),node("span","表示を確認できず"));
+  } else {
+    const text=r.overview?.outcome==="unreported" ? "この回のケース結果は未報告です" : r.state==="unissued" ? "この回の判定は未発行です" :
+      r.disqualifications?.some(d=>d.code==="DQ-17") ? "承認に必要な担当者の記録が不足" :
+      r.state==="go" ? (local?"ローカルの判定条件を満たしました":"ゲート条件を満たしました") :
+      failed ? "期待した条件を満たしませんでした" : (reasons[0] ?? outcome);
+    headline.append(node("span",text));
+  }
+  const last=actions.at(-1);
+  const when=failed && last?.status==="completed" && last.name==="結果行を押す"
+    ? "結果行を押したあと" : review?.casePassed && expected.length===1 ? expected[0] : "";
+  const unreported=r.overview?.outcome==="unreported";
+  el("when").textContent=when; el("when").hidden=unreported || !when;
+  const criteria=unreported ? r.overview.criteria : [];
+  el("unchecked-criteria").replaceChildren(...criteria.map(condition=>node("li",condition)));
+  el("unchecked").hidden=criteria.length===0;
+  const track=el("track"); track.replaceChildren();
+  for (const a of actions) {
+    const tone=a.status==="completed" ? "good" : ["failed","error"].includes(a.status) ? "bad" : "neutral";
+    const href=withReturn(trace.page+"?sequence="+encodeURIComponent(a.sequence));
+    track.append(trackRow(a.name,statuses[a.status] ?? a.status,tone,seconds(a.offsetMs),href));
+  }
+  if (expected.length) {
+    const condition=failed && subject ? subject+"の表示を確認できず" : expected.join(" ／ ");
+    track.append(trackRow(condition,failed ? "不一致" : review.casePassed ? "適合" : "期待値",
+      failed ? "bad" : review.casePassed ? "good" : "neutral",actions.length ? "操作後の確認" : "受入条件"));
+  }
+  const open=el("open-case");
+  if (trace) {
+    open.href=withReturn(view==="evidence" ? "#record-"+(i+1)+"/evidence" : trace.page+(view==="steps" ? "?view=steps" : "")); open.removeAttribute("aria-disabled");
+  } else {
+    open.removeAttribute("href"); open.setAttribute("aria-disabled","true");
+  }
+  if (view==="evidence") open.setAttribute("aria-current","page"); else open.removeAttribute("aria-current");
+  el("evidence").hidden=view!=="evidence";
+  renderMedia(view==="evidence" ? caseModel.runs[0] : null,review);
+  for(const link of el("views").querySelectorAll(".nav-note")) {
+    link.textContent=link.parentElement.hasAttribute("aria-disabled") ? "記録なし" : "";
+  }
+  document.title=({steps:"操作の流れ",evidence:"動画・ログ",conclusion:"判定"})[view]+" | "+product(r);
+  const scope=el("scope"); scope.replaceChildren();
+  const proof=view==="evidence" ? caseModel : null;
+  for (const [label,value] of [["対象",product(r)],["対象版",r.revision],["環境",r.environment],
+    ["対象ケース",r.caseId],["実行回",r.overview ? "第"+r.overview.attempt+"回" : proof ? "第"+proof.runs[0].attempt+"回" : null],
+    ["ケース版",r.overview?.caseRevision ?? proof?.caseRevision],["期待値版",r.overview?.oracleRevision ?? proof?.oracleRevision],
+    ["受入条件",r.overview?.criteria.join(" ／ ") ?? proof?.ac.join("、")],
+    ["実施した操作",actions.map(a=>a.source+"（"+(statuses[a.status] ?? a.status)+"）").join(" → ")],
+    ["期待値の原文",expected.join(" ／ ")],["評価対象外",r.scope?.notEvaluated?.map(v=>exclusions[v] ?? v).join("、")]]) {
+    if (value) { const row=document.createElement("div"); row.append(node("dt",label),node("dd",value)); scope.append(row); }
+  }
+  el("source").hidden=r.state==="unissued";
+  el("reasons").replaceChildren(...reasons.map(reason=>node("li",reason)));
+  if (switching) el(view==="steps" ? "task" : view==="evidence" ? "evidence-title" : "headline").focus();
+}
+records.forEach((r,i)=>{
+  const opt=node("option",r.overview ? r.overview.title+" · 第"+r.overview.attempt+"回" :
+    r.trace?.review?.button==="検出試験専用の存在しないボタン" ? "不一致の検出試験" :
+    r.trace?.review?.button ? r.trace.review.button+"の表示確認" : names[r.state]+"　"+(r.caseId ?? r.profile));
+  opt.value=String(i+1); el("pick").append(opt);
+});
+el("pick").onchange=()=>{
+  const n=Number(el("pick").value), view=document.body.dataset.view;
+  if (caseModel) {
+    location.href=withReturn(view==="evidence" && records[n-1].trace ? records[n-1].trace.page :
+      reviewPage+"#record-"+n+"/"+(view==="steps" ? "steps" : "conclusion"));
+  } else location.hash="record-"+n+"/"+view;
+};
+window.addEventListener("hashchange",render); render();
+</script>
+</body>
+</html>

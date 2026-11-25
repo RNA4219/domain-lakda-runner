@@ -1,0 +1,35 @@
+{
+  "actionCatalog": [
+    {
+      "id": "open",
+      "kind": "navigate",
+      "path": "/"
+    },
+    {
+      "id": "question",
+      "kind": "click",
+      "locator": {
+        "testId": "shipping-question"
+      }
+    }
+  ],
+  "browser": "chromium",
+  "mode": "regression-replay",
+  "obligations": [
+    {
+      "visible": {
+        "testId": "shipping-answer"
+      }
+    }
+  ],
+  "persona": "guest",
+  "reviewedE2E": true,
+  "safety": {
+    "allowHosts": [
+      "127.0.0.1"
+    ]
+  },
+  "schemaVersion": "lakda/v1",
+  "seed": 1,
+  "workers": 1
+}

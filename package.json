@@ -4,6 +4,10 @@
   "private": true,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "imports": {
+    "#lakda-map-model": "./vendor/architecture/model.js",
+    "#lakda-map-yaml": "./vendor/architecture/yaml/parser.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -15,7 +19,9 @@
     "dist",
     "schemas",
     "examples",
+    "!examples/e2e-platform",
     "tools/airtest-poco-bridge",
+    "vendor/architecture",
     "vendor/hate/v1/artifact-manifest.schema.json",
     "README.md",
     "RUNBOOK.md",
@@ -37,6 +43,8 @@
     "lakda": "./dist/cli.js"
   },
   "scripts": {
+    "platform:setup": "node scripts/local-console/install-chromium.mjs && npm run build",
+    "platform": "node scripts/e2e-local-console.mjs",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",

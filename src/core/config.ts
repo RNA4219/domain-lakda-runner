@@ -112,6 +112,11 @@ export function loadConfig(path = resolve(process.cwd(), "lakda.config.json"), o
     try { input = JSON.parse(readFileSync(path, "utf8")) as PartialConfig; }
     catch { throw new Error(`設定JSONを解析できません: ${path}`); }
   }
+  return configFromJson(input, overrides);
+}
+
+/** ディスクから照合済みの JSON を再読せず、通常の設定と同じ検証を行う。 */
+export function configFromJson(input: PartialConfig, overrides: PartialConfig = {}): LakdaConfig {
   if (!validateConfigSchema(input)) throw new Error(`設定schemaに適合しません: ${validateConfigSchema.errors?.map(error => `${error.instancePath} ${error.message}`).join("; ")}`);
   const config = mergeConfig({ ...input, ...overrides, safety: { ...input.safety, ...overrides.safety }, llm: { ...input.llm, ...overrides.llm }, artifacts: { ...input.artifacts, ...overrides.artifacts } });
   validateConfig(config);
@@ -119,6 +124,14 @@ export function loadConfig(path = resolve(process.cwd(), "lakda.config.json"), o
 }
 
 export function validateConfig(config: LakdaConfig): void {
+  if (config.reviewedE2E !== undefined || config.reviewedOracleVersion !== undefined || config.obligations.some(check => check.textEquals !== undefined || check.afterActionId !== undefined || check.acceptanceRef !== undefined || check.amountEquals !== undefined || check.countEquals !== undefined || check.countDelta !== undefined)) {
+    if (config.reviewedE2E !== true || config.mode !== "regression-replay") {
+      throw new Error("reviewedE2E と textEquals は reviewedE2E=true の regression-replay 専用です");
+    }
+    if (!validateConfigSchema({ reviewedE2E: true, ...(config.reviewedOracleVersion === undefined ? {} : { reviewedOracleVersion: config.reviewedOracleVersion }), obligations: config.obligations })) {
+      throw new Error("reviewedE2E の最終判定が設定schemaに適合しません");
+    }
+  }
 if (config.extensions?.combinations && (config.extensions.combinations.caseBudget < 1 || config.extensions.combinations.defaultStrength < 2)) throw new Error("extensions.combinations の値が不正です");
   if (config.extensions?.scouting && (config.extensions.scouting.leadCap < 1 || config.extensions.scouting.leadCap > 3)) throw new Error("extensions.scouting.leadCap は1〜3です");  if (config.schemaVersion !== "lakda/v1") throw new Error("schemaVersion は lakda/v1 だけを許可します");
   if (config.browser !== "chromium") throw new Error("v1 は chromium だけを許可します");

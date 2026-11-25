@@ -7,14 +7,14 @@ import { readManifestSnapshot } from "../runs/manifest-snapshot.js";
 import { label, list, requireValue, type DomainMap } from "./model.js";
 import { addCase, verdict, type Observation, type Run } from "./observations.js";
 
-export async function readCaseIndex(map: DomainMap, data: JsonObject, directory: string): Promise<Run> {
+export async function readCaseIndex(map: DomainMap, data: JsonObject, directory: string | ((runRef: string) => string)): Promise<Run> {
   requireValue(map.environment && data.callerSha === map.version, "製品コミットまたは対象環境を確認してください");
   const local = data.localRunId !== undefined;
   const series = local ? data.localRunId : data.workflowRunId;
   const attempt = local ? data.localRunAttempt : data.workflowRunAttempt;
   requireValue((typeof series === "string" && series.trim() || Number.isSafeInteger(series)) &&
     /^[1-9]\d*$/.test(String(attempt)) && Number.isSafeInteger(Number(attempt)), "実行系列・実行回を特定できません");
-  const root = await realpath(directory);
+  const sharedRoot = typeof directory === "string" ? await realpath(directory) : null;
   const run: Run = { id: String(series) + "/" + attempt, cases: new Map() };
   const refs = new Set<string>();
   for (const v of list(data.cases,"ケース索引")) {
@@ -28,6 +28,7 @@ export async function readCaseIndex(map: DomainMap, data: JsonObject, directory:
     const ref = label(row.runRef,"runRef");
     requireValue(/^lakda-run-[a-zA-Z0-9-]+$/.test(ref) && !refs.has(ref), "実行証跡の参照が不正または重複しています");
     refs.add(ref);
+    const root = typeof directory === "function" ? await realpath(directory(ref)) : sharedRoot!;
     const path = await realpath(join(root,ref));
     requireValue(isContained(root,path), "実行証跡が runs-dir の範囲外です");
     const metadata = "run-metadata.json", consoleFile = "console.jsonl";
