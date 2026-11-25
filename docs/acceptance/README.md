@@ -1,8 +1,10 @@
 ---
 document_id: LAKDA-ACCEPTANCE-INDEX-001
 status: active
-last_updated: 2026-07-22
+last_updated: 2026-11-25
 ---
+
+画面・API の実行カバレッジ: [2026-11-25 ローカル受入](AC-20261125-runtime-surface-coverage.md)。
 
 # 受入・実環境索引
 

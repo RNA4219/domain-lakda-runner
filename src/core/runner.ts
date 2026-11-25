@@ -27,8 +27,9 @@ import { createAttestationStopCheck } from "../exploration/attestation-control.j
 import { AttestationContractError } from "../exploration/attestation-contracts.js";
 import { sha256 } from "./redaction.js";
 import { PlatformRecording, validatePlatformRecording, type PlatformRecordingRuntime } from "./platform-recording.js";
+import { SurfaceObserver, validateSurfaceRuntime, type SurfaceRuntime } from "../surface-coverage/observer.js";
 
-export type RunRuntimeContext = { platformRecording?: PlatformRecordingRuntime; workerIndex?: number; batchId?: string; clock?: () => number; actionBudget?: ActionBudget; adaptiveReplayPrefixActions?: number; adaptiveExpectedFingerprint?: string; controlFile?: string; explorationCapture?: ExplorationCaptureRuntime; adaptiveBridge?: ExternalToolBridge; requireBinaryAttestation?: boolean; attestationTrustStorePath?: string; artifactAttestorKeyIds?: readonly string[]; binaryAttestation?: BinaryAttestationRunOptions; replayEvidenceMode?: "real"; explorationTargetRevisionProbe?: { kind: "response-header" | "dom-meta"; name: string; expected: string } };
+export type RunRuntimeContext = { surfaceCoverage?: SurfaceRuntime; platformRecording?: PlatformRecordingRuntime; workerIndex?: number; batchId?: string; clock?: () => number; actionBudget?: ActionBudget; adaptiveReplayPrefixActions?: number; adaptiveExpectedFingerprint?: string; controlFile?: string; explorationCapture?: ExplorationCaptureRuntime; adaptiveBridge?: ExternalToolBridge; requireBinaryAttestation?: boolean; attestationTrustStorePath?: string; artifactAttestorKeyIds?: readonly string[]; binaryAttestation?: BinaryAttestationRunOptions; replayEvidenceMode?: "real"; explorationTargetRevisionProbe?: { kind: "response-header" | "dom-meta"; name: string; expected: string } };
 
 type LiveSelection = { kind: "action"; action: Action } | { kind: "stop" } | { kind: "hold" };
 type LiveSelector = (page: Page, priorAction: Action | undefined) => Promise<LiveSelection>;
@@ -244,6 +245,7 @@ async function executePlan(config: LakdaConfig, plan: ActionPlan, collector: Art
   let context: BrowserContext | undefined;
   let page: Page | undefined;
   let platformRecording: PlatformRecording | undefined;
+  let surfaceObserver: SurfaceObserver | undefined;
   let harTempDir: string | undefined;
   let harTempPath: string | undefined;
   let final: ExecutionResult = { outcome: "error", terminationReason: "executor_error" };
@@ -256,8 +258,10 @@ async function executePlan(config: LakdaConfig, plan: ActionPlan, collector: Art
     const storageState = configuredAuthStatePath(config);
     if (config.artifacts.har) { harTempDir = await mkdtemp(join(tmpdir(), "lakda-har-")); harTempPath = join(harTempDir, "network.har"); }
     context = await browser.newContext({ storageState: existsSync(storageState) ? storageState : undefined, recordVideo: videoRecordingOptions(config.artifacts.video, collector.paths.runDir), recordHar: harTempPath ? { path: harTempPath, content: "omit" } : undefined });
+    if (runtime.surfaceCoverage) surfaceObserver = new SurfaceObserver(context, runtime.surfaceCoverage);
     await context.tracing.start({ screenshots: true, snapshots: true, sources: false });
     page = await context.newPage();
+    await surfaceObserver?.ready();
     if (runtime.platformRecording) {
       try { platformRecording = await PlatformRecording.start(page, runtime.platformRecording, collector.paths.runDir, config.artifacts.maxRunBytes, collector.metadata.runId, collector.metadata.attempt); }
       catch { collector.markPlatformRecordingFailure(); collector.addFailure("UI-008", "platform recording start failed"); return finish({ outcome: "error", terminationReason: "artifact_failure" }); }
@@ -391,6 +395,11 @@ async function executePlan(config: LakdaConfig, plan: ActionPlan, collector: Art
       catch (error) { collector.markArtifactFailure(); collector.addFailure("UI-008", error instanceof Error ? error.message : "video retention failure"); }
     }
     await browser?.close().catch(() => { stopped = false; });
+    if (surfaceObserver) {
+      try {
+        await writeText(join(collector.paths.runDir, "surface-observations.json"), JSON.stringify(await surfaceObserver.finish(collector.metadata.runId, collector.metadata.attempt, stopped)));
+      } catch { collector.markArtifactFailure(); collector.addFailure("UI-008", "surface observation finalization failed"); }
+    }
     if (stopped) collector.markCaptureStopped();
     if (harTempDir) {
       try { await writeSanitizedHar(harTempPath!, collector.paths.networkHar); }
@@ -418,6 +427,11 @@ export async function runLakda(config: LakdaConfig, replayInput?: string, runtim
   let execution!: ExecutionResult;
   let binaryHandoff: PreparedBinaryAttestationRun | undefined;
   try {
+    if (resolvedRuntime.surfaceCoverage) {
+      validateSurfaceRuntime(resolvedRuntime.surfaceCoverage);
+      if (config.mode === "adaptive-explore") throw new Error("Surface coverage requires the browser replay executor");
+      collector.metadata.surfaceCoverage = { schema: "lakda/surface-observations/v1" };
+    }
     if (config.reviewedE2E && (!replayInput || config.mode !== "regression-replay")) throw new Error("reviewedE2E requires a deterministic replay input");
     if (resolvedRuntime.platformRecording) {
       if (!config.reviewedE2E || config.mode !== "regression-replay") throw new Error("platform recording requires reviewed replay");

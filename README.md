@@ -1,5 +1,7 @@
 # Lakda / domain-lakda-runner
 
+画面・API の一覧を分母とする実行カバレッジは [導入例](examples/surface-coverage/README.md) と [要件・仕様](docs/spec/e2e-platform/SPEC-10-RUNTIME-SURFACE-COVERAGE.md) を参照。`lakda coverage surfaces` または `surfaceCatalog` を登録したローカルコンソールで、到達・未計測・観測なし、通信の分類、同じ実行回のテスト証跡を確認できます。
+
 [![CI](https://github.com/RNA4219/domain-lakda-runner/actions/workflows/ci.yml/badge.svg)](https://github.com/RNA4219/domain-lakda-runner/actions/workflows/ci.yml)
 [![reference staging 600a037: QEG go](https://img.shields.io/badge/reference_staging_600a037-QEG_go-1f883d)](docs/release-gate/qeg-600a037/gate-verdict.json)
 [![license: RNA-TPSAL-1.0](https://img.shields.io/badge/license-RNA--TPSAL--1.0-blue.svg)](LICENSE)

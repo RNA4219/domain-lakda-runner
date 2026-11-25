@@ -12,6 +12,7 @@ import { generateAutomaticReport } from "../reporting/automatic.js";
 import { saveReportBatchSources } from "../reporting/batch-writer.js";
 import { resolveReportConfig } from "../reporting/config.js";
 import type { ReportConfig } from "../reporting/contracts.js";
+import { surfaceRuntimeFromFlags } from "./surface-coverage.js";
 
 async function reportResult(result: RunResult | RunBatchResult, config: LakdaConfig, reporting: ReportConfig): Promise<void> {
   if ("workerResults" in result) {
@@ -19,6 +20,12 @@ async function reportResult(result: RunResult | RunBatchResult, config: LakdaCon
   } else if (result.actionSequencePath) {
     await generateAutomaticReport(reporting, { runDir: dirname(result.actionSequencePath) });
   }
+}
+
+function printRuntimeResult(result: RunResult | RunBatchResult, scoped: boolean) {
+  if (!scoped) { console.log(JSON.stringify(result, null, 2)); return; }
+  const safe = (r: RunResult) => ({ runId: r.runId, attempt: r.attempt, outcome: r.outcome, exitCode: r.exitCode });
+  console.log(JSON.stringify("workerResults" in result ? { outcome: result.outcome, exitCode: result.exitCode, runs: result.workerResults.map(r => r.status === "completed" ? safe(r.result) : { outcome: "error" }) } : safe(result), null, 2));
 }
 
 export async function runCommand(flags: Flags): Promise<number> {
@@ -29,9 +36,11 @@ export async function runCommand(flags: Flags): Promise<number> {
     stringFlag(flags, "config") ?? resolve(process.cwd(), "lakda.config.json"),
     { ...configOverrides(flags), baseUrl, mode: parseMode(mode) },
   );
-  const result = config.workers > 1 ? await runLakdaBatch(config) : await runLakda(config);
-  console.log(JSON.stringify(result, null, 2));
-  await reportResult(result, config, reporting);
+  const context = { surfaceCoverage: await surfaceRuntimeFromFlags(flags) };
+  if (context.surfaceCoverage && flags.report && flags.report !== "off") throw new Error("Surface coverage requires its scoped export; use --report off");
+  const result = config.workers > 1 ? await runLakdaBatch(config, undefined, context) : await runLakda(config, undefined, context);
+  printRuntimeResult(result, Boolean(context.surfaceCoverage));
+  if (!context.surfaceCoverage) await reportResult(result, config, reporting);
   return result.exitCode;
 }
 
@@ -45,12 +54,13 @@ export async function replayCommand(flags: Flags): Promise<number> {
     stringFlag(flags, "config") ?? resolve(process.cwd(), "lakda.config.json"),
     { ...configOverrides(flags), baseUrl, mode: "regression-replay" },
   );
-  const context = evidenceMode === "real" ? { replayEvidenceMode: "real" as const } : {};
+  const context = { ...(evidenceMode === "real" ? { replayEvidenceMode: "real" as const } : {}), surfaceCoverage: await surfaceRuntimeFromFlags(flags) };
+  if (context.surfaceCoverage && flags.report && flags.report !== "off") throw new Error("Surface coverage requires its scoped export; use --report off");
   const result = config.workers > 1
     ? await runLakdaBatch(config, inputPath, context)
     : await runLakda(config, inputPath, context);
-  console.log(JSON.stringify(result, null, 2));
-  await reportResult(result, config, reporting);
+  printRuntimeResult(result, Boolean(context.surfaceCoverage));
+  if (!context.surfaceCoverage) await reportResult(result, config, reporting);
   return result.exitCode;
 }
 

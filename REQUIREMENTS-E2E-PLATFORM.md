@@ -23,6 +23,10 @@ only optional schema evolution, no modification of persisted evidence.
 Existing chromium.launch and commitSha execFileSync are pre-existing
 process-boundary conflicts; this change does not broaden them.
 
+## Runtime screen and API coverage
+
+The owner supplies a versioned screen/API/relation denominator and usage numbers. Runtime browser observations establish reach independently of test verdicts; source strings and old results do not. Mock, real-declared transport and unknown observations remain separate. Every visible observation traces to the same attempt, test revision and digest-verified evidence. Uncovered rows support numeric priority sorting and large inventories use paginated lists and bounded neighborhood diagrams. No request contents, concrete path variables or unknown URLs enter the new observation artifacts. Owner publication policy applies before observation persistence and before every surface list, graph, evidence, aggregate and JSON/HTML export; scoped consoles deny broader evidence routes on the server. Source extraction, production telemetry collection, deployment and authentication/permission changes are outside scope. See [requirements, contracts and compatibility](docs/spec/e2e-platform/SPEC-10-RUNTIME-SURFACE-COVERAGE.md) and [acceptance conditions](docs/spec/e2e-platform/CHECKLIST-10-RUNTIME-SURFACE-COVERAGE.md).
+
 Out of scope (K-01..K-07): exploration charter handoff, Gate accounting,
 schedule and summaries, notification and starter pack.
 

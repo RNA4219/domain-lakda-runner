@@ -63,3 +63,7 @@ LakdaはHATE/v1 artifact manifestまでを生成し、QEG record、Gate verdict�
 - revision `74a2a9b47cc106795320323a597dfdf5931cbead`でPhase 0〜6のローカル実装と198件の回帰を完了した。
 - [受入記録](acceptance/AC-20260722-20.lakda-040-rc2-local-release-validation.md)を正本とする。
 - P7/P11実target、Airtest/Poco実機、認可済みSecurity、実Qwen、外部manual-bb、QEGは`pending_external`で、外部リリース判定は`no_go`である。
+
+## 2026-11-25 実行カバレッジ
+
+画面・API・関係の版付き分母、実行観測、公開許可、一覧・部分図・同じ回の証跡を追加。[ローカル受入記録](acceptance/AC-20261125-runtime-surface-coverage.md) と [PR #25](https://github.com/RNA4219/domain-lakda-runner/pull/25) を参照。既存の歴史的受入記録は変更しない。

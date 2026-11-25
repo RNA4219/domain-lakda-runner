@@ -109,6 +109,7 @@ async function main(){
  const requested=query.get("attempt");
  if(requested!==null && !/^[1-9]\d*$/.test(requested))throw Error("実行回が不正です。");
  const n=requested?Number(requested):suite.latest?.state==="running"?suite.latest.number:null;
+ el("actions").append(link("画面・API の到達状況","/surfaces?suite="+encodeURIComponent(suite.id)+(n?"&attempt="+n:""),"secondary"));
  if(suite.hasCoverageMap)document.querySelector(".map-link").href="/coverage?suite="+encodeURIComponent(suite.id)+(n?"&attempt="+n:"")+"#architecture";
  if(n){
    el("actions").append(link("この回の検証範囲","/coverage?suite="+encodeURIComponent(suite.id)+"&attempt="+n,"secondary"));

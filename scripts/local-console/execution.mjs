@@ -173,6 +173,8 @@ export async function openExecution(settings, base, { registration, fixture = fa
       for (const [i,c] of s.plan.cases.entries()) {
         const args=["--scenario-dir",s.exportsDir,"--base-url",settings.baseUrl,"--case",c.id,"--plan",recordPlan,
           "--output-dir",output,"--ffmpeg",settings.ffmpeg,"--ffprobe",settings.ffprobe];
+        const registration = settings.suites.find(item => item.id === s.id);
+        if (registration.surfaceCatalog) args.push("--surface-catalog", resolve(base, registration.surfaceCatalog), "--surface-lane", registration.surfaceLane ?? "unknown");
         if (!fixture) args.push("--execution-mode","real");
         let stdout, diagnostic;
         try { stdout=await cli("e2e-platform-replay.mjs",args,s.cwd); }

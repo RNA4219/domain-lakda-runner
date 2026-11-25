@@ -10,6 +10,7 @@ test("CLI facade preserves the dispatcher binding and help contract", async () =
   expect(usage).toBe(`lakda ${LAKDA_VERSION}
 
 Commands:
+  lakda coverage surfaces --config <surface-catalog.json> [--input <e2e-case-index.json> --runs-dir <dir>] [--format json|html] [--out <new-file>]
   lakda coverage map --config <domain-map.json> [--input <run.json>] [--runs-dir <dir>] [--format json|html] [--out <new-file>]
   lakda run --base-url <url> --mode <smoke|seeded-random|regression-replay|llm-explore|adaptive-explore> [--seed <int>] [--headed]
   lakda replay --input <action-sequence-or-adaptive-replay.json> --base-url <url> [--execution-mode real]
@@ -40,6 +41,7 @@ Commands:
   lakda runs compare --base-run-dir <run-dir> --head-run-dir <run-dir> [--out <comparison.json>]
 
 Report options for run / replay / explore run / explore resume:
+  run / replay: [--surface-catalog <catalog.json> --test-id <id> --test-revision <revision> --surface-lane mock|real|unknown]
   [--report html|off] [--report-dir <output-root>] [--report-profile local|share] [--report-config <file>]
   [--report-language ja|en] (default: ja; also available for report generate)
 `);

@@ -24,6 +24,7 @@ import { reportSummaryCommand } from "../commands/report-summary.js";
 import { runsTrendCommand } from "../commands/trend.js";
 import { usage } from "./help.js";
 import { domainCoverageCommand } from "../commands/domain-coverage.js";
+import { surfaceCoverageCommand } from "../commands/surface-coverage.js";
 import {
   parseCliArgs,
   stringFlag,
@@ -42,6 +43,7 @@ export async function dispatchCli(parsed: ParsedCliArgs): Promise<number> {
 
   const command = parsed.positionals.join(" ");
   if (command === "coverage map") return await domainCoverageCommand(parsed.flags);
+  if (command === "coverage surfaces") return await surfaceCoverageCommand(parsed.flags);
   if (command === "run") return await runCommand(parsed.flags);
   if (command === "replay") return await replayCommand(parsed.flags);
   if (command === "export hate") return await exportHateCommand(parsed.flags);

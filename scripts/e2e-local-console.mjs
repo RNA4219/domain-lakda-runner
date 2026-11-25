@@ -104,6 +104,9 @@ async function main(){
     const page=await readResultTemplate(new URL("./local-console/run.html",import.meta.url));
     const app=await openExecution(cfg,base,{registration:seed,fixture:demo});
     const { coveragePage } = await import("./local-console/coverage.mjs");
+    const { surfacePage } = await import("./local-console/surfaces.mjs");
+    const { surfaceExecutionPage, publicCatalog, publicJob } = await import("./local-console/surface-console.mjs");
+    const surfaceOnly = cfg.suites.some(s => s.surfaceCatalog !== undefined);
     const mapPages=new Map();
     const ui=createServer(async(req,res)=>{
       const send=(code,type,data)=>res.writeHead(code,{"Content-Type":type,"Cache-Control":"no-store","X-Content-Type-Options":"nosniff",
@@ -118,8 +121,20 @@ async function main(){
           const status=await app.start(run[1],Number(run[2]));return json(status,{status});
         }
         if(req.method!=="GET")return json(405,{error:"対応していない操作です"});
+        if(surfaceOnly){
+          if(path==="/")return res.writeHead(303,{Location:"/run","Cache-Control":"no-store"}).end();
+          if(path==="/run")return send(200,"text/html; charset=utf-8",surfaceExecutionPage());
+          if(path==="/api/suites")return json(200,publicCatalog(app.catalog()));
+          if(run){const job=publicJob(app.job(run[1],Number(run[2])));return json(job?200:404,job);}
+          if(path!=="/surfaces" && path!=="/api/surfaces")return json(404,{error:"Surface evidence only"});
+        }
         if(path==="/")return res.writeHead(303,{Location:app.view()?"/v/"+app.view()+"/index.html":"/run","Cache-Control":"no-store"}).end();
         if(path==="/run")return send(200,"text/html; charset=utf-8",page);
+        if(path==="/surfaces" || path==="/api/surfaces"){
+          const result=await surfacePage(cfg,base,app,url.searchParams);
+          if(path==="/api/surfaces")return json(result.status,result.report ?? {error:"Surface coverage unavailable"});
+          return send(result.status,"text/html; charset=utf-8",result.html);
+        }
         if(path==="/coverage"){
           const result=await coveragePage(cfg,base,app,url.searchParams);
           return send(result.status,"text/html; charset=utf-8",result.html);
@@ -139,6 +154,7 @@ async function main(){
         const localUrl=pathToFileURL(localPage).href.replaceAll("&","&amp;").replaceAll('"',"&quot;");
         html=html.replace('<html lang="ja">',()=>'<html lang="ja" data-console-origin="'+origin+'" data-local-page="'+localUrl+'">');
         if(match[2]==="index"){
+          html=html.replace("<!--DOMAIN_COVERAGE_LINK-->",'<a class="scope-link" href="/surfaces">画面・API の到達状況 →</a><!--DOMAIN_COVERAGE_LINK-->');
           const catalog=app.catalog();
           const pending=catalog.suites.find(s=>s.latest && (s.latest.state==="running" || !s.latest.totals || s.latest.state==="error"));
           const job=pending?.latest;
