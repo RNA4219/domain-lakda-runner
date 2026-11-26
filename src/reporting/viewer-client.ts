@@ -122,7 +122,11 @@ export function reportViewer(): void {
       field(values, uiText("対象環境", "Platform"), platform(row)); field(values, uiText("実行モード", "Mode"), mode(row)); field(values, uiText("実行資格", "Execution mode"), summary?.executionMode);
       field(values, uiText("受入状態", "Acceptance status"), summary?.acceptanceStatus); field(values, uiText("producer revision", "Producer revision"), diagnostic?.producerRevision ?? summary?.producerRevision); field(values, uiText("target revision", "Target revision"), summary?.targetRevision);
       if (summary) {
-        field(values, uiText("開始", "Started"), date(summary.startedAt)); field(values, uiText("終了", "Ended"), date(summary.endedAt)); field(values, uiText("記録された所要時間 (ms)", "Recorded duration (ms)"), summary.durationMs);
+        const imported = "importedResult" in summary && summary.importedResult;
+        field(values, imported ? uiText("結果の生成", "Result generated") : uiText("開始", "Started"), date(summary.startedAt));
+        field(values, imported ? uiText("取り込み", "Imported") : uiText("終了", "Ended"), date(summary.endedAt));
+        if (imported) field(values, uiText("ブラウザ", "Browser"), imported.browser);
+        field(values, uiText("記録された所要時間 (ms)", "Recorded duration (ms)"), summary.durationMs);
         if ("sessionId" in summary) { field(values, uiText("session状態", "Session status"), summary.status); field(values, uiText("technical outcome", "Technical outcome"), summary.technicalOutcome); field(values, uiText("累積action数", "Cumulative actions"), summary.actionCount); field(values, uiText("active duration (ms)", "Active duration (ms)"), summary.activeDurationMs); }
         else { field(values, uiText("観測済みattempt数", "Observed action attempts"), summary.actionCount); field(values, uiText("計画action数", "Planned actions"), summary.plannedActionCount); }
       }
@@ -308,8 +312,10 @@ export function reportViewer(): void {
       more.append(supporting);
       if (view.runs.length) {
         const starts = view.runs.map(run => run.startedAt).sort(); const ends = view.runs.map(run => run.endedAt).sort();
-        more.append(node("p", uiText("実行時間範囲: ", "Execution time range: ") + date(starts[0]) + " 〜 " + date(ends[ends.length - 1])));
-        more.append(node("p", uiText("記録されたrun所要時間の合計: ", "Sum of recorded run durations: ") + view.runs.reduce((sum, run) => sum + (run.durationMs ?? 0), 0) + uiText(" ms（取得 ", " ms (recorded ") + view.runs.filter(run => run.durationMs !== null).length + "/" + view.runs.length + uiText(" run。並列・pauseを含む経過時間とは別）", " runs; differs from elapsed time including parallel execution and pauses)"), "muted"));
+        const rangeLabel = view.runs.some(run => run.importedResult) ? uiText("記録の日時範囲: ", "Record time range: ") : uiText("実行時間範囲: ", "Execution time range: ");
+        more.append(node("p", rangeLabel + date(starts[0]) + " 〜 " + date(ends[ends.length - 1])));
+        const measured = view.runs.flatMap(run => run.durationMs === null ? [] : [run.durationMs]);
+        more.append(node("p", uiText("記録されたrun所要時間の合計: ", "Sum of recorded run durations: ") + (measured.length ? measured.reduce((a, b) => a + b, 0) + " ms" : uiText("不明", "Unknown")) + uiText("（取得 ", " (recorded ") + measured.length + "/" + view.runs.length + uiText(" run。並列・pauseを含む経過時間とは別）", " runs; differs from elapsed time including parallel execution and pauses)"), "muted"));
       }
       summary.append(more);
       summary.append(node("p", uiText("受入判定: このレポートでは判定しません。実行資格・受入状態は各結果の詳細を確認してください。", "Acceptance decision: not determined by this report. Check execution mode and acceptance status in each result."), "notice"));

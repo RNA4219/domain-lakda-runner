@@ -394,6 +394,7 @@ test("cross-run trend verifies HATE bytes, remains read-only, and rejects tamper
     const data = await generateTrend(indexFile, root, output);
     expect(data.series).toHaveLength(1);
     expect(data.series[0]).toMatchObject({ total: 2, evaluated: 2, passed: 1, failed: 1, successRate: .5, flakyCandidate: true });
+    expect(data.series[0].runs.map(row => row.durationMs)).toEqual([1000, 3000]);
     expect(data.gate).toBe("external-qeg-required");
     expect(JSON.parse(await readFile(join(output, "trend.json"), "utf8"))).toEqual(data);
     expect(await readFile(join(output, "index.html"), "utf8")).toContain("Lakda cross-run trends");

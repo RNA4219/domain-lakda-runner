@@ -10,6 +10,7 @@ import { projectRunHistory } from "./run-history.js";
 import { projectAttestationResults } from "./attestation-results.js";
 import { readSourceOracles, type ReportEvidence } from "./evidence-history.js";
 import { reportTimestamp } from "./source-values.js";
+import { elapsedDuration, importedBrowser, importedMode, scenarioDurations, sumScenarioDurations } from "../runs/measurements.js";
 import type { Classification, ReportIssue, ReportRow, ReportRun, ReportSource, ReportTimeline } from "./types.js";
 
 export type ReportMediaCandidate = { id: string; sourceId: string; runKey: string | null; artifact: ManifestArtifact; snapshot: ArtifactSnapshot; root: string };
@@ -34,7 +35,8 @@ export async function loadReportRun(runDir: string, options: Pick<ManifestReadOp
   if (snapshot.manifest.run_id !== summary.runId || snapshot.manifest.run_attempt !== attempt || snapshot.manifest.commit_sha !== summary.commitSha) {
     throw new ReportInputError("run-binding-mismatch", "run metadataとHATE manifestのbindingが不一致です");
   }
-  if (!["smoke", "seeded-random", "regression-replay", "llm-explore", "adaptive-explore"].includes(summary.mode)) throw new ReportInputError("unsupported-mode", "未対応のrun modeです");
+  const imported = summary.mode === importedMode;
+  if (!imported && !["smoke", "seeded-random", "regression-replay", "llm-explore", "adaptive-explore"].includes(summary.mode)) throw new ReportInputError("unsupported-mode", "未対応のrun modeです");
   const key = "run:" + summary.runId + ":" + attempt;
   const policy = metadata.artifactPolicy ? object(metadata.artifactPolicy, "artifact policy") : {};
   if (byPath.has(RUN_START_REF)) {
@@ -66,14 +68,20 @@ export async function loadReportRun(runDir: string, options: Pick<ManifestReadOp
     return decode(ref);
   };
   json("run-metadata.json");
-  projectAttestationResults(snapshot, metadata, source, issues);
-  const history = projectRunHistory(key, summary.mode, json, issues);
-  if (summary.mode === "adaptive-explore") history.evidence.oracles.push(...readSourceOracles(snapshot, source, issues));
+  if (!imported) projectAttestationResults(snapshot, metadata, source, issues);
+  const history = imported ? { actionCount: null, plannedActionCount: null, coverage: [], timeline: [], evidence: undefined } : projectRunHistory(key, summary.mode, json, issues);
+  if (summary.mode === "adaptive-explore") history.evidence?.oracles.push(...readSourceOracles(snapshot, source, issues));
   const startedAt = reportTimestamp(summary.startedAt);
   const endedAt = reportTimestamp(summary.endedAt);
-  const duration = Date.parse(endedAt) - Date.parse(startedAt);
-  const run: ReportRun = { key, sourceId: key, runId: summary.runId, attempt, mode: summary.mode, platform: summary.mode === "adaptive-explore" ? null : "pc-web", executionMode: null, outcome: summary.outcome, terminationReason: cleanReportText(summary.terminationReason), startedAt, endedAt, durationMs: duration >= 0 ? duration : null, seed: summary.seed, producerVersion: summary.producerVersion, producerRevision: summary.commitSha, targetRevision: null, acceptanceStatus: null, actionCount: history.actionCount, plannedActionCount: history.plannedActionCount, coverage: history.coverage };
+  const importedResult = imported ? { browser: importedBrowser(metadata), scenarioDurationsMs: scenarioDurations(metadata.scenario_results) } : undefined;
+  const durationMs = importedResult ? sumScenarioDurations(importedResult.scenarioDurationsMs) : elapsedDuration(startedAt, endedAt);
+  const run: ReportRun = { key, sourceId: key, runId: summary.runId, attempt, mode: summary.mode, platform: imported || summary.mode === "adaptive-explore" ? null : "pc-web", executionMode: null, outcome: summary.outcome, terminationReason: cleanReportText(summary.terminationReason), startedAt, endedAt, durationMs, ...(importedResult && { importedResult }), seed: summary.seed, producerVersion: summary.producerVersion, producerRevision: summary.commitSha, targetRevision: null, acceptanceStatus: null, actionCount: history.actionCount, plannedActionCount: history.plannedActionCount, coverage: history.coverage };
   rows.push({ id: key, sourceId: key, runKey: key, kind: "run", status: run.outcome, severity: null, title: run.runId, message: run.terminationReason, at: run.endedAt, ruleId: null, relatedIds: [], evidenceIds: [] });
+  // Imported summaries carry scenario measurements only. Native action/media evidence has its own contracts.
+  if (imported) {
+    issues.push({ code: "execution-history-unavailable", severity: "warning", sourceId: key, message: "取り込んだシナリオ結果にはLakdaの操作履歴がありません" });
+    return { snapshot, metadata, source, run, rows, timeline: [], issues, mediaCandidates };
+  }
   const failureValue = json("failure-report.json");
   if (failureValue === undefined) issues.push({ code: "failures-unavailable", severity: "warning", sourceId: key, message: "failure記録が未取得です" });
   else {

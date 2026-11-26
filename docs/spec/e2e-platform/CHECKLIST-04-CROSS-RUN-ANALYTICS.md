@@ -25,6 +25,11 @@ Corresponding specification: [SPEC-04-CROSS-RUN-ANALYTICS.md](SPEC-04-CROSS-RUN-
 
 ## C. Release acceptance
 
+- [ ] Import old-dated passing and failing synthetic results. Check saved metadata, run listing, JSON/HTML trend, generated report, and report verification. Confirm the two totals are 163070 and 103305 ms and their nearest-rank median is 103305 ms.
+- [ ] Check zero, partially missing, invalid and absent durations, including legacy metadata. Verify only fully measured runs contribute to duration statistics.
+- [ ] Require the index label to agree with device, unknown, explicitly browser-measured and native runs. Reject an incompatible label and real-evidence promotion. Confirm old artifacts are byte-identical after reading.
+- [ ] Bind the manual-bb cases and execution evidence to the tested PR head. Android provenance coverage uses a synthetic device fixture.
+
 - [ ] CHK-E2E-04-A-001 - Correctness, safety and compatibility proven.
 - [ ] CHK-E2E-04-A-002 - No fixture/mock/emulator treated as real evidence.
 - [ ] CHK-E2E-04-A-003 - No Lakda Gate verdict or new subprocess/network sender.

@@ -23,6 +23,20 @@ lakda runs trend --index index.json --runs-dir .lakda/runs --out new-report-dir.
 
 ## Contract
 
+### Imported E2E measurements
+
+`lakda import e2e --result result.json --output-dir runs` imports a completed result. This mainline input subset requires a timezone-qualified ISO `generated_at` and a nonempty `scenario_results` array. Each scenario has `status` (`passed` or `failed`), and may have a nonnegative numeric `duration_ms`. A failed scenario makes the run failed. An optional result-level `status` must agree. The importer writes a new HATE-bound run and prints its `runRef`. Only normalized scenario measurements and layer are retained. Import supplies no replay approvals, execution-mode assertions, target revision, native action history, or binary evidence.
+
+```json
+{"generated_at":"2026-11-12T01:39:22Z","layer":"device","scenario_results":[{"status":"passed","duration_ms":63070},{"status":"passed","duration_ms":100000}]}
+```
+
+For `lakda/run-metadata/v1` with mode `external-playwright`, `startedAt` records result generation and `endedAt` records ingestion. Trend and report sum the verified metadata's `scenario_results[].duration_ms` across all statuses. Zero is measured. Absent or empty scenario data, any missing, negative, nonnumeric or nonfinite measurement, or a sum above the safe numeric range yields `null`. Only measured totals enter duration count, nearest-rank median and p95 (at least 20 measurements). Native runs keep their recorded elapsed duration.
+
+The reviewed `lakda/trend-index/v1` entry must match the run's browser classification. For imported runs use `external` for device, unknown, mixed or unsupported browser evidence. Use `chromium` only for a browser-layer result with explicit `browser: "chromium"` on every scenario. This is source-reported browser evidence. The importer and both readers apply that rule independently of a top-level browser field, including legacy defaults. Native Chromium runs still use `chromium`, including legacy native records that omit the field. Evidence kind and authorization retain their existing checks.
+
+Older external runs remain read-only. When the verified metadata has no scenario measurements, re-importing the original completed result into a new run is the way to recover measured totals. Imported reports have unknown native action counts and a degraded receipt (exit 2); `report verify` can still verify the resulting bundle. The separate `lakda/external-surface-run/v1` SDK measures live surface coverage and uses its own index and readers.
+
 Read-only runs trend command reads a reviewed index, verifies HATE manifest and bytes through existing readers, separates real and fixture/mock/emulator labels, emits JSON and local HTML without modifying source run directories.
 
 A human-reviewed source is required before claiming an executed E2E case.
@@ -38,7 +52,7 @@ cannot become successful real E2E evidence. No component here issues Gate verdic
 
 ## Patch
 
-No required fields added to existing schemas. Persisted evidence is immutable.
+Native run schemas retain the integer seed. Imported summaries allow an unknown seed (`null`), and their report views carry the browser label and scenario measurements used to verify the displayed total. Persisted evidence is immutable.
 No new arbitrary code execution, network sender or subprocess logic in Lakda.
 
 ## Tests

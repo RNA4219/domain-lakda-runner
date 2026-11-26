@@ -25,6 +25,8 @@ test("fixture/emulator cannot inflate real result series", () => {
   expect(output.series.find(x => x.evidenceKind === "real")?.successRate).toBe(0);
 });
 test("P95 is not calculated without twenty duration samples", () => {
-  expect(summarizeTrend(Array.from({ length: 19 }, (_, n) => run("passed", n))).series[0].duration.p95Ms).toBeNull();
-  expect(summarizeTrend(Array.from({ length: 20 }, (_, n) => run("passed", n))).series[0].duration.p95Ms).toBe(1000);
+  const measured = Array.from({ length: 20 }, (_, n) => ({ ...run("passed", n), durationMs: n }));
+  const unknown = { ...run("failed", 20), durationMs: null };
+  expect(summarizeTrend([...measured.slice(1), unknown]).series[0].duration).toEqual({ count: 19, medianMs: 10, p95Ms: null });
+  expect(summarizeTrend([...measured, unknown]).series[0].duration).toEqual({ count: 20, medianMs: 9, p95Ms: 18 });
 });

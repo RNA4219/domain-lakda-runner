@@ -5,6 +5,7 @@ import { reportTimestamp } from "./source-values.js";
 import type { Outcome, ReportView } from "./types.js";
 import { assertReportBatchSemantics } from "./batch-validation.js";
 import { assertIncompleteRunSemantics } from "./incomplete-validation.js";
+import { elapsedDuration, importedMode, sumScenarioDurations } from "../runs/measurements.js";
 
 /** Validate relationships as well as JSON shape; no producer or acceptance verdict is inferred. */
 export function assertReportViewSemantics(value: unknown): asserts value is ReportView {
@@ -37,8 +38,10 @@ export function assertReportViewSemantics(value: unknown): asserts value is Repo
     require(source !== undefined && source.status === "verified" && source.kind === ("runId" in summary ? "run" : "session"));
     require(source?.producerRevision === summary.producerRevision && source?.targetRevision === summary.targetRevision);
     utc(summary.startedAt); utc(summary.endedAt);
-    const duration = Date.parse(summary.endedAt) - Date.parse(summary.startedAt);
-    require(summary.durationMs === (duration < 0 ? null : duration));
+    const imported = "runId" in summary && summary.mode === importedMode;
+    const result = "runId" in summary ? summary.importedResult : undefined;
+    require(imported === (result !== undefined));
+    require(summary.durationMs === (result ? sumScenarioDurations(result.scenarioDurationsMs) : elapsedDuration(summary.startedAt, summary.endedAt)));
   }
   for (const session of view.sessions) require(session.runKeys.every(key => runs.has(key) || sources.get(key)?.status === "restricted" && sources.get(key)?.kind === "run"));
   for (const record of [...view.rows, ...view.timeline]) {

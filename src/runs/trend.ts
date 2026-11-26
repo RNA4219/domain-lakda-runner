@@ -5,13 +5,15 @@ import { showRun } from "./catalog.js";
 import { readManifestSnapshot } from "./manifest-snapshot.js";
 import { hateArtifact } from "./catalog-values.js";
 import { findSensitive } from "../core/redaction.js";
+import { parseMode } from "../core/config.js";
+import { elapsedDuration, importedBrowser, importedMode, scenarioDurations, sumScenarioDurations, type RunBrowser } from "./measurements.js";
 
 export type TrendEntry = {
   runRef: string;
   scenarioId: string;
   caseRevision: string;
   environment: string;
-  browser: "chromium";
+  browser: RunBrowser;
   evidenceKind: "real" | "fixture" | "mock" | "emulator" | "unknown";
 };
 export type TrendRun = TrendEntry & {
@@ -29,10 +31,6 @@ function requireValue(condition: boolean, message: string): asserts condition {
 }
 function safeKey(value: unknown, name: string): asserts value is string {
   requireValue(typeof value === "string" && keyPattern.test(value), "invalid " + name);
-}
-function validDuration(start: string, end: string): number | null {
-  const a = Date.parse(start), b = Date.parse(end);
-  return Number.isFinite(a) && Number.isFinite(b) && b >= a ? b - a : null;
 }
 function percentile(values: number[], fraction: number): number | null {
   if (!values.length) return null;
@@ -100,7 +98,7 @@ export async function generateTrend(indexPath: string, runsDir: string, outDir: 
     requireValue(!!raw && typeof raw === "object" && !Array.isArray(raw), "invalid run record");
     const entry = raw as Record<string, unknown>;
     for (const field of ["runRef", "scenarioId", "caseRevision", "environment"]) safeKey(entry[field], field);
-    requireValue(entry.browser === "chromium", "unsupported browser");
+    requireValue(entry.browser === "chromium" || entry.browser === "external", "unsupported browser");
     requireValue(["real", "fixture", "mock", "emulator", "unknown"].includes(String(entry.evidenceKind)),
       "unsupported evidence kind");
     const runRef = entry.runRef as string;
@@ -119,14 +117,21 @@ export async function generateTrend(indexPath: string, runsDir: string, outDir: 
     requireValue(entry.evidenceKind !== "real" || metadata.executionMode === "real",
       "real classification lacks explicit real execution evidence");
     requireValue(detail.integrity.manifestSha256 === verified.manifestSha256, "run changed during inspection");
+    const imported = detail.run.mode === importedMode;
+    if (!imported) {
+      parseMode(detail.run.mode);
+      requireValue(metadata.browser === undefined || metadata.browser === "chromium", "unsupported native browser");
+    }
+    const browser = imported ? importedBrowser(metadata) : "chromium";
+    requireValue(entry.browser === browser, "index browser does not match verified run provenance");
     const row: TrendRun = {
       runRef, scenarioId: entry.scenarioId as string, caseRevision: entry.caseRevision as string,
-      environment: entry.environment as string, browser: "chromium",
+      environment: entry.environment as string, browser,
       evidenceKind: entry.evidenceKind as TrendRun["evidenceKind"],
       runId: detail.run.runId, attempt: Number(metadata.attempt), outcome: detail.run.outcome,
       startedAt: detail.run.startedAt, endedAt: detail.run.endedAt,
       manifestSha256: detail.integrity.manifestSha256,
-      durationMs: validDuration(detail.run.startedAt, detail.run.endedAt),
+      durationMs: imported ? sumScenarioDurations(scenarioDurations(metadata.scenario_results)) : elapsedDuration(detail.run.startedAt, detail.run.endedAt),
     };
     rows.push(row);
   }
@@ -134,10 +139,10 @@ export async function generateTrend(indexPath: string, runsDir: string, outDir: 
   requireValue(findSensitive(JSON.stringify(output)).length === 0, "trend contains sensitive data");
   const html = '<!doctype html><html lang="ja"><meta charset="utf-8"><title>Lakda cross-run trends</title>' +
     '<h1>Lakda cross-run trends</h1><p>Machine-verified local runs only. No Gate decision.</p>' +
-    '<table border="1"><thead><tr><th>Scenario</th><th>Revision</th><th>Environment</th><th>Evidence</th>' +
+    '<table border="1"><thead><tr><th>Scenario</th><th>Revision</th><th>Environment</th><th>Browser</th><th>Evidence</th>' +
     '<th>Passed / Evaluated</th><th>Partial</th><th>Error</th><th>Flaky candidate</th><th>Median ms</th><th>P95 ms</th></tr></thead><tbody>' +
     output.series.map(group => '<tr>' + [
-      group.scenarioId, group.caseRevision, group.environment, group.evidenceKind,
+      group.scenarioId, group.caseRevision, group.environment, group.browser, group.evidenceKind,
       String(group.passed) + " / " + String(group.evaluated), String(group.partial),
       String(group.errors), group.flakyCandidate ? "candidate" : "no",
       String(group.duration.medianMs ?? "n/a"), String(group.duration.p95Ms ?? "n/a"),

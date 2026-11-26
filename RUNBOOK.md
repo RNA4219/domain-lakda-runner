@@ -318,6 +318,17 @@ reference stagingのconfig、corpus、case、target revision、allowlist、kill 
 `publish_release=true`を明示した場合だけ、QEG `go`後に`release_tag=v<package version>`を対象SHAへ作成し、sanitized evidence zipをprereleaseへ添付する。`600a037`の過去証跡は履歴であり、rc.5のGateを省略する根拠にはならない。
 
 
+## Import a completed external result for reporting
+
+```sh
+lakda import e2e --result result.json --output-dir runs
+lakda runs trend --index index.json --runs-dir runs --out trend
+lakda report generate --run-dir runs/<runRef> --out report
+lakda report verify --report-dir report
+```
+
+Use the printed `runRef` in your `lakda/trend-index/v1` entry. For a device-only result, set `browser` to `external` and use `evidenceKind: "unknown"` when the evidence lane is unknown. A report with imported scenario results and no native action history is generated with a degraded receipt (exit 2). The result input and browser/duration rules are described in [SPEC-04](https://github.com/RNA4219/domain-lakda-runner/blob/main/docs/spec/e2e-platform/SPEC-04-CROSS-RUN-ANALYTICS.md#imported-e2e-measurements).
+
 ## manual-bb handoff and promoted replay (2026-11)
 
 Manual-bb exploratory charters can be exported into the Lakda `exploration-charter/v1` template. `origin` is retained as evidence provenance only and is ignored by the action generator and stop decisions. Check real target authorization and the signed manifest before execution. Lakda retains `goNoGo: external-qeg-required`; manual-bb/QEG alone decide release Gate.

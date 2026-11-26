@@ -2,6 +2,7 @@ import { realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { findSensitive } from "../core/redaction.js";
 import type { RunSummary } from "./types.js";
+import { importedMode } from "./measurements.js";
 
 const outcomes = new Set(["passed", "failed", "partial", "error"]);
 
@@ -126,7 +127,7 @@ export function parseRunSummary(value: unknown, runRef: string): RunSummary {
     ["run metadata commitSha", commitSha],
   ] as const) assertSafePublicValue(publicValue, name);
   const seed = current.seed;
-  if (!Number.isSafeInteger(seed)) throw new Error("run metadata seed must be an integer");
+  if (!(mode === importedMode && seed === null) && !Number.isSafeInteger(seed)) throw new Error("run metadata seed must be an integer");
   return {
     runId,
     runRef,
@@ -135,7 +136,7 @@ export function parseRunSummary(value: unknown, runRef: string): RunSummary {
     mode,
     outcome: outcome as RunSummary["outcome"],
     terminationReason,
-    seed: seed as number,
+    seed: seed as number | null,
     producerVersion,
     commitSha,
   };
