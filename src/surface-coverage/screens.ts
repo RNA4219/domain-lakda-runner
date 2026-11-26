@@ -38,7 +38,14 @@ export class ScreenObservation {
       const deadline = Date.now() + Math.max(0, budget);
       for (;;) {
         const screen = await this.capture(current);
-        if (screen && (!screen.ready || await current.locator('[data-testid=' + JSON.stringify(screen.ready.testId) + ']').isVisible().catch(() => false))) break;
+        if (screen) {
+          const ready = screen.ready;
+          const selected = ready && ("testId" in ready ? current.locator('[data-testid=' + JSON.stringify(ready.testId) + ']') :
+            current.getByRole(ready.role, { name: ready.name, exact: true }));
+          // Strict uniqueness also applies to legacy testId readiness. Locator errors
+          // are deliberately discarded so names and page content never enter diagnostics.
+          if (!selected || await selected.isVisible().catch(() => false)) break;
+        }
         if (!budget || Date.now() >= deadline || current.isClosed()) { this.incomplete(); break; }
         await new Promise(resolve => setTimeout(resolve, Math.min(25, Math.max(1, deadline - Date.now()))));
       }

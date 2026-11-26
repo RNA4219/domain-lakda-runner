@@ -23,3 +23,9 @@
 実結果は [ローカル受入記録](../../acceptance/AC-20261125-runtime-surface-coverage.md)。外部製品の受入や QEG verdict ではない。
 
 AC-S14〜19の開発検証は `tests/surface-field-feedback.spec.ts`。通常suiteと区別したlocalhost機能受入は[専用記録](../../acceptance/AC-20261125-surface-field-feedback.md)を参照する。
+
+- [ ] AC-S20: CLIと公開SDKで単一末尾スラッシュ付き画面/APIの到達と実通信の関係を計上する。slashなし、root、中間空segment、二重末尾、テンプレート、hashRouteの厳密な区別、非公開の重なり、旧定義digestを確認する。
+- [ ] AC-S21: testIdなし合成製品のrole/name readyで遅延APIを待つ。完全一致、複数候補、未表示、不在、timeoutのincomplete、testId互換、state契約、公開出力/診断の非漏えいを確認する。
+- [ ] AC-S22: 指定PCのCLI replayと公開SDKのcheckpoint/finish、専用index、JSON/HTMLを正式manual-bbケース版/対象SHAに結び付ける。全ケースpassとGate go、check、pack、適用GitHub checksおよびマージtreeを確認する。
+
+AC-S20〜22の手順とローカル記録先は[末尾スラッシュ・role ready受入](../../acceptance/AC-20261126-surface-slash-role-ready.md)。チェック欄は実行証跡と別管理し、外部製品の検証を意味しない。
