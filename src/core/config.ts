@@ -124,9 +124,9 @@ export function configFromJson(input: PartialConfig, overrides: PartialConfig = 
 }
 
 export function validateConfig(config: LakdaConfig): void {
-  if (config.reviewedE2E !== undefined || config.reviewedOracleVersion !== undefined || config.obligations.some(check => check.textEquals !== undefined || check.afterActionId !== undefined || check.acceptanceRef !== undefined || check.amountEquals !== undefined || check.countEquals !== undefined || check.countDelta !== undefined)) {
+  if (config.reviewedE2E !== undefined || config.reviewedOracleVersion !== undefined || config.obligations.some(check => check.hidden !== undefined || check.textEquals !== undefined || check.afterActionId !== undefined || check.acceptanceRef !== undefined || check.amountEquals !== undefined || check.countEquals !== undefined || check.countDelta !== undefined)) {
     if (config.reviewedE2E !== true || config.mode !== "regression-replay") {
-      throw new Error("reviewedE2E と textEquals は reviewedE2E=true の regression-replay 専用です");
+      throw new Error("レビュー済みの判定には reviewedE2E=true の regression-replay が必要です");
     }
     if (!validateConfigSchema({ reviewedE2E: true, ...(config.reviewedOracleVersion === undefined ? {} : { reviewedOracleVersion: config.reviewedOracleVersion }), obligations: config.obligations })) {
       throw new Error("reviewedE2E の最終判定が設定schemaに適合しません");

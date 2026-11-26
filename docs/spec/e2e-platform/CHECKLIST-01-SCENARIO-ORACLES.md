@@ -22,6 +22,7 @@ Corresponding specification: [SPEC-01-SCENARIO-ORACLES.md](SPEC-01-SCENARIO-ORAC
 | [ ] | CHK-E2E-01-I-001 | REQ-E2E-01 | Test record pending |
 | [ ] | CHK-E2E-01-I-002 | REQ-E2E-01 | CI run SHA pending |
 | [ ] | CHK-E2E-01-I-003 | REQ-E2E-01 | External target validation pending |
+| [x] | 閉じる操作の直後に非表示を確認し、表示されたままなら失敗を記録する | REQ-E2E-01 | `tests/reviewed-v02.spec.ts` |
 
 ## C. Release acceptance
 

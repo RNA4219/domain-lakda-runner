@@ -145,6 +145,7 @@ async function evaluateReviewedChecks(page: Page, config: LakdaConfig, collector
     const before = baselines.get(index);
     try {
       if (check.visible) await expect(locatorFor(page, check.visible, label)).toBeVisible({ timeout });
+      else if (check.hidden) await expect(locatorFor(page, check.hidden, label)).toBeHidden({ timeout });
       else if (check.textEquals) await expect(locatorFor(page, check.textEquals.locator, label)).toHaveText(check.textEquals.text, { timeout });
       else if (check.amountEquals || check.countEquals || check.countDelta) {
         await expect.poll(async () => {

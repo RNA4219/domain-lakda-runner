@@ -6,6 +6,51 @@ import { runLakda } from "../src/core/runner.js";
 import { startFixture } from "./fixtures/server.js";
 
 const list = { testId: "list" }, item = { testId: "item" };
+for (const [target, outcome] of [["shipping-answer", "passed"], ["shipping-question", "failed"]] as const) {
+  test(`配送の詳細を閉じた直後の hidden: ${target} → ${outcome}`, async () => {
+    const body = await readFile("examples/e2e-platform/site/index.html", "utf8");
+    const fixture = await startFixture(() => ({ contentType: "text/html; charset=utf-8", body }));
+    try {
+      const outputDir = test.info().outputPath();
+      const plan = join(outputDir, "plan.json");
+      const question = { testId: "shipping-question" };
+      await writeFile(plan, JSON.stringify({
+        schemaVersion: "lakda/action-plan/v1", mode: "regression-replay", seed: 4219, baseUrl: fixture.baseUrl,
+        actions: [{ id: "visit", kind: "navigate", path: "/" }, { id: "open", kind: "click", locator: question },
+          { id: "close", kind: "click", locator: question }],
+      }));
+      const config = loadConfig(undefined, { outputDir, mode: "regression-replay", baseUrl: fixture.baseUrl,
+        reviewedE2E: true, reviewedOracleVersion: 2, obligations: [
+          { afterActionId: "open", acceptanceRef: "AC-open", visible: { testId: "shipping-answer" } },
+          { afterActionId: "close", acceptanceRef: "AC-close", hidden: { testId: target } },
+        ] });
+      const result = await runLakda(config, plan);
+      expect(result.outcome).toBe(outcome);
+      if (outcome === "failed") {
+        expect(result.terminationReason).toBe("obligations_unmet");
+        expect(result.failures).toContainEqual(expect.objectContaining({ ruleId: "UI-009" }));
+      }
+      const log = await readFile(join(dirname(result.actionSequencePath!), "console.jsonl"), "utf8");
+      const checks = log.trim().split("\n").map(line => JSON.parse(line))
+        .filter(row => row.source === "reviewed-oracle").map(row => JSON.parse(row.message));
+      expect(checks).toEqual([
+        { index: 1, acceptanceRef: "AC-open", actionId: "open", result: "passed" },
+        { index: 2, acceptanceRef: "AC-close", actionId: "close", result: outcome },
+      ]);
+    } finally { await fixture.close(); }
+  });
+}
+
+test("hidden は受入条件を持つ reviewed V2 判定として検証する", () => {
+  const config = { mode: "regression-replay", reviewedE2E: true, reviewedOracleVersion: 2 } as const;
+  const hidden = { testId: "shipping-answer" };
+  const reviewed = { hidden, acceptanceRef: "AC-close" };
+  expect(() => loadConfig(undefined, { ...config, obligations: [reviewed] })).not.toThrow();
+  expect(() => loadConfig(undefined, { ...config, reviewedOracleVersion: undefined, obligations: [reviewed] })).toThrow();
+  expect(() => loadConfig(undefined, { ...config, obligations: [{ hidden }] })).toThrow();
+  expect(() => loadConfig(undefined, { ...config, obligations: [{ ...reviewed, visible: hidden }] })).toThrow();
+});
+
 test("V02 evaluates amounts and action-bound count delta with normalized evidence", async () => {
   const fixture = await startFixture(() => ({ contentType: "text/html; charset=utf-8", body: `<div data-testid="amount">$9.00</div><div data-testid="list"><span data-testid="item"></span></div><button data-testid="add" onclick="document.querySelector('[data-testid=list]').insertAdjacentHTML('beforeend','<span data-testid=item></span>')">Add</button>` }));
   try {
