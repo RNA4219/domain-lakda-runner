@@ -4,7 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { startSurfaceCoverage, surfaceRunIndex } from "../src/index.js";
-import { readCatalog, match, matching, matchStaticScreen, scope, type Screen } from "../src/surface-coverage/catalog.js";
+import { readCatalog, match, matching, matchDocumentScreen, matchStaticScreen, scope, type Screen } from "../src/surface-coverage/catalog.js";
 import { startFixture } from "./fixtures/server.js";
 
 const exec = promisify(execFile);
@@ -46,6 +46,12 @@ test("URL specificity precedes state observation and preserves hash boundaries a
   expect(selected(hash, "/app#/items/1/")).toBe("item");
   expect(selected(hash, "/app/#/items/new")).toBeUndefined();
   expect(selected([...hash, screen("app", "/app")], "/app#/items/new/")).toBeUndefined();
+  for (const allowed of [["app"], ["app", "new"]]) {
+    const shell = readCatalog(catalog([screen("app", "/{shell}"), hash[1]], allowed));
+    expect(matchDocumentScreen(shell, origin + "/app")).toBeUndefined();
+    expect(matchDocumentScreen(shell, origin + "/other")?.id).toBe("app");
+    expect(matchStaticScreen(shell, origin + "/app#unrelated")?.id).toBe("app");
+  }
   expect(selected([screen("a", "/app", { hashRoute: "/{id}" }), screen("b", "/{app}", { hashRoute: "/new" })],
     "/app#/new")).toBeUndefined();
   for (const [allowed, hidden] of [[item, state], [state, item]]) {

@@ -26,6 +26,7 @@ export interface Catalog {
   screens: Screen[]; apis: Api[]; relations: { screen: string; api: string }[];
 }
 const blockers = new WeakMap<Place, Place[]>();
+const hashPeers = new WeakMap<Screen, Screen[]>();
 const routingContext = new WeakMap<Place, string>();
 const withoutFinalSlash = (path: string) => path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
 const eitherSlash = (place: Place) => "trailingSlash" in place && place.trailingSlash === "either";
@@ -82,18 +83,20 @@ export function readCatalog(value: unknown): Catalog {
     check([...allowedScreens].every(s => screenIds.has(s)) && [...allowedApis].every(a => apiIds.has(a)));
     const visibleScreens = screens.filter(s => allowedScreens.has(s.id));
     for (const screen of visibleScreens) {
-      const excluded: Screen[] = [], peers: string[] = [];
+      const excluded: Screen[] = [], fragmentRoutes: Screen[] = [], peers: string[] = [];
       let changedRouting = false;
       for (const other of screens) {
         if (other === screen || other.origin !== screen.origin || !screenOverlap(screen, other)) continue;
+        if (!screen.hashRoute && other.hashRoute) fragmentRoutes.push(other);
         // A private overlap always vetoes attribution, irrespective of specificity or DOM state.
         if (!allowedScreens.has(other.id)) { excluded.push(other); continue; }
         const order = specificity(other, screen);
         if (order > 0) excluded.push(other);
-        if (order !== 0 || screen.trailingSlash || other.trailingSlash) changedRouting = true;
+        if (order !== 0 || screen.trailingSlash || other.trailingSlash || (!screen.hashRoute && other.hashRoute)) changedRouting = true;
         peers.push(JSON.stringify([other.path, other.hashRoute, other.trailingSlash, other.state?.testId]));
       }
       blockers.set(screen, excluded);
+      if (fragmentRoutes.length) hashPeers.set(screen, fragmentRoutes);
       if (changedRouting) routingContext.set(screen, digest(peers.sort()));
     }
     const visibleApis = apis.filter(a => allowedApis.has(a.id));
@@ -127,15 +130,18 @@ function specificity(a: Screen, b: Screen): number {
   }
   return Number(leftMore) - Number(rightMore);
 }
+function matchesPath(path: string, actualPath: string): boolean {
+  const template = path.split("/"), actual = actualPath.split("/");
+  return template.length === actual.length && template.every((part, i) => part.startsWith("{") ? actual[i].length > 0 : part === actual[i]);
+}
+function matchesPathname(place: Place, pathname: string): boolean {
+  return matchesPath(place.path, eitherSlash(place) ? withoutFinalSlash(pathname) : pathname);
+}
 export function matching<T extends Place>(items: T[], rawUrl: string): T[] {
   try {
     const url = new URL(rawUrl);
-    const matchesPath = (path: string, actualPath: string) => {
-      const template = path.split("/"), actual = actualPath.split("/");
-      return template.length === actual.length && template.every((part, i) => part.startsWith("{") ? actual[i].length > 0 : part === actual[i]);
-    };
     const matches = (p: Place) => {
-      return p.origin === url.origin && matchesPath(p.path, eitherSlash(p) ? withoutFinalSlash(url.pathname) : url.pathname) &&
+      return p.origin === url.origin && matchesPathname(p, url.pathname) &&
         (!("hashRoute" in p) || url.hash.startsWith("#/") && matchesPath(String(p.hashRoute), url.hash.slice(1).split(/[?#]/, 1)[0]));
     };
     const candidates = items.filter(p => matches(p) && !blockers.get(p)?.some(matches));
@@ -151,6 +157,13 @@ export function match<T extends Place>(items: T[], rawUrl: string): T | undefine
 export function matchStaticScreen(catalog: Catalog, rawUrl: string): Screen | undefined {
   const found = matching(catalog.screens, rawUrl);
   return found.length === 1 && !found[0].state ? found[0] : undefined;
+}
+/** An HTTP response omits the fragment. Only credit transport when that omission cannot change the selected screen. */
+export function matchDocumentScreen(catalog: Catalog, responseUrl: string): Screen | undefined {
+  const screen = matchStaticScreen(catalog, responseUrl);
+  if (!screen) return;
+  const pathname = new URL(responseUrl).pathname;
+  if (!hashPeers.get(screen)?.some(peer => matchesPathname(peer, pathname))) return screen;
 }
 export function definition(p: Place | { screen: string; api: string }): string {
   // Frequency and human labels can change without falsifying execution identity.
