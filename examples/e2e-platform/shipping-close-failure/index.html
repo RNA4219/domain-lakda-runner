@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>配送のご案内</title>
+</head>
+<body>
+  <main>
+    <h1>配送のご案内</h1>
+    <details id="shipping-details">
+      <summary data-testid="shipping-question" aria-controls="shipping-answer">注文してから何日で届きますか？</summary>
+    </details>
+    <p id="shipping-answer" data-testid="shipping-answer" hidden>通常、ご注文から2〜3営業日でお届けします。</p>
+  </main>
+  <script>
+    const details = document.getElementById("shipping-details");
+    const answer = document.getElementById("shipping-answer");
+    details.addEventListener("toggle", () => {
+      // 閉じた後も回答が残る回帰を再現する。
+      if (details.open) answer.hidden = false;
+    });
+  </script>
+</body>
+</html>

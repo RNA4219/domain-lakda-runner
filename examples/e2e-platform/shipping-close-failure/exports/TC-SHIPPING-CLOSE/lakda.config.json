@@ -1,0 +1,52 @@
+{
+  "actionCatalog": [
+    {
+      "id": "visit",
+      "kind": "navigate",
+      "path": "/"
+    },
+    {
+      "id": "open",
+      "kind": "click",
+      "locator": {
+        "testId": "shipping-question"
+      }
+    },
+    {
+      "id": "close",
+      "kind": "click",
+      "locator": {
+        "testId": "shipping-question"
+      }
+    }
+  ],
+  "browser": "chromium",
+  "mode": "regression-replay",
+  "obligations": [
+    {
+      "acceptanceRef": "AC-SHIPPING-OPEN",
+      "afterActionId": "open",
+      "visible": {
+        "testId": "shipping-answer"
+      }
+    },
+    {
+      "acceptanceRef": "AC-SHIPPING-CLOSE",
+      "afterActionId": "close",
+      "hidden": {
+        "testId": "shipping-answer"
+      }
+    }
+  ],
+  "persona": "guest",
+  "reviewedE2E": true,
+  "reviewedOracleVersion": 2,
+  "safety": {
+    "allowHosts": [
+      "127.0.0.1"
+    ]
+  },
+  "schemaVersion": "lakda/v1",
+  "seed": 1,
+  "workers": 1
+}
