@@ -98,6 +98,16 @@ test("screen and relation identities track alias and routing changes while unrel
   expect(peers.screens[1]).toEqual(old.screens[1]);
   expect(peers.relations[1]).toEqual(old.relations[1]);
   expect(peers.apis).toEqual(old.apis);
+  const shell = screen("app", "/{shell}"), hidden = screen("private", "/app", { hashRoute: "/hidden/{id}" });
+  const publicScope = (peers: Screen[]) => scope(readCatalog(catalog([shell, ...peers], [shell.id])));
+  const guarded = publicScope([hidden]);
+  expect(guarded.screens).not.toEqual(publicScope([]).screens);
+  expect(guarded.relations).not.toEqual(publicScope([]).relations);
+  expect(guarded.apis).toEqual(publicScope([]).apis);
+  expect(guarded).not.toEqual(publicScope([{ ...hidden, path: "/other" }]));
+  expect(guarded).toEqual(publicScope([hidden, { ...hidden, id: "second", hashRoute: "/alternate" }]));
+  expect(guarded).toEqual(publicScope([{ ...hidden, id: "renamed", name: "Changed", hashRoute: "/changed" }]));
+  expect(publicScope([screen("private", "/app", { trailingSlash: "either" })])).not.toEqual(publicScope([]));
 });
 
 test("public SDK and coverage CLI attribute each request to the selected screen across both spellings", async ({ browser }) => {

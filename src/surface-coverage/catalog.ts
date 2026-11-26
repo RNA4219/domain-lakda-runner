@@ -84,12 +84,18 @@ export function readCatalog(value: unknown): Catalog {
     const visibleScreens = screens.filter(s => allowedScreens.has(s.id));
     for (const screen of visibleScreens) {
       const excluded: Screen[] = [], fragmentRoutes: Screen[] = [], peers: string[] = [];
+      const privateEffects = new Set<string>();
       let changedRouting = false;
       for (const other of screens) {
         if (other === screen || other.origin !== screen.origin || !screenOverlap(screen, other)) continue;
         if (!screen.hashRoute && other.hashRoute) fragmentRoutes.push(other);
         // A private overlap always vetoes attribution, irrespective of specificity or DOM state.
-        if (!allowedScreens.has(other.id)) { excluded.push(other); continue; }
+        if (!allowedScreens.has(other.id)) {
+          excluded.push(other);
+          if (!screen.hashRoute && other.hashRoute) privateEffects.add(JSON.stringify(["document", sharedPathname(screen, other)]));
+          if (other.trailingSlash) privateEffects.add(JSON.stringify(["alias", sharedPathname(screen, other), other.hashRoute?.replace(/\{[^}]+\}/g, "{}")]));
+          continue;
+        }
         const order = specificity(other, screen);
         if (order > 0) excluded.push(other);
         if (order !== 0 || screen.trailingSlash || other.trailingSlash || (!screen.hashRoute && other.hashRoute)) changedRouting = true;
@@ -97,7 +103,7 @@ export function readCatalog(value: unknown): Catalog {
       }
       blockers.set(screen, excluded);
       if (fragmentRoutes.length) hashPeers.set(screen, fragmentRoutes);
-      if (changedRouting) routingContext.set(screen, digest(peers.sort()));
+      if (changedRouting || privateEffects.size) routingContext.set(screen, digest([peers.sort(), [...privateEffects].sort()]));
     }
     const visibleApis = apis.filter(a => allowedApis.has(a.id));
     for (const api of visibleApis) blockers.set(api, apis.filter(other => other !== api && other.origin === api.origin &&
@@ -115,6 +121,15 @@ function screenOverlap(a: Screen, b: Screen): boolean {
   const either = a.trailingSlash || b.trailingSlash;
   return overlaps(either ? withoutFinalSlash(a.path) : a.path, either ? withoutFinalSlash(b.path) : b.path) &&
     (!a.hashRoute || !b.hashRoute || overlaps(a.hashRoute, b.hashRoute));
+}
+
+/** Fingerprint the shared pathname behavior. Private IDs, labels and parameter names do not define it. */
+function sharedPathname(a: Screen, b: Screen) {
+  const right = withoutFinalSlash(b.path).split("/");
+  const parts = withoutFinalSlash(a.path).split("/").map((part, i) =>
+    part.startsWith("{") ? (right[i].startsWith("{") ? "{}" : right[i]) : part);
+  const slash = a.trailingSlash ? b.trailingSlash ?? b.path.endsWith("/") : a.path.endsWith("/");
+  return [parts.join("/"), slash];
 }
 
 /** Compare literal positions on paths known to overlap. Opposing advantages are incomparable. */
