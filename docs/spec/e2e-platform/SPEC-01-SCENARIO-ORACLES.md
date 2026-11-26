@@ -25,6 +25,11 @@ Manual case and oracle binding review, plus product replay.
 
 manual-bb export-e2e produces reviewed action-sequence, config obligations, human scenario and manifest; Lakda replays existing action-plan/v1. Unsupported intermediate/value oracles are rejected by exporter.
 
+固定手順の `regression-replay` では、`reviewedE2E: true`、`reviewedOracleVersion: 2` の設定で
+`{"hidden":{"testId":"details"},"acceptanceRef":"AC-close","afterActionId":"close"}` を指定できる。
+`close` の直後に対象が非表示、または画面から削除されると合格する。対象が表示されたままなら不合格になる。
+`afterActionId` を省くと最後の操作の後に確認する。
+
 A human-reviewed source is required before claiming an executed E2E case.
 Non-executed, inconclusive, partial, infrastructure errors and missing artifacts
 cannot become successful real E2E evidence. No component here issues Gate verdicts.

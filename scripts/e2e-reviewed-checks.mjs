@@ -8,10 +8,11 @@ export function validCheck(check, review, actionIds) {
     return keys.length === 2 && Object.hasOwn(loc, "role") && Object.hasOwn(loc, "name") &&
       ["button", "link", "textbox", "checkbox", "combobox", "option", "menuitem", "tab"].includes(loc.role) && text(loc.name);
   };
-  const extended = ["amountEquals", "countEquals", "countDelta"].includes(check.kind);
+  const extended = ["hidden", "amountEquals", "countEquals", "countDelta"].includes(check.kind);
   const intermediate = check.afterActionId !== undefined;
   const keys = check.kind === "url" ? ["kind", "value"] :
     check.kind === "visible" ? ["kind", "locator"] :
+    check.kind === "hidden" ? ["kind", "locator", "acceptanceRef"] :
     check.kind === "textEquals" ? ["kind", "locator", "value"] :
     check.kind === "amountEquals" ? ["kind", "locator", "currency", "format", "minorUnits", "acceptanceRef"] :
     ["countEquals", "countDelta"].includes(check.kind) ? ["kind", "locator", "itemLocator", "value", "acceptanceRef"] : null;
@@ -24,7 +25,7 @@ export function validCheck(check, review, actionIds) {
       ![...(review.traceTo ?? []), ...(review.oracleRefs ?? [])].includes(check.acceptanceRef))) return false;
   if (check.kind === "url") return text(check.value);
   if (!locator(check.locator)) return false;
-  if (check.kind === "visible") return true;
+  if (check.kind === "visible" || check.kind === "hidden") return true;
   if (check.kind === "textEquals") return text(check.value);
   if (check.kind === "amountEquals") return Number.isSafeInteger(check.minorUnits) &&
     ((check.currency === "JPY" && check.format === "jpy-yen-suffix") ||
@@ -35,16 +36,16 @@ export function validCheck(check, review, actionIds) {
 
 
 export function extendedCheck(value) {
-  return !!value && (['amountEquals', 'countEquals', 'countDelta'].includes(value.kind) ||
+  return !!value && (['hidden', 'amountEquals', 'countEquals', 'countDelta'].includes(value.kind) ||
     value.afterActionId !== undefined || value.acceptanceRef !== undefined ||
-    ['amountEquals', 'countEquals', 'countDelta'].some(kind => Object.hasOwn(value, kind)));
+    ['hidden', 'amountEquals', 'countEquals', 'countDelta'].some(kind => Object.hasOwn(value, kind)));
 }
 
 export function toObligation(item) {
   const { kind, afterActionId, acceptanceRef, ...data } = item;
   let result;
   if (kind === 'url') result = { expectedUrl: data.value };
-  else if (kind === 'visible') result = { visible: data.locator };
+  else if (kind === 'visible' || kind === 'hidden') result = { [kind]: data.locator };
   else if (kind === 'textEquals') result = { textEquals: { locator: data.locator, text: data.value } };
   else result = { [kind]: data };
   if (afterActionId !== undefined) result.afterActionId = afterActionId;

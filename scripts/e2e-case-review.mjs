@@ -168,11 +168,11 @@ export async function readCaseReview(values, selected) {
     checks: checks.map(c => ({
       ref: c.acceptanceRef, action: c.afterActionId,
       kind: c.countDelta ? "増減件数" : c.countEquals ? "一覧の件数" : c.amountEquals ? "表示金額" :
-        c.visible ? "表示状態" : c.textEquals ? "表示文言" : "表示先",
-      target: targetName((c.visible ?? c.textEquals?.locator ?? c.amountEquals?.locator ?? c.countEquals?.locator ?? c.countDelta?.locator)?.name),
+        c.hidden ? "非表示" : c.visible ? "表示状態" : c.textEquals ? "表示文言" : "表示先",
+      target: targetName((c.visible ?? c.hidden ?? c.textEquals?.locator ?? c.amountEquals?.locator ?? c.countEquals?.locator ?? c.countDelta?.locator)?.name),
       currency: c.amountEquals?.currency,
       expected: c.countDelta?.value ?? c.countEquals?.value ?? c.amountEquals?.minorUnits ??
-        c.textEquals?.text ?? c.expectedUrl ?? "表示される",
+        c.textEquals?.text ?? c.expectedUrl ?? (c.hidden ? "非表示になる" : "表示される"),
     })), runs,
   };
   return { output, model, review, sourceSteps, checks, run: runs[0] };

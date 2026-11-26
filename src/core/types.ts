@@ -126,7 +126,7 @@ export type LakdaConfig = {
   }>;
   reviewedE2E?: true;
   reviewedOracleVersion?: 2;
-  obligations: Array<{ afterActionId?: string; acceptanceRef?: string; expectedUrl?: string; visible?: Locator; textEquals?: { locator: Locator; text: string }; amountEquals?: { locator: Locator; currency: "JPY" | "USD"; format: "jpy-yen-suffix" | "usd-dollar-prefix"; minorUnits: number }; countEquals?: { locator: Locator; itemLocator: Locator; value: number }; countDelta?: { locator: Locator; itemLocator: Locator; value: number } }>;
+  obligations: Array<{ afterActionId?: string; acceptanceRef?: string; expectedUrl?: string; visible?: Locator; hidden?: Locator; textEquals?: { locator: Locator; text: string }; amountEquals?: { locator: Locator; currency: "JPY" | "USD"; format: "jpy-yen-suffix" | "usd-dollar-prefix"; minorUnits: number }; countEquals?: { locator: Locator; itemLocator: Locator; value: number }; countDelta?: { locator: Locator; itemLocator: Locator; value: number } }>;
   fixtureReset?: { url: string };
   safety: {
     allowHosts: string[];
