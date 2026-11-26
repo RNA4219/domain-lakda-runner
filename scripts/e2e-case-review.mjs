@@ -4,6 +4,7 @@ import { basename, dirname, join, relative, resolve } from "node:path";
 import { isDeepStrictEqual, parseArgs } from "node:util";
 import { pathToFileURL, URL } from "node:url";
 import { discover } from "./e2e-ci-results.mjs";
+import { toObligation } from "./e2e-reviewed-checks.mjs";
 import { inspectPlatformRecording } from "./e2e-platform-recording-evidence.mjs";
 import { readManifestSnapshot } from "../dist/runs/manifest-snapshot.js";
 import { readArtifactSnapshot } from "../dist/runs/artifact-snapshot.js";
@@ -19,6 +20,36 @@ const ensure = (condition, message) => { if (!condition) throw new Error(message
 // 既存の判定画面と同じレビュー名を、ケース詳細でも使う。
 const actionName = name => name === "試験データの結果行を押す" ? "結果行を押す" : name;
 const targetName = name => name === "検出試験専用の存在しないボタン" ? "試験用ボタン" : name;
+
+function locatorLabel(locator) {
+  if (locator?.testId) return "testId: " + locator.testId;
+  if (locator?.role && locator.name) return locator.role + "「" + targetName(locator.name) + "」";
+}
+
+export function projectCaseChecks(checks, review, showDetails) {
+  const hasExpectedResults = Array.isArray(review.expectedResults) && review.expectedResults.length === checks.length &&
+    Array.isArray(review.machineChecks) && review.machineChecks.length === checks.length;
+  return checks.map((c, i) => {
+    const count = c.countDelta ?? c.countEquals;
+    const locator = c.visible ?? c.hidden ?? c.textEquals?.locator ?? c.amountEquals?.locator ?? count?.locator;
+    const target = locatorLabel(locator);
+    const text = review.expectedResults?.[i];
+    const machineCheck = review.machineChecks?.[i];
+    const aligned = hasExpectedResults && typeof text === "string" && machineCheck &&
+      isDeepStrictEqual(toObligation(machineCheck), c);
+    return {
+      ref: c.acceptanceRef, action: c.afterActionId,
+      kind: c.countDelta ? "増減件数" : c.countEquals ? "一覧の件数" : c.amountEquals ? "表示金額" :
+        c.hidden ? "非表示" : c.visible ? "表示状態" : c.textEquals ? "表示文言" : "表示先",
+      target: targetName(locator?.name),
+      ...(showDetails && { reviewText: aligned ? text : undefined,
+        targetLabel: count ? target + " 内の " + locatorLabel(count.itemLocator) : c.expectedUrl ? "ページのURL" : target }),
+      currency: c.amountEquals?.currency,
+      expected: count?.value ?? c.amountEquals?.minorUnits ?? c.textEquals?.text ?? c.expectedUrl ??
+        (c.hidden ? "非表示になる" : "表示される"),
+    };
+  });
+}
 
 async function checkedJson(root, name, hash) {
   const file = await readArtifactSnapshot(root, name, { retain: true });
@@ -165,15 +196,7 @@ export async function readCaseReview(values, selected) {
     fixtureReceipt: !!receipts,
     ...(selected ? { gateRecord: selected.recordNumber, expectedResults: review.expectedResults } : {}),
     actionLabels, actions: actions.actions.map(item => item.id),
-    checks: checks.map(c => ({
-      ref: c.acceptanceRef, action: c.afterActionId,
-      kind: c.countDelta ? "増減件数" : c.countEquals ? "一覧の件数" : c.amountEquals ? "表示金額" :
-        c.hidden ? "非表示" : c.visible ? "表示状態" : c.textEquals ? "表示文言" : "表示先",
-      target: targetName((c.visible ?? c.hidden ?? c.textEquals?.locator ?? c.amountEquals?.locator ?? c.countEquals?.locator ?? c.countDelta?.locator)?.name),
-      currency: c.amountEquals?.currency,
-      expected: c.countDelta?.value ?? c.countEquals?.value ?? c.amountEquals?.minorUnits ??
-        c.textEquals?.text ?? c.expectedUrl ?? (c.hidden ? "非表示になる" : "表示される"),
-    })), runs,
+    checks: projectCaseChecks(checks, review, !evidence), runs,
   };
   return { output, model, review, sourceSteps, checks, run: runs[0] };
 }
