@@ -1,0 +1,13 @@
+{
+  "caseId": "TC-SHIPPING-CLOSE",
+  "filesSha256": {
+    "action-sequence.json": "f1a8d5cef4f06a43ef8c3283c7d5b8355d704cf422b3458580e9b25cff6e256f",
+    "lakda.config.json": "9abe8106b11147d2cecf78c14f65718bc5e14807f14d0e0b1093c5bfe5bbcede",
+    "scenario.json": "3193cdd871f8a09c4ac4bd016b8d879ec7fa421ac34075b9249bf395d9c3f6e5",
+    "scenario.md": "635315623f79cde4f4e643f94e80da8f1c60a7b49b1a2264d917e2eb12bf2e7c",
+    "scenario.spec.ts": "7777fcd5b706ebcbac2e4d03585a4cff77a4fb5807fe1f0afe41b8f551b543cf"
+  },
+  "schemaVersion": "manual-bb/e2e-export/v1",
+  "sourceCaseSetSha256": "c7dc17b668eb7015ee1e00c8b5d08546ccde41e8dde60e40aa9359d045510579",
+  "sourceFeatureSha256": "ecd5e9c925cfe28a991c8971986bebcce216a8714aa28e127a5e677a78664091"
+}

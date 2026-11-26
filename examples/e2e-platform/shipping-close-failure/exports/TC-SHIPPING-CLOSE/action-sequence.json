@@ -1,0 +1,27 @@
+{
+  "actions": [
+    {
+      "id": "visit",
+      "kind": "navigate",
+      "path": "/"
+    },
+    {
+      "id": "open",
+      "kind": "click",
+      "locator": {
+        "testId": "shipping-question"
+      }
+    },
+    {
+      "id": "close",
+      "kind": "click",
+      "locator": {
+        "testId": "shipping-question"
+      }
+    }
+  ],
+  "baseUrl": "http://127.0.0.1:18943/",
+  "mode": "regression-replay",
+  "schemaVersion": "lakda/action-plan/v1",
+  "seed": 1
+}
