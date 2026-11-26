@@ -23,15 +23,17 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       lead: { type: "string" }, trace: { type: "string" }, reviewer: { type: "string" }, investigation: { type: "string" }, kind: { type: "string" }, format: { type: "string" }, "out-dir": { type: "string" }, "scout-mode": { type: "string" },
       "base-run-dir": { type: "string" }, "runs-dir": { type: "string" }, "sessions-dir": { type: "string" }, "base-runs-dir": { type: "string" }, "target-revision": { type: "string" }, "execution-mode": { type: "string" }, "reports-dir": { type: "string" }, "head-run-dir": { type: "string" },
       charter: { type: "string" }, session: { type: "string" }, reason: { type: "string" },
-      index: { type: "string" }, "trust-store": { type: "string" },
+      index: { type: "string" }, result: { type: "string" }, "trust-store": { type: "string" },
       sources: { type: "string" }, profile: { type: "string" }, "text-only": { type: "boolean" },
       "report-config": { type: "string" }, "report-dir": { type: "string" },
       report: { type: "string" }, "report-profile": { type: "string" }, "report-language": { type: "string" },
     },
   });
   const automaticOptions = new Set(["report", "report-dir", "report-profile", "report-config", "report-language"]);
-  if (["coverage map", "coverage surfaces"].includes(parsed.positionals.join(" "))) {
-    const allowed = new Set(["config","input","runs-dir","format","out","help","version"]);
+  const commandName = parsed.positionals.join(" ");
+  if (parsed.values.result !== undefined && commandName !== "import e2e") throw new Error("--result requires import e2e");
+  if (["coverage map", "coverage surfaces", "import e2e"].includes(commandName)) {
+    const allowed = new Set(commandName === "import e2e" ? ["result","output-dir","help","version"] : ["config","input","runs-dir","format","out","help","version"]);
     const seen = new Set<string>();
     for (const token of parsed.tokens) {
       if (token.kind !== "option") continue;

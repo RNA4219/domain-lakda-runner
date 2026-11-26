@@ -12,7 +12,7 @@ export type RunSummary = {
   mode: string;
   outcome: RunOutcome;
   terminationReason: string;
-  seed: number;
+  seed: number | null;
   producerVersion: string;
   commitSha: string;
 };

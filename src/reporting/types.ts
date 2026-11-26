@@ -1,5 +1,6 @@
 import type { ReportProfile } from "./contracts.js";
 import type { RunStartRecord } from "../core/run-start.js";
+import type { RunBrowser } from "../runs/measurements.js";
 
 export type Classification = "public" | "internal" | "confidential" | "restricted";
 export type GenerationStatus = "ready" | "degraded" | "error";
@@ -17,9 +18,10 @@ export type ReportCoverage = {
   numerator: number | null; denominator: number | null; ratio: number | null;
 };
 export type ReportRun = {
+  importedResult?: { browser: RunBrowser; scenarioDurationsMs: (number | null)[] };
   key: string; sourceId: string; runId: string; attempt: number; mode: string; platform: string | null;
   executionMode: string | null; outcome: Outcome; terminationReason: string;
-  startedAt: string; endedAt: string; durationMs: number | null; seed: number;
+  startedAt: string; endedAt: string; durationMs: number | null; seed: number | null;
   producerVersion: string; producerRevision: string; targetRevision: string | null;
   acceptanceStatus: string | null; actionCount: number | null; plannedActionCount: number | null; coverage: ReportCoverage[];
 };

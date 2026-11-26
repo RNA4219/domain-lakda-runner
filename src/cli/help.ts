@@ -29,6 +29,7 @@ Commands:
   lakda explore fork --session <session-dir-or-session.json>
   lakda explore acceptance --index <acceptance-index.json> --trust-store <trust-store.json> [--out <aggregate.json>]
   lakda runs trend --index <reviewed-index.json> --runs-dir <runs-dir> --out <new-report-dir>
+  lakda import e2e --result <result.json> --output-dir <runs-dir>
   lakda runs list --output-dir <runs-dir>
   lakda runs show --run-dir <run-dir>
   lakda runs compare --base-run-dir <run-dir> --head-run-dir <run-dir> [--out <comparison.json>]
