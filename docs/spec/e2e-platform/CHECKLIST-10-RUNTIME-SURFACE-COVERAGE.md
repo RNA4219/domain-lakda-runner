@@ -29,3 +29,7 @@ AC-S14〜19の開発検証は `tests/surface-field-feedback.spec.ts`。通常sui
 - [ ] AC-S22: 指定PCのCLI replayと公開SDKのcheckpoint/finish、専用index、JSON/HTMLを正式manual-bbケース版/対象SHAに結び付ける。全ケースpassとGate go、check、pack、適用GitHub checksおよびマージtreeを確認する。
 
 AC-S20〜22の手順とローカル記録先は[末尾スラッシュ・role ready受入](../../acceptance/AC-20261126-surface-slash-role-ready.md)。チェック欄は実行証跡と別管理し、外部製品の検証を意味しない。
+
+- [ ] AC-S23: 合成サイトで公開SDKの `startSurfaceCoverage` とCLIの `coverage surfaces` を通し、固定画面・通常の動的画面・各画面からのAPI要求の帰属を確認する。等価・比較不能な候補、DOM状態、hashRoute、非公開画面、HTTP methodの結果も確認する。
+- [ ] AC-S24: 画面の `trailingSlash: "either"` 指定で両表記の証跡が同じ画面行と関係行に集まる。指定なし・重複・root・二重スラッシュ・hash・API・不正値を検証し、変更を受けた定義の旧観測はunmeasured、無関係な定義は従来通りとなる。
+- [ ] AC-S25: 対象PCで最終PR headの正式manual-bbケースを実行し、case_revision結合・全件pass・Gate go、通常テスト、適用GitHubチェック、マージ先treeを確認する。

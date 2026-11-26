@@ -1,5 +1,5 @@
 import type { BrowserContext, CDPSession, Frame, Page, Request, Response } from "playwright";
-import { check, digest, lane, match, matchStaticScreen, relationId, scope, type Catalog, type Lane } from "./catalog.js";
+import { check, digest, lane, match, matchDocumentScreen, matchStaticScreen, relationId, scope, type Catalog, type Lane } from "./catalog.js";
 import { ScreenObservation } from "./screens.js";
 
 export interface SurfaceRuntime { catalog: Catalog; testId: string; testRevision: string; lane: Lane }
@@ -122,7 +122,7 @@ export class SurfaceObserver {
       const request = response.request();
       let screen: string | undefined;
       if (request.isNavigationRequest()) {
-        try { if (request.frame() === request.frame().page().mainFrame()) screen = matchStaticScreen(this.runtime.catalog, response.url())?.id; }
+        try { if (request.frame() === request.frame().page().mainFrame()) screen = matchDocumentScreen(this.runtime.catalog, response.url())?.id; }
         catch { /* detached frame */ }
       }
       if (!this.requests.has(request) && !screen) return;

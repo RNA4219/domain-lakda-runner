@@ -18,14 +18,18 @@ export interface Place { id: string; name: string; origin: string; path: string;
 export type ReadyRole = "button" | "link" | "textbox" | "checkbox" | "combobox" | "option" | "menuitem" | "tab";
 export type ScreenReady = ({ testId: string } | { role: ReadyRole; name: string }) & { timeoutMs: number };
 export interface Screen extends Place {
-  channel: string; hashRoute?: string; state?: { testId: string }; ready?: ScreenReady;
+  channel: string; trailingSlash?: "either"; hashRoute?: string; state?: { testId: string }; ready?: ScreenReady;
 }
 export interface Api extends Place { method: string }
 export interface Catalog {
   schema: "lakda/surface-catalog/v1"; product: string; version: string; environment: string; revision: string;
   screens: Screen[]; apis: Api[]; relations: { screen: string; api: string }[];
 }
-const ambiguousPlaces = new WeakMap<Place, Place[]>();
+const blockers = new WeakMap<Place, Place[]>();
+const hashPeers = new WeakMap<Screen, Screen[]>();
+const routingContext = new WeakMap<Place, string>();
+const withoutFinalSlash = (path: string) => path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
+const eitherSlash = (place: Place) => "trailingSlash" in place && place.trailingSlash === "either";
 function template(value: unknown): string {
   const path = text(value);
   check(path === "/" || /^\/(?:[A-Za-z0-9_~-]+(?:\.[A-Za-z0-9_~-]+)*|\{[A-Za-z][A-Za-z0-9_]*\})(?:\/(?:[A-Za-z0-9_~-]+(?:\.[A-Za-z0-9_~-]+)*|\{[A-Za-z][A-Za-z0-9_]*\}))*\/?$/.test(path));
@@ -44,8 +48,15 @@ export function readCatalog(value: unknown): Catalog {
     keys(raw, ["schema", "product", "version", "environment", "revision", "screens", "apis", "relations", "publication"]);
     check(raw.schema === "lakda/surface-catalog/v1");
     const screens: Screen[] = unique(array(raw.screens).map(v => {
-      const r = obj(v); keys(r, ["id", "name", "origin", "path", "frequency", "channel", "hashRoute", "state", "ready"]);
+      const r = obj(v); keys(r, ["id", "name", "origin", "path", "frequency", "channel", "hashRoute", "state", "ready", "trailingSlash"]);
       const screen: Screen = { ...place(r), channel: text(r.channel) };
+      if (r.trailingSlash !== undefined) {
+        check(r.trailingSlash === "either");
+        if (screen.path !== "/") {
+          screen.trailingSlash = "either";
+          screen.path = withoutFinalSlash(screen.path);
+        }
+      }
       if (r.hashRoute !== undefined) screen.hashRoute = template(r.hashRoute);
       if (r.state !== undefined) { const state = obj(r.state); keys(state, ["testId"]); screen.state = { testId: text(state.testId) }; }
       if (r.ready !== undefined) {
@@ -70,16 +81,33 @@ export function readCatalog(value: unknown): Catalog {
     const allowedScreens = new Set(unique(array(policy.screens).map(id), s => s));
     const allowedApis = new Set(unique(array(policy.apis).map(id), s => s));
     check([...allowedScreens].every(s => screenIds.has(s)) && [...allowedApis].every(a => apiIds.has(a)));
-    // Ambiguous private templates must still suppress a visible match, without exposing their identity.
-    const unambiguous = <T extends Place>(items: T[], allowed: Set<string>) => items.filter(p => allowed.has(p.id)).map(p => {
-      const visible = { ...p };
-      ambiguousPlaces.set(visible, items.filter(other => other.id !== p.id && other.origin === p.origin &&
-        (!("method" in p) || (other as Place & { method?: string }).method === p.method) && overlaps(other.path, p.path) &&
-        (!("hashRoute" in p) || !("hashRoute" in other) || overlaps(String(p.hashRoute), String(other.hashRoute))) &&
-        !("state" in p && "state" in other && allowed.has(other.id))));
-      return visible;
-    });
-    const visibleScreens = unambiguous(screens, allowedScreens), visibleApis = unambiguous(apis, allowedApis);
+    const visibleScreens = screens.filter(s => allowedScreens.has(s.id));
+    for (const screen of visibleScreens) {
+      const excluded: Screen[] = [], fragmentRoutes: Screen[] = [], peers: string[] = [];
+      const privateEffects = new Set<string>();
+      let changedRouting = false;
+      for (const other of screens) {
+        if (other === screen || other.origin !== screen.origin || !screenOverlap(screen, other)) continue;
+        if (!screen.hashRoute && other.hashRoute) fragmentRoutes.push(other);
+        // A private overlap always vetoes attribution, irrespective of specificity or DOM state.
+        if (!allowedScreens.has(other.id)) {
+          excluded.push(other);
+          if (!screen.hashRoute && other.hashRoute) privateEffects.add(JSON.stringify(["document", sharedPathname(screen, other)]));
+          if (other.trailingSlash) privateEffects.add(JSON.stringify(["alias", sharedPathname(screen, other), other.hashRoute?.replace(/\{[^}]+\}/g, "{}")]));
+          continue;
+        }
+        const order = specificity(other, screen);
+        if (order > 0) excluded.push(other);
+        if (order !== 0 || screen.trailingSlash || other.trailingSlash || (!screen.hashRoute && other.hashRoute)) changedRouting = true;
+        peers.push(JSON.stringify([other.path, other.hashRoute, other.trailingSlash, other.state?.testId]));
+      }
+      blockers.set(screen, excluded);
+      if (fragmentRoutes.length) hashPeers.set(screen, fragmentRoutes);
+      if (changedRouting || privateEffects.size) routingContext.set(screen, digest([peers.sort(), [...privateEffects].sort()]));
+    }
+    const visibleApis = apis.filter(a => allowedApis.has(a.id));
+    for (const api of visibleApis) blockers.set(api, apis.filter(other => other !== api && other.origin === api.origin &&
+      other.method === api.method && overlaps(other.path, api.path)));
     // Matching exclusions live only in a WeakMap, never in serialized output or evidence.
     return { schema: "lakda/surface-catalog/v1", product: text(raw.product), version: text(raw.version), environment: text(raw.environment), revision: text(raw.revision),
       screens: visibleScreens, apis: visibleApis, relations: relations.filter(r => allowedScreens.has(r.screen) && allowedApis.has(r.api)) };
@@ -89,18 +117,52 @@ function overlaps(a: string, b: string): boolean {
   const left = a.split("/"), right = b.split("/");
   return left.length === right.length && left.every((s, i) => s === right[i] || s.startsWith("{") && right[i].length > 0 || right[i].startsWith("{") && s.length > 0);
 }
+function screenOverlap(a: Screen, b: Screen): boolean {
+  const either = a.trailingSlash || b.trailingSlash;
+  return overlaps(either ? withoutFinalSlash(a.path) : a.path, either ? withoutFinalSlash(b.path) : b.path) &&
+    (!a.hashRoute || !b.hashRoute || overlaps(a.hashRoute, b.hashRoute));
+}
+
+/** Fingerprint the shared pathname behavior. Private IDs, labels and parameter names do not define it. */
+function sharedPathname(a: Screen, b: Screen) {
+  const right = withoutFinalSlash(b.path).split("/");
+  const parts = withoutFinalSlash(a.path).split("/").map((part, i) =>
+    part.startsWith("{") ? (right[i].startsWith("{") ? "{}" : right[i]) : part);
+  const slash = a.trailingSlash ? b.trailingSlash ?? b.path.endsWith("/") : a.path.endsWith("/");
+  return [parts.join("/"), slash];
+}
+
+/** Compare literal positions on paths known to overlap. Opposing advantages are incomparable. */
+function specificity(a: Screen, b: Screen): number {
+  if (Boolean(a.hashRoute) !== Boolean(b.hashRoute)) return 0;
+  const parts = (s: Screen) => [...withoutFinalSlash(s.path).split("/"), ...(s.hashRoute ?? "").split("/")];
+  const left = parts(a), right = parts(b);
+  let leftMore = false, rightMore = false;
+  for (let i = 0; i < left.length; i++) {
+    const leftVariable = left[i].startsWith("{"), rightVariable = right[i].startsWith("{");
+    if (leftVariable && !rightVariable) rightMore = true;
+    if (rightVariable && !leftVariable) leftMore = true;
+  }
+  return Number(leftMore) - Number(rightMore);
+}
+function matchesPath(path: string, actualPath: string): boolean {
+  const template = path.split("/"), actual = actualPath.split("/");
+  return template.length === actual.length && template.every((part, i) => part.startsWith("{") ? actual[i].length > 0 : part === actual[i]);
+}
+function matchesPathname(place: Place, pathname: string): boolean {
+  return matchesPath(place.path, eitherSlash(place) ? withoutFinalSlash(pathname) : pathname);
+}
 export function matching<T extends Place>(items: T[], rawUrl: string): T[] {
   try {
     const url = new URL(rawUrl);
-    const matchesPath = (path: string, actualPath: string) => {
-      const template = path.split("/"), actual = actualPath.split("/");
-      return template.length === actual.length && template.every((part, i) => part.startsWith("{") ? actual[i].length > 0 : part === actual[i]);
-    };
     const matches = (p: Place) => {
-      return p.origin === url.origin && matchesPath(p.path, url.pathname) &&
+      return p.origin === url.origin && matchesPathname(p, url.pathname) &&
         (!("hashRoute" in p) || url.hash.startsWith("#/") && matchesPath(String(p.hashRoute), url.hash.slice(1).split(/[?#]/, 1)[0]));
     };
-    return items.filter(p => matches(p) && !(ambiguousPlaces.get(p) ?? []).some(matches));
+    const candidates = items.filter(p => matches(p) && !blockers.get(p)?.some(matches));
+    // Only independently observed DOM states can disambiguate multiple maximal screen routes.
+    if (candidates.length > 1 && candidates.some(p => "channel" in p && !("state" in p))) return [];
+    return candidates;
   } catch { return []; }
 }
 export function match<T extends Place>(items: T[], rawUrl: string): T | undefined {
@@ -111,11 +173,20 @@ export function matchStaticScreen(catalog: Catalog, rawUrl: string): Screen | un
   const found = matching(catalog.screens, rawUrl);
   return found.length === 1 && !found[0].state ? found[0] : undefined;
 }
+/** An HTTP response omits the fragment. Only credit transport when that omission cannot change the selected screen. */
+export function matchDocumentScreen(catalog: Catalog, responseUrl: string): Screen | undefined {
+  const screen = matchStaticScreen(catalog, responseUrl);
+  if (!screen) return;
+  const pathname = new URL(responseUrl).pathname;
+  if (!hashPeers.get(screen)?.some(peer => matchesPathname(peer, pathname))) return screen;
+}
 export function definition(p: Place | { screen: string; api: string }): string {
   // Frequency and human labels can change without falsifying execution identity.
   if ("screen" in p) return digest([p.screen, p.api]);
   const base: unknown[] = [p.id, p.origin, p.path, "method" in p ? p.method : "", "channel" in p ? p.channel : ""];
   if ("hashRoute" in p || "state" in p || "ready" in p) base.push({ hashRoute: "hashRoute" in p ? p.hashRoute : null, state: "state" in p ? p.state : null, ready: "ready" in p ? p.ready : null });
+  if (eitherSlash(p)) base.push({ trailingSlash: "either" });
+  if (routingContext.has(p)) base.push({ screenRoutePeers: routingContext.get(p) });
   return digest(base);
 }
 export const scope = (c: Catalog) => ({ screens: c.screens.map(p => ({ id: p.id, digest: definition(p) })), apis: c.apis.map(p => ({ id: p.id, digest: definition(p) })),
