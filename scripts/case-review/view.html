@@ -61,9 +61,10 @@ select { width: 100%; min-height: 40px; padding: 6px 8px; border: 1px solid var(
 .number, .quiet { color: var(--muted) }
 .timestamp { color: var(--blue); text-decoration: underline; text-underline-offset: 3px; white-space: nowrap }
 .panel { margin-top: 24px }
-.row { padding: 11px 0; border-bottom: 1px solid var(--line); display: grid; gap: 3px; overflow-wrap: anywhere }
+.row { padding: 12px 0; border-bottom: 1px solid var(--line); display: grid; gap: 5px; overflow-wrap: anywhere }
 .row strong { font-size: .92rem }
-.row em { color: var(--muted); font-size: .85rem; font-style: normal }
+.row small, .row dt { color: var(--muted); font-size: .82rem }
+.row dl { display: grid; grid-template-columns: max-content minmax(0,1fr); gap: 2px 12px; font-size: .87rem }
 .film { margin-top: 12px; background: var(--blue); color: var(--white); padding: clamp(15px,2.2vw,26px); overflow-wrap: anywhere }
 .film video { width: 100%; max-height: 350px; background: #151c29; margin-bottom: 8px }
 #cue { font-size: .98rem; font-weight: 650; min-height: 1.55em; margin-bottom: 8px }
@@ -335,10 +336,21 @@ function showTimeline(run) {
 }
 function showChecks(run) {
   const checks=el("checks"); checks.replaceChildren();
+  if (run.decision) return;
   for(const [i,c] of model.checks.entries()) {
     const records=run.observations.filter(o=>o.index===i+1);
-    const row=node("div"); row.className="row"; row.append(node("strong",(c.ref ? c.ref+"　" : "")+c.kind));
-    row.append(node("em","期待　"+valueOf(c,c.expected)+"　／　"+(records.map(o=>(outcomes[o.result] ?? o.result)+"・"+measured(c,o)).join("、") || "判定記録なし")));
+    const row=node("div"); row.className="row";
+    row.append(node("strong",c.reviewText || c.kind));
+    const reference=[c.ref,c.reviewText && c.kind].filter(Boolean).join("　");
+    if(reference) row.append(node("small",reference));
+    const action=c.action && (Object.hasOwn(model.actionLabels,c.action) ? model.actionLabels[c.action] : c.action);
+    const result=records.map(o=>(outcomes[o.result] ?? o.result)+"・"+measured(c,o)).join("、") || "判定記録なし";
+    const details=node("dl");
+    for(const [label,value] of [[action ? "操作直後" : "判定時点",action || "全操作後"],
+      ["対象",c.targetLabel],["期待値",valueOf(c,c.expected)],["結果",result]]) {
+      if(value!==undefined) details.append(node("dt",label),node("dd",value));
+    }
+    row.append(details);
     checks.append(row);
   }
 }
