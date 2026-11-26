@@ -10,9 +10,11 @@
 
 必須キーは `schema, product, version, environment, revision, screens, apis, relations, publication`。画面は `id, name, channel, origin, path, frequency`、API は `id, name, method, origin, path, frequency`、関係は `screen, api`。ID は英数字・ハイフン・アンダースコア。frequency は有限の非負数。origin は HTTP(S) の origin のみ。path は `/users/{id}` のような正規化済みテンプレートで、クエリ、fragment、percent escape、中間の空 segment、`.`、`..`、任意正規表現を認めない。ルート `/` と、非ルートの単一末尾 `/`（`/signin/`、`/users/{id}/`）を許可する。`//`、`/a//b`、`/a//` は拒否する。所有者は静的 segment に秘密値を登録しない。
 
-画面・API・hashRouteは末尾スラッシュを含めたsegment列を厳密照合する。`/signin` と `/signin/` は別定義であり、同一視・リダイレクト推測・自動補完はしない。テンプレート変数は1つの空でないsegmentだけに一致する。この規則は非公開定義との重なり判定にも適用する。既存のslashなしカタログ、testId ready、定義digestは変更しない。pathまたはreadyの定義を変更すると既存のdigest照合により旧観測の不在はunmeasuredとなる。schemaはv1のまま、旧readerは新しい定義を拒否するため更新して利用する。
+既定では画面・API・hashRouteの末尾スラッシュを厳密照合する。画面定義に `"trailingSlash": "either"` を指定すると、pathnameの末尾スラッシュの有無を同じ画面IDと関係に集計する。例えば `"path": "/a/"` に指定した画面は `/a` と `/a/` に一致し、表示と定義digestには `/a` を使う。rootは常に `/` のみ、変数は空でない1 segmentのみとする。二重スラッシュを補正しない。hashRouteとAPIには適用しない。APIへの指定や未知の値はカタログ検証で拒否する。schemaはv1で、旧readerは新しいキーを拒否する。
 
-同一 origin と method で一致するテンプレートが複数ある場合は曖昧として到達を付けない。画面も同様。未知 URL は保存・出力しない。本文、ヘッダー、cookie、クエリ値、パス変数の値を観測記録に保存しない。カタログの出力には正規化済みの場所だけを使う。
+同じoriginで実際のURLに一致した公開画面を比較する。pathnameと、両者が指定したhashRouteで、相手の固定segmentをすべて持ち、さらに固定segmentがあれば、その画面が優先される。例えば `/items/new` の要求は固定画面に、`/items/42` は `/items/{id}` に帰属する。片方だけにhashRouteがある組は比較しない。固定位置が互い違いの場合、同等の定義、異なるIDでの別名の重複には定義順や固定segmentの個数で優先順位を付けない。同じIDの重複は拒否する。同順位の候補すべてにstateがある場合は、可視DOM状態が一意のときだけ画面到達に数える。非公開画面もURLに一致する場合は公開画面への帰属を抑止する。
+
+APIは同一origin・methodで一致が一意の場合のみ計上する。関係は要求開始時点の画面がURLだけで一意に決まる場合に計上する。スラッシュ指定や公開画面間の優先関係が変わった画面とその関係は定義digestで区別し、古い観測しかない場合はunmeasuredとなる。影響のない旧定義のdigestは維持する。未知URL、本文、ヘッダー、cookie、クエリ値、パス変数の値は保存・出力しない。
 
 ## 実行観測
 

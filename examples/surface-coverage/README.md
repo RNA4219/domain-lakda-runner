@@ -54,7 +54,9 @@ testIdのない製品では、API応答後に表示されるボタン等を使�
 
 roleは `button/link/textbox/checkbox/combobox/option/menuitem/tab`、nameは完全一致するaccessible nameです。部分一致や正規表現は使えません。候補が一意かつ表示されるまで待ちます。未表示・複数・不一致のまま期限を過ぎるとincompleteになります。`testId` とrole/nameは同時指定できません。既存のtestId readyとSDK呼出方法はそのまま使えます。CLI replayの各操作後、SDKの `checkpoint()` と `finish(outcome)` が同じ条件を待ちます。finishはcontextを閉じる前に呼んでください。readyの定義や名前は観測・公開レポート・固定診断へ追加出力しません。
 
-`/signin/` と `/signin` は別URLです。実際の正規URLを登録してください。APIのpathとhashRouteも末尾を厳密に区別します。`/` は有効、`//`、`/a//b`、`/a//` は無効です。`/users/{id}/` は空でない1segmentと単一末尾に一致します。定義を変更した旧記録は再実行してください。
+既定では `/signin/` と `/signin` を区別します。両方のURLで同じ画面が開く製品では、その画面に `"trailingSlash": "either"` を追加すると、両方の観測を1行の画面と同じAPI関係に集計できます。APIのpathとhashRouteは引き続き末尾を厳密に区別します。`/` は有効、`//`、`/a//b`、`/a//` は無効です。`/users/{id}/` の変数には空でない1 segmentが必要です。定義を変更した画面は再計測してください。
+
+`/items/{id}` と `/items/new` を別々に登録した場合、`/items/new` は固定画面に、それ以外の一致するIDは動的画面に集計します。互いに異なる位置で固定segmentを持つなど、一方に絞れない場合は定義順で帰属させません。
 
 state/readyのtestIdは `data-testid` 属性の値です。stateはtestIdだけを受け付けます。画面状態の取得はブラウザー内で行い、初期化中の短い遷移も上限付きの一時バッファで保持します。DOM本文や非公開状態のselector値は観測ファイルへ保存しません。バッファ上限を超えた場合はincompleteとして扱います。
 DOM状態とAPIの対応を計測できない関係は「未計測」です。画面とAPIの両方に到達していても、関係を推測して「到達」や「観測なし」へ変更しません。
