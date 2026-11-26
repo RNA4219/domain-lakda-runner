@@ -15,8 +15,10 @@ export function lane(value: unknown): Lane { check(lanes.includes(value as Lane)
 export const relationId = (s: string, a: string) => s + ":" + a;
 
 export interface Place { id: string; name: string; origin: string; path: string; frequency: number }
+export type ReadyRole = "button" | "link" | "textbox" | "checkbox" | "combobox" | "option" | "menuitem" | "tab";
+export type ScreenReady = ({ testId: string } | { role: ReadyRole; name: string }) & { timeoutMs: number };
 export interface Screen extends Place {
-  channel: string; hashRoute?: string; state?: { testId: string }; ready?: { testId: string; timeoutMs: number };
+  channel: string; hashRoute?: string; state?: { testId: string }; ready?: ScreenReady;
 }
 export interface Api extends Place { method: string }
 export interface Catalog {
@@ -26,7 +28,7 @@ export interface Catalog {
 const ambiguousPlaces = new WeakMap<Place, Place[]>();
 function template(value: unknown): string {
   const path = text(value);
-  check(path === "/" || /^\/(?:[A-Za-z0-9_~-]+(?:\.[A-Za-z0-9_~-]+)*|\{[A-Za-z][A-Za-z0-9_]*\})(?:\/(?:[A-Za-z0-9_~-]+(?:\.[A-Za-z0-9_~-]+)*|\{[A-Za-z][A-Za-z0-9_]*\}))*$/.test(path));
+  check(path === "/" || /^\/(?:[A-Za-z0-9_~-]+(?:\.[A-Za-z0-9_~-]+)*|\{[A-Za-z][A-Za-z0-9_]*\})(?:\/(?:[A-Za-z0-9_~-]+(?:\.[A-Za-z0-9_~-]+)*|\{[A-Za-z][A-Za-z0-9_]*\}))*\/?$/.test(path));
   return path;
 }
 function place(raw: Record<string, unknown>): Place {
@@ -47,9 +49,17 @@ export function readCatalog(value: unknown): Catalog {
       if (r.hashRoute !== undefined) screen.hashRoute = template(r.hashRoute);
       if (r.state !== undefined) { const state = obj(r.state); keys(state, ["testId"]); screen.state = { testId: text(state.testId) }; }
       if (r.ready !== undefined) {
-        const ready = obj(r.ready); keys(ready, ["testId", "timeoutMs"]); const timeoutMs = ready.timeoutMs ?? 5000;
+        const ready = obj(r.ready); keys(ready, ["testId", "role", "name", "timeoutMs"]); const timeoutMs = ready.timeoutMs ?? 5000;
         check(Number.isSafeInteger(timeoutMs) && Number(timeoutMs) >= 1 && Number(timeoutMs) <= 30_000);
-        screen.ready = { testId: text(ready.testId), timeoutMs: Number(timeoutMs) };
+        if (ready.testId !== undefined) {
+          check(ready.role === undefined && ready.name === undefined);
+          screen.ready = { testId: text(ready.testId), timeoutMs: Number(timeoutMs) };
+        } else {
+          const role = text(ready.role), name = text(ready.name);
+          check(["button", "link", "textbox", "checkbox", "combobox", "option", "menuitem", "tab"].includes(role));
+          check(name.trim().length > 0);
+          screen.ready = { role: role as ReadyRole, name, timeoutMs: Number(timeoutMs) };
+        }
       }
       return screen;
     }), r => r.id);
@@ -77,7 +87,7 @@ export function readCatalog(value: unknown): Catalog {
 }
 function overlaps(a: string, b: string): boolean {
   const left = a.split("/"), right = b.split("/");
-  return left.length === right.length && left.every((s, i) => s === right[i] || s.startsWith("{") || right[i].startsWith("{"));
+  return left.length === right.length && left.every((s, i) => s === right[i] || s.startsWith("{") && right[i].length > 0 || right[i].startsWith("{") && s.length > 0);
 }
 export function matching<T extends Place>(items: T[], rawUrl: string): T[] {
   try {

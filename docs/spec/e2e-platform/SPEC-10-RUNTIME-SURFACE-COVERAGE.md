@@ -8,7 +8,9 @@
 
 ## 入力契約
 
-必須キーは `schema, product, version, environment, revision, screens, apis, relations, publication`。画面は `id, name, channel, origin, path, frequency`、API は `id, name, method, origin, path, frequency`、関係は `screen, api`。ID は英数字・ハイフン・アンダースコア。frequency は有限の非負数。origin は HTTP(S) の origin のみ。path は `/users/{id}` のような正規化済みテンプレートで、クエリ、fragment、percent escape、空 segment、`.`、`..`、任意正規表現を認めない。所有者は静的 segment に秘密値を登録しない。
+必須キーは `schema, product, version, environment, revision, screens, apis, relations, publication`。画面は `id, name, channel, origin, path, frequency`、API は `id, name, method, origin, path, frequency`、関係は `screen, api`。ID は英数字・ハイフン・アンダースコア。frequency は有限の非負数。origin は HTTP(S) の origin のみ。path は `/users/{id}` のような正規化済みテンプレートで、クエリ、fragment、percent escape、中間の空 segment、`.`、`..`、任意正規表現を認めない。ルート `/` と、非ルートの単一末尾 `/`（`/signin/`、`/users/{id}/`）を許可する。`//`、`/a//b`、`/a//` は拒否する。所有者は静的 segment に秘密値を登録しない。
+
+画面・API・hashRouteは末尾スラッシュを含めたsegment列を厳密照合する。`/signin` と `/signin/` は別定義であり、同一視・リダイレクト推測・自動補完はしない。テンプレート変数は1つの空でないsegmentだけに一致する。この規則は非公開定義との重なり判定にも適用する。既存のslashなしカタログ、testId ready、定義digestは変更しない。pathまたはreadyの定義を変更すると既存のdigest照合により旧観測の不在はunmeasuredとなる。schemaはv1のまま、旧readerは新しい定義を拒否するため更新して利用する。
 
 同一 origin と method で一致するテンプレートが複数ある場合は曖昧として到達を付けない。画面も同様。未知 URL は保存・出力しない。本文、ヘッダー、cookie、クエリ値、パス変数の値を観測記録に保存しない。カタログの出力には正規化済みの場所だけを使う。
 
@@ -51,7 +53,7 @@ CLI の run/replay で `--surface-catalog` を指定したときも標準出力�
 ## 実利用フィードバックへの追加契約（2026-11-25 承認）
 
 1. 公開を許可して受け付けた識別子は、保存・scan・HATE export・再読込の後も同じ値を保持する。`reset-password:lookup`、`api-key:lookup` などを自由文中の秘密値の代入と混同しない。観測は型を検証してJSON化し、識別子の区切り文字をJSONの標準unicode escapeで表現する。汎用のredaction/secret/PII scanは変更しない。既存の壊れた保存済み観測は改変せず、再実行する。
-2. 画面には任意の `ready: { testId, timeoutMs }` を登録できる。既定timeoutは5000ms、上限30000ms。replayの各操作後および外部観測のcheckpoint/finalizeで、現在の公開画面が準備完了になるまで待つ。timeoutや識別不能な準備状態は観測をincompleteにし、不在をnot_observedへ昇格しない。未指定時のcompleteは実行期間内の観測完了を意味し、将来の通信やアプリ全体の準備完了を保証しない。
+2. 画面には任意の `ready: { testId, timeoutMs }` または `ready: { role, name, timeoutMs }` を登録できる。既定timeoutは5000ms、整数1〜30000ms。roleはreplayのvisibleと同じ `button | link | textbox | checkbox | combobox | option | menuitem | tab`。nameは空白だけではない文字列で、Playwrightの `getByRole(role, { name, exact: true })` により大文字小文字を含め完全一致するaccessible nameを使う（空白の正規化はPlaywrightに従う）。testIdとrole/nameの混在、未知キー、regex、CSS/XPathは拒否する。候補が一意かつvisibleの場合だけ成立する。replayの各操作後および外部観測のcheckpoint/finishで、現在の公開画面が準備完了になるまで待つ。複数候補、未表示、不一致、timeoutや識別不能な準備状態は成立せず、期限内に解消しなければ観測をincompleteにし、不在をnot_observedへ昇格しない。readyは観測待機だけでテスト合否を変えない。stateはtestIdのまま。未指定時のcompleteは実行期間内の観測完了を意味し、将来の通信やアプリ全体の準備完了を保証しない。
 3. カタログの製品・対象版・環境は対象側の宣言としてrun metadataへ記録する。既存commitSha/HATE commit_shaは実行元のrevisionとして維持する。集計は対象宣言・観測・indexの製品版を照合し、実行元SHAはmetadataとHATEの間で照合する。対象製品のcheckout、0埋めSHA、実行元SHAへの製品版の偽装を要求しない。対象版宣言を真正性の独立検証とは扱わない。
 4. 画面に任意の `hashRoute`（`/home/detail/{id}` 等の正規化済みtemplate）と `state: { testId }`（表示されるDOM状態の識別）を加える。APIのfragmentは禁止を維持する。hashの値・動的segment・DOM本文は保存せず、許可済みIDだけを記録する。複数状態が同時に一致したら曖昧として到達を付けない。DOM状態の観測はunknown laneで、DOM状態だけからAPIの関係を推測しない。DOM状態のAPI関係を計測できない不在はnot_observedではなくunmeasuredとする。非公開の重なる定義は公開要素の一意性を保守的に抑制する。
 5. 公開packageから `startSurfaceCoverage` を提供し、既存Playwright BrowserContextへ読取り専用で観測を付ける。BrowserContext・test runner・認証・routing・cache・Service Workerの所有権は呼出側にあり、Lakdaは外部テストの操作をreplayと称さない。finishは対象宣言、実行元revision、test ID/版、outcome、観測、scan済みHATE manifestを保存する。専用 `lakda/surface-run-index/v1` をcoverage surfacesへ渡せる。既存E2E indexと旧結果の読取りは維持する。
