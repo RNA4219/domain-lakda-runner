@@ -46,7 +46,7 @@ test("URL specificity precedes state observation and preserves hash boundaries a
   expect(selected(hash, "/app#/items/1/")).toBe("item");
   expect(selected(hash, "/app/#/items/new")).toBeUndefined();
   expect(selected([...hash, screen("app", "/app")], "/app#/items/new/")).toBeUndefined();
-  for (const allowed of [["app"], ["app", "new"]]) {
+  for (const allowed of [["app"], ["app", hash[1].id]]) {
     const shell = readCatalog(catalog([screen("app", "/{shell}"), hash[1]], allowed));
     expect(matchDocumentScreen(shell, origin + "/app")).toBeUndefined();
     expect(matchDocumentScreen(shell, origin + "/other")?.id).toBe("app");
