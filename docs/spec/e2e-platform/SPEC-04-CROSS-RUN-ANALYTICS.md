@@ -52,7 +52,7 @@ cannot become successful real E2E evidence. No component here issues Gate verdic
 
 ## Patch
 
-No required fields added to existing schemas. Persisted evidence is immutable.
+Native run schemas retain the integer seed. Imported summaries allow an unknown seed (`null`), and their report views carry the browser label and scenario measurements used to verify the displayed total. Persisted evidence is immutable.
 No new arbitrary code execution, network sender or subprocess logic in Lakda.
 
 ## Tests

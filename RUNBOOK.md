@@ -327,7 +327,7 @@ lakda report generate --run-dir runs/<runRef> --out report
 lakda report verify --report-dir report
 ```
 
-Use the printed `runRef` in your `lakda/trend-index/v1` entry. For a device-only result, set `browser` to `external` and use `evidenceKind: "unknown"` when the evidence lane is unknown. A report with imported scenario results and no native action history is generated with a degraded receipt (exit 2). The result input and browser/duration rules are described in [SPEC-04](docs/spec/e2e-platform/SPEC-04-CROSS-RUN-ANALYTICS.md#imported-e2e-measurements).
+Use the printed `runRef` in your `lakda/trend-index/v1` entry. For a device-only result, set `browser` to `external` and use `evidenceKind: "unknown"` when the evidence lane is unknown. A report with imported scenario results and no native action history is generated with a degraded receipt (exit 2). The result input and browser/duration rules are described in [SPEC-04](https://github.com/RNA4219/domain-lakda-runner/blob/main/docs/spec/e2e-platform/SPEC-04-CROSS-RUN-ANALYTICS.md#imported-e2e-measurements).
 
 ## manual-bb handoff and promoted replay (2026-11)
 
