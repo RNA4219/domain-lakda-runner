@@ -1,7 +1,8 @@
 {
   "schema": "aym.architecture/v1",
   "name": "配送案内の構成",
-  "nodes": [{"id":"faq","name":"配送の質問と回答","kind":"service","type":"Web画面","description":"注文からお届けまでの日数を案内する。"}],
+  "nodes": [{"id":"faq","name":"配送の質問と回答","kind":"service","role":"画面","repository":"repo","type":"Web画面","description":"注文からお届けまでの日数を案内する。"},{"id":"repo","kind":"repository","name":"domain-lakda-runner"}],
+  "flows": [{"id":"delivery-days","name":"配送日数を確認する","steps":[{"node":"faq"}]}],
   "connections": [],
   "findings": []
 }

@@ -4,21 +4,25 @@
   "nodes": [
     {
       "id": "menu",
+      "role": "画面",
       "kind": "service",
       "name": "ノートの操作メニュー"
     },
     {
       "id": "favorites",
+      "role": "API",
       "kind": "service",
       "name": "お気に入りの更新 API"
     },
     {
       "id": "list",
+      "role": "画面",
       "kind": "service",
       "name": "お気に入り一覧画面"
     },
     {
       "id": "query",
+      "role": "API",
       "kind": "service",
       "name": "お気に入りの一覧 API"
     }
@@ -37,5 +41,6 @@
       "evidence": "packages/frontend/src/pages/favorites.vue"
     }
   ],
+  "flows": [{"id":"favorite","name":"お気に入りの登録と再確認","steps":[{"node":"menu"},{"node":"favorites","via":"登録・解除する"},{"node":"list"},{"node":"query","via":"再読み込みで一覧を取得する"}]}],
   "findings": []
 }

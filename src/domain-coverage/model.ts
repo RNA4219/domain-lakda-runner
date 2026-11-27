@@ -1,4 +1,5 @@
 import { object, type JsonObject } from "../runs/catalog-values.js";
+import { readFlowDefinition, type ArchitectureNode, type ArchitectureEdge } from "../../vendor/architecture/model.js";
 
 export function requireValue(value: unknown, message: string): asserts value {
   if (!value) throw new Error(message);
@@ -37,7 +38,7 @@ function edge(value: unknown) {
 function architecture(value: unknown) {
   const graph = object(value, "architecture");
   requireValue(graph.schema === "aym.architecture/v1", "構成図の形式が不明です");
-  const nodes = unique(list(graph.nodes, "nodes").map(value => {
+  const nodes: ArchitectureNode[] = unique(list(graph.nodes, "nodes").map(value => {
     const n = object(value, "node");
     const kind = label(n.kind, "kind");
     requireValue(["repository", "service", "store", "external"].includes(kind), "構成要素の種類が不明です");
@@ -46,12 +47,12 @@ function architecture(value: unknown) {
   }), n => n.id, "構成要素");
   requireValue(nodes.length, "構成要素が必要です");
   const ids = new Set(nodes.map(n => n.id));
-  const connections = unique(list(graph.connections, "connections").map(value => {
+  const connections: ArchitectureEdge[] = unique(list(graph.connections, "connections").map(value => {
     const row = object(value, "connection"), e = edge(row);
     requireValue(ids.has(e.from) && ids.has(e.to) && e.from !== e.to, "接続元・接続先が不正です");
     return { ...e, evidence: row.evidence ? label(row.evidence, "接続の出典") : "" };
   }), targetKey, "接続");
-  return { name: label(graph.name, "構成図名"), nodes, connections };
+  return { name: label(graph.name, "構成図名"), nodes, connections, ...readFlowDefinition(graph,nodes,connections) };
 }
 export interface Check {
   id: string; behaviors: string[];

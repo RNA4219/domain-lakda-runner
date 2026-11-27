@@ -118,6 +118,7 @@ test("製品の指摘と複数の接続理由を保ち、別の図の同名要�
   await writeFile(config,JSON.stringify(raw));
   expect(await runCli(["coverage","map","--config",config,"--format","html","--out",out])).toBe(0);
   await page.goto(pathToFileURL(out).href+"#architecture");
+  await page.locator("#choose").selectOption("favorites");
   await expect(page.locator("#findings")).toContainText(markers);
   await expect(page.locator("#mapped-behaviors a")).toHaveText(raw.behaviors[2].title);
   const wire=page.locator('.wire').filter({has:page.locator('.edge[data-from="menu"][data-to="favorites"]')});
@@ -131,6 +132,7 @@ test("製品の指摘と複数の接続理由を保ち、別の図の同名要�
   await expect(page.locator("#mapped-behaviors")).toBeHidden();
   await page.locator(".guide summary").click();
   await page.locator("#product-map").click();
+  await page.locator("#choose").selectOption("favorites");
   await expect(page.locator("#mapped-behaviors a")).toHaveText(raw.behaviors[2].title);
 });
 
@@ -146,7 +148,7 @@ test("描画上限を超える構成でもレポートと別の見本を開け�
   await page.getByRole("link",{name:"システム構成図",exact:true}).click();
   await expect(page.getByRole("alert")).toContainText("最大100件");
   await page.locator("#reset").click();
-  await expect(page.locator(".node")).toHaveCount(6);
+  await expect(page.locator(".node")).toHaveCount(7);
   await page.getByRole("link",{name:"検証結果",exact:true}).click();
   await expect(page.getByRole("heading",{name:"Misskeyの検証範囲"})).toBeVisible();
 });

@@ -17,5 +17,6 @@
     {"from":"lakda","to":"store","label":"今回の結果を保存する","evidence":"scripts/e2e-local-results.mjs がケースの予定と今回の run を照合し索引を発行。"},
     {"from":"console","to":"store","label":"ケースの結果を表示する","evidence":"scripts/local-console/execution.mjs の refresh が今回の索引と操作記録を表示用のページにまとめる。"}
   ],
+  "flows": [{"id":"replay","name":"テストを実行する","steps":[{"node":"console"},{"node":"lakda","via":"テストを開始する"},{"node":"browser","via":"操作列を再生する"},{"node":"product","via":"画面を操作する"}]}],
   "findings": []
 }

@@ -83,7 +83,18 @@ dl {margin:0}dt {font-weight:700;font-size:14px;color:#624e46}dd {margin:0 0 8px
 .connection-choice {display:grid;gap:4px;font-size:14px;margin-top:12px;color:var(--muted)}
 .connection-choice select {min-width:0;width:100%;min-height:40px;color:var(--ink);background:white}
 .picker {padding:0 18px 12px;align-items:center}.picker label {font-size:14px;font-weight:650}.picker select {width:min(100%,280px);min-height:40px;padding:5px 7px;border:1px solid #b9abbf;background:#fff;border-radius:5px;color:var(--ink)}
+.picker {padding-top:12px}.picker input[type=search] {max-width:100%;width:18ch;min-height:40px;border:1px solid var(--line);border-radius:5px}
 .sr {clip-path:inset(50%);position:absolute;width:1px;height:1px;overflow:hidden;white-space:nowrap}
+.flow-panel {background:white;border:1px solid var(--line);border-radius:12px;margin-block:16px;padding:16px;min-width:0;overflow-wrap:anywhere}
+.flow-head,.flow-controls,.flow-fields {display:flex;align-items:end;gap:12px;flex-wrap:wrap}
+.flow-head {align-items:center;justify-content:space-between}.flow-panel label {display:grid;gap:4px;max-width:100%;font-size:14px;font-weight:650}
+.flow-panel select,.flow-panel input {width:100%;max-width:36ch;min-height:44px;padding:6px 8px;border:1px solid var(--line);border-radius:5px;background:white;color:var(--ink)}
+.flow-track {display:flex;gap:8px;overflow-x:auto;padding:8px 4px 12px;margin:8px 0 0;list-style:none;scroll-padding:4px}
+.flow-track li {flex:0 0 clamp(140px,19%,220px);min-width:0}.flow-track button {width:100%;height:100%;padding:8px 12px;text-align:left;overflow-wrap:anywhere;background:var(--paper);border:1px solid var(--line);border-radius:6px;color:var(--ink)}
+.flow-track small,.flow-track strong {display:block}.flow-track [aria-current=step] {border:2px solid var(--accent);background:#edf1f3}
+.flow-info {border-inline-start:3px solid var(--accent);padding-inline:12px;margin-block:12px}.flow-info p,.flow-info ul {margin:4px 0}.flow-info small {color:var(--muted)}
+.flow-fields {margin-block:12px}.flow-controls button,.flow-fields button {min-height:44px}.flow-panel details {margin-block-start:12px}
+.flow-panel a[download] {display:inline-block;padding-block:8px}
 .return-map {display:none}.btn:hover,.chip:hover {border-color:#6d497c}
 @media(min-width:901px){.detail {position:sticky;top:12px}}
 @media(max-width:900px){.workspace{grid-template-columns:1fr}.return-map{display:inline-flex;margin-top:12px}.detail {scroll-margin-top:8px}}
@@ -114,18 +125,32 @@ dl {margin:0}dt {font-weight:700;font-size:14px;color:#624e46}dd {margin:0 0 8px
 <p>ファイルはこのタブで処理します。上限は1ファイル1 MiB、1回100ファイル・合計4 MiB、構成要素100件、接続300件です。</p>
 <button type="button" class="link" id="product-map"><!--PRODUCT_LABEL--></button></details>
 <p id="error" class="notice" role="alert" hidden></p><span class="sr" id="status" role="status"></span>
+<section id="flows" class="flow-panel" aria-labelledby="flow-title" hidden>
+<div class="flow-head"><h2 id="flow-title">操作の流れ</h2><label id="flow-switch">確認する操作<select id="flow-choice"></select></label></div>
+<div id="flow-content"><ol id="flow-track" class="flow-track" aria-label="操作の工程"></ol>
+<div class="flow-controls"><label>工程へ移動<select id="flow-step"></select></label><button type="button" class="btn" id="flow-prev">前の工程</button><button type="button" class="btn" id="flow-next">次の工程</button></div>
+<div id="flow-info" class="flow-info" aria-live="polite"></div></div>
+<p id="no-flows" class="hint">この構成には操作が登録されていません。</p>
+<details id="flow-editor"><summary>操作・役割・工程を追加</summary><p class="hint">編集用のコピーをこのタブで作成します。保存した JSON は「構成ファイルを開く」で再利用できます。</p>
+<form id="flow-form"><div class="flow-fields"><label>追加先の操作<select id="edit-flow"></select></label><label id="new-flow-field">新しい操作名<input id="new-flow" maxlength="160"></label>
+<label>追加する構成要素<select id="edit-node"></select></label><label id="new-node-field">新しい要素名<input id="new-node" maxlength="160"></label><label id="new-kind-field">基本の種類<select id="new-kind"></select></label></div>
+<div class="flow-fields"><label>要素の役割（自由入力）<input id="edit-role" list="role-options" maxlength="80"></label><datalist id="role-options"></datalist>
+<label>担当リポジトリ<select id="edit-owner"></select></label><label id="via-field">直前の工程からの接続名（任意）<input id="edit-via" list="via-options" maxlength="80"></label><datalist id="via-options"></datalist>
+<button class="btn" type="submit">工程を追加</button></div></form><p id="edit-error" role="alert" class="notice" hidden></p></details>
+<a id="save-flow" download="architecture.json" hidden>編集した構成 JSON を保存</a></section>
 <div class="workspace" id="workspace" hidden>
 <section class="map-panel" aria-labelledby="map-title"><div class="panel-head"><h2 id="map-title">構成と接続</h2>
 <div class="mode" role="group" aria-label="図の表示範囲"><button id="all" aria-pressed="true">構成全体</button><button id="repos" aria-pressed="false">リポジトリ間</button></div></div>
 <div id="flags" class="flag-list"></div>
+<div class="picker"><label for="node-query">名前・役割で検索</label><input type="search" id="node-query"><label for="choose">構成要素へ移動</label><select id="choose"></select><label><input type="checkbox" id="nearby"> 直接つながる要素だけ表示</label></div>
 <div class="canvas-tools" role="group" aria-label="図の操作">
 <button type="button" id="zoom-out" aria-label="縮小">−</button><output id="zoom-value" aria-label="表示倍率">100%</output><button type="button" id="zoom-in" aria-label="拡大">＋</button>
-<button type="button" id="fit-map">全体を表示</button><button type="button" id="reset-layout" disabled>配置を戻す</button></div>
+<button type="button" id="read-map">100%で読む</button><button type="button" id="fit-map">全体を表示</button><button type="button" id="reset-layout" disabled>配置を戻す</button></div>
 <div class="map-frame" id="frame" tabindex="0" role="region" aria-label="構成図" aria-describedby="canvas-help canvas-keys"><svg id="diagram" role="group" aria-label="構成要素と依存関係の図"></svg></div>
 <p class="canvas-help" id="canvas-help">ホイールで拡大・縮小。箱をドラッグして配置し、余白をドラッグして移動できます。線を選ぶと接続の根拠を読めます。</p>
 <p class="sr" id="canvas-keys">Tabで箱と線を選び、Enterで詳細を開きます。矢印キーは箱にフォーカスがあると箱を、それ以外は図全体を移動します。＋と−で拡大・縮小、Homeで全体を表示します。</p>
 <div class="graph-footer"><p id="note" class="hint"></p></div>
-<div class="picker"><label for="choose">構成要素を選択</label><select id="choose"></select><label><input type="checkbox" id="nearby"> 直接つながる要素だけ表示</label></div></section>
+</section>
 <aside class="detail" id="detail" tabindex="-1" aria-labelledby="detail-name"><p class="kind" id="detail-kind"></p><h2 id="detail-name"></h2><p class="description" id="description"></p><section id="mapped-behaviors" hidden><h3>保証する振る舞い</h3><div id="behavior-list"></div></section><section><h3 id="finding-count"></h3><div id="findings"></div></section><section><h3 id="links-title">この要素の接続</h3><ul class="links" id="links"></ul></section><button class="btn return-map" id="return">図に戻る</button></aside>
 </div></section></main>
 <script type="application/json" id="map-data"><!--DATA--></script>

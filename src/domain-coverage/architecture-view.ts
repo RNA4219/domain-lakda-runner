@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { SCHEMA, validateMap } from "../../vendor/architecture/model.js";
 import { architectureTemplate } from "./architecture-template.js";
+import type { Evidence, State } from "../surface-coverage/report.js";
 
 type Target = string | { from: string; to: string; label: string };
 interface ArchitecturePageOptions {
@@ -12,7 +13,8 @@ interface ArchitecturePageOptions {
   report?: {
     title: string;
     body: string;
-    behaviors: { title: string; state: string; targets: Target[] }[];
+    behaviors: { title: string; state: string; targets: Target[]; cases?:string[] }[];
+    observations?: { from:string; to:string; label:string; state:State; evidence:Evidence[] }[];
   };
 }
 
@@ -23,7 +25,7 @@ const escapeText = (s: string) => s.replaceAll("&", "&amp;").replaceAll("<", "&l
 
 function loadAssets() {
   const asModule = (name: string) => "data:text/javascript;base64," + Buffer.from(readAsset(name)).toString("base64");
-  const imports = { "#lakda-map-model": asModule("model.js"), "#lakda-map-yaml": asModule("yaml/parser.js") };
+  const imports = { "#lakda-map-model": asModule("model.js"), "#lakda-map-yaml": asModule("yaml/parser.js"), "#lakda-map-flows":asModule("flows.js") };
   const modules = '<script type="importmap">' + scriptJson({ imports }) + '</script>\n' +
     '<script type="module">' + readAsset("map.js") + '</script>\n' +
     '<!--\n' + readAsset("LICENSE") + '\n' + readAsset("yaml/LICENSE") + '\n-->';
@@ -55,7 +57,7 @@ export function renderArchitecturePage(options: ArchitecturePageOptions = {}): s
     MAP_VISIBILITY: report ? "hidden" : "",
     PRODUCT_LABEL: report || options.product !== undefined || productError ? "対象製品の構成図を開く" : "Lakda の構成図を開く",
     DATA: scriptJson({ sample, product, productError, productSource, startWithProduct: options.startWithProduct === true,
-      behaviors: report?.behaviors ?? null }),
+      behaviors: report?.behaviors ?? null, observations:report?.observations ?? [] }),
     MODULES: modules
   };
   return architectureTemplate.replace(/<!--([A-Z_]+)-->/g, (_, key: string) => slots[key]);

@@ -1,7 +1,8 @@
 import { targetKey, type DomainMap } from "./model.js";
 import type { Run } from "./observations.js";
+import type { SurfaceReport } from "../surface-coverage/report.js";
 
-export function coverageReport(map: DomainMap, run: Run | null, evidence: { file: string; sha256: string } | null) {
+export function coverageReport(map: DomainMap, run: Run | null, evidence: { file: string; sha256: string } | null, surfaces?: SurfaceReport) {
   const rows = map.behaviors.map(b => {
     const cases = map.cases.flatMap(c => {
       const items = c.checks.filter(h => h.behaviors.includes(b.id));
@@ -29,7 +30,12 @@ export function coverageReport(map: DomainMap, run: Run | null, evidence: { file
     targets.get(key)!.push(b.id);
   }
   const nodes = map.graph.nodes.map(n => ({ ...n, behaviors: targets.get(targetKey(n.id)) ?? [] }));
-  const connections = map.graph.connections.map(e => ({ ...e, behaviors: targets.get(targetKey(e)) ?? [] }));
+  const observed = new Map(surfaces?.relations.map(r => [JSON.stringify([r.screen,r.api]),r]));
+  const connections = map.graph.connections.map(e => {
+    const row = e.observe && observed.get(JSON.stringify([e.from,e.to]));
+    return { ...e, behaviors:targets.get(targetKey(e)) ?? [],
+      ...(row ? { observation:{ state:row.states.all, evidence:row.evidence } } : {}) };
+  });
   const active = rows.filter(b => b.state !== "excluded");
   const designed = active.filter(b => b.cases.length).length;
   const passed = active.filter(b => b.state === "passed").length;
@@ -43,6 +49,6 @@ export function coverageReport(map: DomainMap, run: Run | null, evidence: { file
   return { schema:"lakda/domain-coverage/v1", product:map.product, version:map.version, environment: map.environment,
     runId:run?.id ?? null, evidence, totals:{ total, designed, judged, passed, failed,
       designRate:total ? designed/total : null, judgedRate:total ? judged/total : null },
-    architecture:{ name:map.graph.name, nodes, connections }, behaviors:rows, unmappedCases };
+    architecture:{ name:map.graph.name, nodes, connections, flows:map.graph.flows }, behaviors:rows, unmappedCases };
 }
 export type CoverageReport = ReturnType<typeof coverageReport>;

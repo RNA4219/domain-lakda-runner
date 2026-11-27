@@ -1,5 +1,6 @@
 /* global document, matchMedia, Option, ResizeObserver, location, window */
 import { parseFile, importDocuments, validateMap, MAX_BYTES, kindNames, severityNames } from '#lakda-map-model';
+import { createFlows } from '#lakda-map-flows';
 
 const $=id=>document.getElementById(id);
 const page=JSON.parse($('map-data').textContent);
@@ -30,7 +31,14 @@ function initial(nodes) {
   return state.map.findings.find(f=>wanted.has(f.node))?.node ?? nodes[0].id;
 }
 
-function apply(result,sample=false) {
+const flows=createFlows({
+  choose(id) {
+    if(state.mode==='repos' && state.byId.get(id)?.kind!=='repository') { state.mode='all';state.selected=id;render(); }
+    select(id);
+  },
+  edit(map,flowId,step) { apply({map,source:'編集用コピー',edited:true},false,flowId,step); }
+});
+function apply(result,sample=false,flowId,step=0) {
   state.map=result.map;
   state.coverage=result.coverage === true;
   state.map.findings.sort((a,b)=>priorities.indexOf(a.severity)-priorities.indexOf(b.severity));
@@ -40,15 +48,18 @@ function apply(result,sample=false) {
   resetGestures();
   chart=null;
   state.packages=result.packages || new Map();
-  state.selected=initial(state.map.nodes);
+  const flow=state.map.flows.find(f=>f.id===flowId) ?? state.map.flows[0];
+  state.selected=flow?.steps[step]?.node ?? initial(state.map.nodes);
   state.note=result.note || '';
   $('nearby').checked=false;
+  $('node-query').value='';
   $('workspace').hidden=false;
   $('error').hidden=true;
   $('reset').hidden=sample;
   $('name').textContent=state.map.name;
   $('source').textContent=sample ? '見本データ' : '読み込み元　'+result.source;
   $('counts').textContent=state.map.nodes.length+' 要素　／　'+state.map.connections.length+' 接続　／　'+state.map.findings.length+' 件の指摘';
+  flows.load(state.map,flow,step,state.coverage ? page : null,result.edited===true);
   render();
 }
 function error(message) { $('error').textContent=message; $('error').hidden=false; }
@@ -109,29 +120,34 @@ function repoBands(nodes,edges) {
 }
 function layout(nodes,edges,width) {
   const repoOnly=nodes.every(n=>n.kind==='repository');
-  const bands=repoOnly ? repoBands(nodes,edges) : [
-    {label:'リポジトリ',nodes:nodes.filter(n=>n.kind==='repository')},
-    {label:'サービス',nodes:nodes.filter(n=>n.kind==='service' || n.kind==='external')},
-    {label:'データストア',nodes:nodes.filter(n=>n.kind==='store')}
-  ].filter(b=>b.nodes.length);
-  const vertical=width<580 || bands.length>4;
+  const groups=new Map();
+  for(const n of nodes) {
+    const label=n.role || kindNames.get(n.kind);
+    if(!groups.has(label)) groups.set(label,[]);
+    groups.get(label).push(n);
+  }
+  const bands=repoOnly && (state.mode==='repos' || nodes.every(n=>!n.role)) ? repoBands(nodes,edges) :
+    [...groups].map(([label,nodes])=>({label,nodes}));
+  const vertical=width<580 || bands.length>4 || bands.some(b=>b.nodes.length>6);
   const positions=new Map(), zones=[];
   const height=80, gap=36, margin=12;
   let bottom=0;
   if(vertical) {
-    let top=14;
+    const capacity=Math.min(6,Math.max(1,Math.floor(width/175))), cell=(width-margin*2)/capacity;
+    let top=14, used=0, rowHeight=0;
     for(const band of bands){
-      const columns=width>=460 ? 3 : width>=290 ? 2 : 1;
-      const cell=(width-margin*2)/columns;
+      const columns=Math.min(capacity,band.nodes.length);
+      if(used+columns>capacity) {top+=rowHeight+22;used=0;rowHeight=0;}
+      const left=margin+used*cell;
       const bw=Math.min(186,cell-18);
       const start=band.label ? 32 : 12;
       const rows=Math.ceil(band.nodes.length/columns);
       const zoneHeight=start+rows*(height+20);
-      zones.push({x:margin,y:top,w:width-margin*2,h:zoneHeight,label:band.label});
-      band.nodes.forEach((n,i)=>positions.set(n.id,{x:margin+(i%columns+.5)*cell-bw/2,y:top+start+Math.floor(i/columns)*(height+20),w:bw,h:height,bandTop:top,bandBottom:top+zoneHeight}));
-      top+=zoneHeight+22;
+      zones.push({x:left+2,y:top,w:columns*cell-4,h:zoneHeight,label:band.label});
+      band.nodes.forEach((n,i)=>positions.set(n.id,{x:left+(i%columns+.5)*cell-bw/2,y:top+start+Math.floor(i/columns)*(height+20),w:bw,h:height,bandTop:top,bandBottom:top+zoneHeight}));
+      used+=columns;rowHeight=Math.max(rowHeight,zoneHeight);
     }
-    bottom=top;
+    bottom=top+rowHeight+14;
   } else {
     const widthPer=(width-2*margin)/bands.length;
     const bw=Math.min(205,widthPer-46);
@@ -218,6 +234,17 @@ function reveal(target) {
     updateCamera();
   }
 }
+function readMap() {
+  const selected=chart?.positions.get(state.selected);
+  if(!selected) return;
+  const boxes=[...chart.positions.values()];
+  const center=(axis,size,room)=>{
+    const min=Math.min(...boxes.map(b=>b[axis])),max=Math.max(...boxes.map(b=>b[axis]+b[size]));
+    return max-min+32<=room ? (min+max-room)/2 : selected[axis]+(selected[size]-room)/2;
+  };
+  camera={zoom:1,x:center('x','w',frame.clientWidth),y:center('y','h',frame.clientHeight)};
+  updateCamera();
+}
 function draw(reset=false){
   if(!state.map) return;
   const visible=eligible(), near=new Set([state.selected]);
@@ -244,7 +271,8 @@ function draw(reset=false){
   const lanes=svg('g',{id:'lanes',visibility:offsets[state.mode].size?'hidden':'visible'});
   for(const z of chart.zones) if(z.label){
     lanes.append(svg('rect',{class:'lane',x:z.x,y:z.y,width:z.w,height:z.h,rx:9}));
-    lanes.append(svg('text',{class:'lane-title',x:z.x+10,y:z.y+22},z.label));
+    const label=svg('text',{class:'lane-title',x:z.x+10,y:z.y+22},fit(z.label,z.w-20,13,true));
+    label.append(svg('title',{},z.label));lanes.append(label);
   }
   fragment.append(lanes);
   let focusTarget;
@@ -272,7 +300,7 @@ function draw(reset=false){
     g.append(svg('rect',{class:'box',width:p.w,height:p.h,rx:8}));
     const color=n.kind==='repository'?'#68487a':n.kind==='store'?'#29676c':'#915031';
     g.append(svg('path',{class:'glyph',d:glyphs[n.kind],transform:'translate(9 8)',color}));
-    g.append(svg('text',{class:'node-type',x:32,y:23},fit(n.type || kindNames.get(n.kind),p.w-(findings.length?61:42),12)));
+    g.append(svg('text',{class:'node-type',x:32,y:23},fit(n.role || n.type || kindNames.get(n.kind),p.w-(findings.length?61:42),12)));
     g.append(svg('text',{class:'node-title',x:11,y:48},fit(n.name,p.w-21,15,true)));
     if(findings.length){
       g.append(svg('text',{class:'node-issue',x:11,y:68},fit('指摘　'+findings[0].title,p.w-21,12)));
@@ -285,11 +313,7 @@ function draw(reset=false){
     fragment.append(g);
   }
   diagram.replaceChildren(fragment);
-  if(initial && width>=580) fitMap();
-  else {
-    if(initial) camera={x:0,y:0,zoom:1};
-    updateCamera();
-  }
+  if(initial) readMap();else updateCamera();
   if(focusTarget) focusTarget.focus({preventScroll:true});
 }
 
@@ -297,9 +321,11 @@ function select(id,showDetail=false) {
   if(!state.byId.has(id)) return;
   selectedWire=null;
   state.selected=id;
+  if(![...$('choose').options].some(o=>o.value===id)) { $('node-query').value='';renderPicker(); }
   $('choose').value=id;
   draw();details();
-  reveal(nodesDrawn.get(id));
+  if(camera.zoom<1) readMap();else reveal(nodesDrawn.get(id));
+  flows.follow(id);
   $('status').textContent=state.byId.get(id).name+'、指摘'+issues(id).length+'件を選択しました。';
   if(showDetail && matchMedia('(max-width:900px)').matches) {
     $('detail').focus({preventScroll:true});$('detail').scrollIntoView({block:'start'});
@@ -364,7 +390,7 @@ function details(){
   $('links-title').textContent='この要素の接続';
   const n=state.byId.get(state.selected), list=issues(n.id);
   $('detail-name').textContent=n.name;
-  $('detail-kind').textContent=[kindNames.get(n.kind),n.type].filter(Boolean).join('　/　');
+  $('detail-kind').textContent=[n.role || kindNames.get(n.kind),n.type].filter(Boolean).join('　/　');
   $('description').textContent=n.description;
   $('description').hidden=!n.description;
   $('finding-count').textContent=list.length?'この要素の指摘　'+list.length+' 件':'この要素の指摘';
@@ -390,14 +416,24 @@ function details(){
   });
   $('links').replaceChildren(...(links.length?links:[html('li','接続の記録はありません。','hint')]));
 }
+function renderPicker() {
+  const query=$('node-query').value.trim().toLocaleLowerCase();
+  const nodes=eligible().filter(n=>[n.name,n.role,n.type,kindNames.get(n.kind)].some(v=>v?.toLocaleLowerCase().includes(query)));
+  $('choose').replaceChildren(...nodes.map(n=>new Option(n.name+(issues(n.id).length?'　· 指摘あり':''),n.id)));
+  const wireOption=new Option(!nodes.length?'該当する要素なし':selectedWire?'接続線を選択中':'要素を選択','');wireOption.disabled=true;
+  $('choose').prepend(wireOption);
+  $('choose').value=!selectedWire && nodes.some(n=>n.id===state.selected) ? state.selected : '';
+}
+$('node-query').addEventListener('input',renderPicker);
+$('node-query').addEventListener('keydown',e=>{
+  const first=$('choose').options[1];
+  if(e.key==='Enter' && !e.isComposing && first) {e.preventDefault();select(first.value);}
+});
 function render() {
   const nodes=eligible();
   $('repos').disabled=!state.map.nodes.some(n=>n.kind==='repository');
   $('repos').setAttribute('aria-pressed',state.mode==='repos');$('all').setAttribute('aria-pressed',state.mode==='all');
-  $('choose').replaceChildren(...nodes.map(n=>new Option(n.name+(issues(n.id).length?'　· 指摘あり':''),n.id)));
-  const wireOption=new Option('接続線を選択中','');wireOption.disabled=true;wireOption.hidden=true;
-  $('choose').prepend(wireOption);
-  $('choose').value=state.selected;
+  renderPicker();
   $('map-title').textContent=state.mode==='repos'?'リポジトリの依存関係':'構成と接続';
   $('flags').replaceChildren();
   const flagged=nodes.filter(n=>issues(n.id).length);
@@ -551,7 +587,8 @@ diagram.addEventListener('wheel',e=>{
 $('zoom-in').addEventListener('click',()=>zoomAt(camera.zoom*1.25));
 $('zoom-out').addEventListener('click',()=>zoomAt(camera.zoom*.8));
 $('fit-map').addEventListener('click',fitMap);
-$('reset-layout').addEventListener('click',()=>{offsets[state.mode].clear();draw();fitMap();});
+$('read-map').addEventListener('click',readMap);
+$('reset-layout').addEventListener('click',()=>{offsets[state.mode].clear();draw();readMap();});
 $('return').addEventListener('click',()=>{const target=diagram.querySelector('[aria-pressed="true"]');target?.focus();frame.scrollIntoView({block:'center'});});
 $('file').addEventListener('change',e=>{const files=[...e.target.files];e.target.value='';if(files.length) openFiles(files);});
 $('reset').addEventListener('click',()=>loadBundled());
