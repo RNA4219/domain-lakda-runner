@@ -8,29 +8,45 @@ import { label, readMap, requireValue } from "../domain-coverage/model.js";
 import { readObservations, type Run } from "../domain-coverage/observations.js";
 import { readCaseIndex } from "../domain-coverage/lakda-index.js";
 import { coverageReport } from "../domain-coverage/report.js";
+import { loadCatalog } from "../surface-coverage/catalog.js";
+import { readSurfaceIndex, surfaceReport, type SurfaceReport } from "../surface-coverage/report.js";
 import { reserveReportOutput } from "../reporting/output-transaction.js";
 
 export async function domainCoverageCommand(flags: Flags): Promise<number> {
   const config = stringFlag(flags,"config"), input = stringFlag(flags,"input"), dir = stringFlag(flags,"runs-dir");
   const format = stringFlag(flags,"format") ?? "json", out = stringFlag(flags,"out");
+  const surfaceFile = stringFlag(flags,"surface-catalog");
+  requireValue(!surfaceFile || (input && dir), "通信観測には --input のケース索引と --runs-dir が必要です");
   requireValue(config && ["json","html"].includes(format), "--config と出力形式 json / html を確認してください");
   const raw = object(parseJson(await readFile(config),"マッピング"),"マッピング");
   const path = resolve(dirname(config),label(raw.architecture,"構成ファイル"));
   const architecture = parseJson(await readFile(path),"構成図");
   const map = readMap(raw,architecture);
   let run: Run | null = null, evidence = null;
+  let surfaces: SurfaceReport | undefined;
   if (input) {
     const bytes = await readFile(input), data = object(parseJson(bytes,"実行記録"),"実行記録");
+    if (surfaceFile) {
+      const catalog = await loadCatalog(surfaceFile);
+      requireValue(catalog.product === map.product && catalog.version === map.version && catalog.environment === map.environment,
+        "通信観測の対象製品・版・環境が一致しません");
+      const tests = await readSurfaceIndex(catalog,data,dir!);
+      const revisions = new Map(map.cases.map(c => [c.id,c.revision]));
+      surfaces = surfaceReport(catalog,tests.map(t => revisions.has(t.evidence.testId) && revisions.get(t.evidence.testId) !== t.evidence.testRevision
+        ? { ...t, measurement:null } : t));
+    }
     if (data.schemaVersion === "lakda/e2e-case-index/v1") {
       requireValue(dir, "ケース索引には --runs-dir が必要です");
       run = await readCaseIndex(map,data,dir);
+    } else if (surfaces && data.schemaVersion === "lakda/surface-run-index/v1") {
+      run = { id:String(data.localRunId)+"/"+String(data.localRunAttempt), cases:new Map() };
     } else {
       requireValue(!dir, "--runs-dir はケース索引の入力と組み合わせてください");
       run = readObservations(map,data);
     }
     evidence = { file:basename(input), sha256:"sha256:"+sha256(bytes) };
   } else requireValue(!dir, "--input が必要です");
-  const report = coverageReport(map,run,evidence);
+  const report = coverageReport(map,run,evidence,surfaces);
   const pathToInput = input && relative(out ? dirname(resolve(out)) : process.cwd(),resolve(input));
   const href = pathToInput && (isAbsolute(pathToInput) ? pathToFileURL(resolve(input!)).href
     : "./" + pathToInput.split(sep).map(encodeURIComponent).join("/"));
@@ -38,7 +54,7 @@ export async function domainCoverageCommand(flags: Flags): Promise<number> {
     : (await import("../domain-coverage/html.js")).renderCoverage(report,href,architecture)) + "\n";
   if (!out) process.stdout.write(output);
   else {
-    const sources = [config,path,...(input ? [input] : []),...(dir ? [dir] : [])];
+    const sources = [config,path,...(input ? [input] : []),...(dir ? [dir] : []),...(surfaceFile ? [surfaceFile] : [])];
     const transaction = await reserveReportOutput(out,sources);
     try {
       await writeFile(join(transaction.stage,"coverage"),output,{ flag:"wx" });

@@ -26,7 +26,7 @@ a {color:var(--accent);text-underline-offset:3px}
 .top nav {display:flex;flex-wrap:wrap;gap:16px}.top nav a {color:inherit;display:inline-flex;align-items:center;min-height:44px}.top nav [aria-current]{text-decoration-thickness:2px}
 main {padding:24px 0 48px}
 .heading,.toolbar,.panel-head,.picker,.source-row,.mode,.flag-list {display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.heading {justify-content:space-between;align-items:end}
+.heading {display:grid;justify-items:start;gap:12px}
 h1,h2,h3,p {margin:0}
 h1 {margin-top:2px;font-size:clamp(26px,3.2vw,42px);line-height:1.25;letter-spacing:-.035em;overflow-wrap:anywhere}
 h2 {font-size:20px;line-height:1.45} h3 {font-size:17px}
@@ -40,7 +40,8 @@ h2 {font-size:20px;line-height:1.45} h3 {font-size:17px}
 .guide {margin:12px 0 16px;color:var(--muted);max-width:88ch}
 summary {cursor:pointer;width:fit-content;padding:5px 0;color:var(--accent);text-decoration:underline;text-underline-offset:3px}
 .guide p {margin:5px 0}.notice {margin:12px 0;padding:10px 14px;border-left:3px solid var(--rust);background:var(--tint);overflow-wrap:anywhere}
-.workspace {display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,340px);gap:16px;align-items:start}
+.workspace {display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+#architecture {max-width:72rem;margin-inline:auto}
 .map-panel,.detail {background:white;border:1px solid var(--line);border-radius:12px;min-width:0}
 .panel-head {justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}
 .mode {gap:2px;padding:3px;border-radius:6px;background:#e7ecef}.mode button {min-height:38px;border:0;background:transparent;font-size:15px}.mode button[aria-pressed=true] {background:var(--accent);color:white}
@@ -63,14 +64,17 @@ summary {cursor:pointer;width:fit-content;padding:5px 0;color:var(--accent);text
 .node.near .box {stroke:#80648e}.node.flagged .box {stroke:#bd714e}.node.selected .box {stroke:#604076;stroke-width:3;fill:#faf6fd}
 .node.selected.flagged .box {stroke:#a44624;fill:#fff7f0}
 .node:focus-visible .box,.node:hover .box {stroke:#36263f;stroke-width:3}
-.node-title {fill:var(--ink);font-size:15px;font-weight:700}.node-type {fill:#615668;font-size:12px}
+.node-title {fill:var(--ink);font-size:16px;font-weight:700}.node-type {fill:var(--muted);font-size:14px}
 .glyph {fill:none;stroke:currentColor;stroke-width:1.65;stroke-linejoin:round;stroke-linecap:round}
 .alert-icon {fill:#9b3c1d}.alert-text {fill:white;font-size:12px;font-weight:800}
-.node-issue {fill:#873a1d;font-size:12px}
+.node-issue {fill:#873a1d;font-size:14px}
 .graph-footer {padding:12px 18px 15px;border-top:1px solid var(--line)}
 .flag-list {gap:6px 8px}.flag-list h3 {margin-right:4px}.chip {min-height:36px;border-color:#d6ab94;background:#fff7f1;color:#84381e;font-size:14px}
 .flag-list:not(:empty) {padding:9px 18px;border-bottom:1px solid var(--line)}
-.detail {padding:18px}.detail h2 {font-size:24px;overflow-wrap:anywhere}.detail p,.detail dd,.detail li,.meta {overflow-wrap:anywhere}
+.detail {padding:clamp(16px,2.5vw,32px);scroll-margin-block:12px}
+.detail h2 {font-size:clamp(24px,2vw,30px);overflow-wrap:anywhere}
+.detail>section,.detail>p,.flow-info {max-inline-size:46rem;max-inline-size:46ic;line-height:1.75}
+.detail p,.detail dd,.detail li,.meta {overflow-wrap:anywhere}
 .detail .description {margin:5px 0 16px}.detail section {border-top:1px solid var(--line);padding-top:14px;margin-top:14px}
 .finding {margin-top:10px;padding:12px;border-left:3px solid #af5638;background:#fcf3ed;border-radius:0 6px 6px 0}
 .finding h3 {margin:4px 0 8px}.level {color:#783016;font-size:14px;font-weight:750}
@@ -83,10 +87,20 @@ dl {margin:0}dt {font-weight:700;font-size:14px;color:#624e46}dd {margin:0 0 8px
 .connection-choice {display:grid;gap:4px;font-size:14px;margin-top:12px;color:var(--muted)}
 .connection-choice select {min-width:0;width:100%;min-height:40px;color:var(--ink);background:white}
 .picker {padding:0 18px 12px;align-items:center}.picker label {font-size:14px;font-weight:650}.picker select {width:min(100%,280px);min-height:40px;padding:5px 7px;border:1px solid #b9abbf;background:#fff;border-radius:5px;color:var(--ink)}
+.picker {padding-top:12px}.picker input[type=search] {max-width:100%;width:18ch;min-height:40px;border:1px solid var(--line);border-radius:5px}
 .sr {clip-path:inset(50%);position:absolute;width:1px;height:1px;overflow:hidden;white-space:nowrap}
-.return-map {display:none}.btn:hover,.chip:hover {border-color:#6d497c}
-@media(min-width:901px){.detail {position:sticky;top:12px}}
-@media(max-width:900px){.workspace{grid-template-columns:1fr}.return-map{display:inline-flex;margin-top:12px}.detail {scroll-margin-top:8px}}
+.flow-panel {background:white;border:1px solid var(--line);border-radius:12px;margin-block:16px;padding:16px;min-width:0;overflow-wrap:anywhere}
+.flow-controls {display:flex;align-items:end;gap:8px;flex-wrap:wrap}
+.flow-head,.flow-fields {display:grid;justify-items:start;gap:10px}
+.flow-panel label {display:grid;gap:4px;max-width:100%;font-size:15px;font-weight:650}
+.flow-panel select,.flow-panel input {width:100%;max-width:36ch;min-height:44px;padding:6px 8px;border:1px solid var(--line);border-radius:5px;background:white;color:var(--ink)}
+.flow-track {display:grid;max-inline-size:46rem;gap:2px;padding:0;margin:4px 0 12px;list-style:none}
+.flow-track button {width:100%;min-height:44px;text-align:start;padding:6px 12px;overflow-wrap:anywhere;background:white;border:0;border-inline-start:3px solid var(--line);color:var(--ink)}
+.flow-track small {margin-inline-end:.75em;font-size:15px;color:var(--muted)}.flow-track [aria-current=step] {border-color:var(--accent);background:#edf1f3}
+.flow-info {border-inline-start:3px solid var(--accent);padding-inline:12px;margin-block:12px}.flow-info p,.flow-info ul {margin:4px 0}.flow-info small {color:var(--muted)}
+.flow-fields {margin-block:12px}.flow-controls button,.flow-fields button {min-height:44px}.flow-panel details {margin-block-start:12px}
+.flow-panel a[download] {display:inline-block;padding-block:8px}
+.return-map {margin-top:14px}.btn:hover,.chip:hover {border-color:#6d497c}
 @media(max-width:620px){.top-inner,main{width:calc(100% - 24px)}.top-inner{min-height:56px}.top nav{gap:9px}.brand{font-size:25px;gap:6px}.top nav a{font-size:14px}main{padding-top:16px}.heading{gap:12px}.panel-head{padding:10px 12px;gap:8px}.mode button{font-size:14px}.picker{padding:0 12px 12px}.graph-footer{padding:10px 12px}.mode{gap:0}.map-frame{max-height:420px}.detail{padding:14px}}
 @media(prefers-reduced-motion:no-preference){.node .box,.edge{transition:stroke .14s ease,fill .14s ease}}
 /* 被覆レポートの見出し・表・根拠は JavaScript が無効な閲覧環境でも読める。 */
@@ -107,25 +121,39 @@ dl {margin:0}dt {font-weight:700;font-size:14px;color:#624e46}dd {margin:0 0 8px
 <!--COVERAGE-->
 <section id="architecture" tabindex="-1" aria-label="システム構成図" <!--MAP_VISIBILITY-->>
 <div class="heading"><div><p class="context">システム構成図</p><h1 id="name">構成図を読み込み中</h1><div class="source-row"><span class="source" id="source"></span><span class="meta" id="counts"></span></div></div>
-<div class="toolbar"><button type="button" class="btn" id="reset" hidden>見本に戻す</button><label class="file">構成ファイルを開く<input id="file" type="file" multiple accept=".json,.yaml,.yml" aria-label="構成ファイルを開く"></label></div></div>
+<div class="toolbar"><button type="button" class="btn" id="jump-map" hidden>構成図へ移動</button><button type="button" class="btn" id="reset" hidden>見本に戻す</button><label class="file">構成ファイルを開く<input id="file" type="file" multiple accept=".json,.yaml,.yml" aria-label="構成ファイルを開く"></label></div></div>
 <details class="guide"><summary>読み込めるファイルと見本</summary>
 <p>構成図（JSON・YAML）では、リポジトリ、AWS リソース、接続の理由、対象ごとの指摘を指定できます。<a id="download" download="architecture-sample.json">編集用の見本 JSON を保存</a></p>
 <p>CloudFormation（JSON・YAML）はリソースと設定上の依存関係を読み取ります。package.json は repository を指定したものを順に追加すると、読み込んだリポジトリ間の依存が線になります。</p>
 <p>ファイルはこのタブで処理します。上限は1ファイル1 MiB、1回100ファイル・合計4 MiB、構成要素100件、接続300件です。</p>
 <button type="button" class="link" id="product-map"><!--PRODUCT_LABEL--></button></details>
 <p id="error" class="notice" role="alert" hidden></p><span class="sr" id="status" role="status"></span>
+<section id="flows" class="flow-panel" aria-labelledby="flow-title" hidden>
+<div class="flow-head"><h2 id="flow-title">操作の流れ</h2><label id="flow-switch">確認する操作<select id="flow-choice"></select></label></div>
+<div id="flow-content"><details id="step-list"><summary id="step-list-label">工程一覧</summary><ol id="flow-track" class="flow-track" aria-label="操作の工程"></ol></details>
+<div class="flow-controls"><label>工程へ移動<select id="flow-step"></select></label><button type="button" class="btn" id="flow-prev">前の工程</button><button type="button" class="btn" id="flow-next">次の工程</button></div>
+<div id="flow-info" class="flow-info" aria-live="polite"></div><button type="button" class="link" id="flow-map">この工程を図で見る</button></div>
+<p id="no-flows" class="hint">この構成には操作が登録されていません。</p>
+<details id="flow-editor"><summary>操作・役割・工程を追加</summary><p class="hint">編集用のコピーをこのタブで作成します。保存した JSON は「構成ファイルを開く」で再利用できます。</p>
+<form id="flow-form"><div class="flow-fields"><label>追加先の操作<select id="edit-flow"></select></label><label id="new-flow-field">新しい操作名<input id="new-flow" maxlength="160"></label>
+<label>追加する構成要素<select id="edit-node"></select></label><label id="new-node-field">新しい要素名<input id="new-node" maxlength="160"></label><label id="new-kind-field">基本の種類<select id="new-kind"></select></label></div>
+<div class="flow-fields"><label>要素の役割（自由入力）<input id="edit-role" list="role-options" maxlength="80"></label><datalist id="role-options"></datalist>
+<label>担当リポジトリ<select id="edit-owner"></select></label><label id="via-field">直前の工程からの接続名（任意）<input id="edit-via" list="via-options" maxlength="80"></label><datalist id="via-options"></datalist>
+<button class="btn" type="submit">工程を追加</button></div></form><p id="edit-error" role="alert" class="notice" hidden></p></details>
+<a id="save-flow" download="architecture.json" hidden>編集した構成 JSON を保存</a></section>
 <div class="workspace" id="workspace" hidden>
 <section class="map-panel" aria-labelledby="map-title"><div class="panel-head"><h2 id="map-title">構成と接続</h2>
 <div class="mode" role="group" aria-label="図の表示範囲"><button id="all" aria-pressed="true">構成全体</button><button id="repos" aria-pressed="false">リポジトリ間</button></div></div>
 <div id="flags" class="flag-list"></div>
+<div class="picker"><label for="node-query">名前・役割で検索</label><input type="search" id="node-query"><label for="choose">構成要素へ移動</label><select id="choose"></select><label><input type="checkbox" id="nearby"> 直接つながる要素だけ表示</label></div>
 <div class="canvas-tools" role="group" aria-label="図の操作">
 <button type="button" id="zoom-out" aria-label="縮小">−</button><output id="zoom-value" aria-label="表示倍率">100%</output><button type="button" id="zoom-in" aria-label="拡大">＋</button>
-<button type="button" id="fit-map">全体を表示</button><button type="button" id="reset-layout" disabled>配置を戻す</button></div>
+<button type="button" id="read-map">100%で読む</button><button type="button" id="fit-map">全体を表示</button><button type="button" id="reset-layout" disabled>配置を戻す</button></div>
 <div class="map-frame" id="frame" tabindex="0" role="region" aria-label="構成図" aria-describedby="canvas-help canvas-keys"><svg id="diagram" role="group" aria-label="構成要素と依存関係の図"></svg></div>
 <p class="canvas-help" id="canvas-help">ホイールで拡大・縮小。箱をドラッグして配置し、余白をドラッグして移動できます。線を選ぶと接続の根拠を読めます。</p>
 <p class="sr" id="canvas-keys">Tabで箱と線を選び、Enterで詳細を開きます。矢印キーは箱にフォーカスがあると箱を、それ以外は図全体を移動します。＋と−で拡大・縮小、Homeで全体を表示します。</p>
-<div class="graph-footer"><p id="note" class="hint"></p></div>
-<div class="picker"><label for="choose">構成要素を選択</label><select id="choose"></select><label><input type="checkbox" id="nearby"> 直接つながる要素だけ表示</label></div></section>
+<div class="graph-footer"><button type="button" class="link" id="open-detail">選択中の詳細を読む</button><p id="note" class="hint"></p></div>
+</section>
 <aside class="detail" id="detail" tabindex="-1" aria-labelledby="detail-name"><p class="kind" id="detail-kind"></p><h2 id="detail-name"></h2><p class="description" id="description"></p><section id="mapped-behaviors" hidden><h3>保証する振る舞い</h3><div id="behavior-list"></div></section><section><h3 id="finding-count"></h3><div id="findings"></div></section><section><h3 id="links-title">この要素の接続</h3><ul class="links" id="links"></ul></section><button class="btn return-map" id="return">図に戻る</button></aside>
 </div></section></main>
 <script type="application/json" id="map-data"><!--DATA--></script>

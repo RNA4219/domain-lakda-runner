@@ -17,7 +17,8 @@ test("見本を絞り込み、構成 YAML・CloudFormation・npm の別名依存
   page.on("pageerror", error => errors.push(error.message));
   await openPage(page,info);
   const input = page.locator("#file"), nodes = page.locator(".node");
-  await expect(nodes).toHaveCount(6);
+  await expect(nodes).toHaveCount(7);
+  await page.locator("#choose").selectOption("archive");
   await expect(page.locator("#findings")).toContainText("REC-04");
   await page.locator("#nearby").check();
   await expect(nodes).toHaveCount(2);
@@ -31,7 +32,7 @@ test("見本を絞り込み、構成 YAML・CloudFormation・npm の別名依存
   await page.locator("#download").click();
   const download = await downloaded;
   expect(download.suggestedFilename()).toBe("architecture-sample.json");
-  expect(JSON.parse(await readFile((await download.path())!, "utf8")).nodes).toHaveLength(6);
+  expect(JSON.parse(await readFile((await download.path())!, "utf8")).nodes).toHaveLength(7);
   await page.locator("#product-map").click();
   await expect(page.locator("#name")).toHaveText("Lakda のローカル E2E プラットフォーム");
 
@@ -73,6 +74,7 @@ for (const touch of [false,true]) {
       const frame = page.locator("#frame"), diagram = page.locator("#diagram");
       const node = diagram.locator('[data-id="web"]'), edge = diagram.locator('.edge[data-from="web"]').first();
       await expect(node).toBeVisible();
+      await page.locator("#choose").selectOption("web");
       const overflowing = await diagram.locator(".node").evaluateAll(items=>items.filter(item=>{
         const box=item.querySelector<SVGRectElement>(".box")!.getBBox();
         return Array.from(item.querySelectorAll<SVGTextElement>(".node-title,.node-type,.node-issue")).some(text=>{

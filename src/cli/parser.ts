@@ -34,6 +34,7 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
   if (parsed.values.result !== undefined && commandName !== "import e2e") throw new Error("--result requires import e2e");
   if (["coverage map", "coverage surfaces", "import e2e"].includes(commandName)) {
     const allowed = new Set(commandName === "import e2e" ? ["result","output-dir","help","version"] : ["config","input","runs-dir","format","out","help","version"]);
+    if (commandName === "coverage map") allowed.add("surface-catalog");
     const seen = new Set<string>();
     for (const token of parsed.tokens) {
       if (token.kind !== "option") continue;

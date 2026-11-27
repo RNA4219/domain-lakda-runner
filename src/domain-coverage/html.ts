@@ -66,6 +66,8 @@ export function renderCoverage(report: CoverageReport, inputHref?: string, archi
     startWithProduct: true,
     consoleReturn: context ? context.returnHref ?? "/" : undefined,
     report: { title: (context?.name ?? report.product) + "の検証範囲", body,
-      behaviors: behaviors.map(b => ({ title:b.title, state:states[b.state], targets:b.targets })) }
+      behaviors: behaviors.map(b => ({ title:b.title, state:states[b.state], targets:b.targets,
+        cases:b.cases.map(c=>c.id+" @ "+c.revision+"　"+c.checks.map(h=>h.id+" "+checks[h.result as keyof typeof checks]).join("、")) })),
+      observations:g.connections.flatMap(e => e.observation ? [{from:e.from,to:e.to,label:e.label,...e.observation}] : []) }
   });
 }

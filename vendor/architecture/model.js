@@ -64,7 +64,45 @@ export function validateMap(raw) {
     return {node:f.node,severity:f.severity,title:string(f.title,'指摘名',220),
       evidence:string(f.evidence,'指摘の根拠',1600),action:string(f.action,'確認・対応',1000)};
   });
-  return {name,nodes,connections,findings};
+  const {flows}=readFlowDefinition(raw,nodes,connections);
+  return {name,nodes,connections,findings,flows};
+}
+
+// Shared by the graph viewer and the coverage report (which can tabulate larger graphs).
+export function readFlowDefinition(raw,nodes,connections) {
+  const byId=new Map(nodes.map(n=>[n.id,n]));
+  raw.nodes.forEach((source,i)=>{
+    if(source.role!==undefined) nodes[i].role=string(source.role,'役割',80);
+    if(source.repository!==undefined) {
+      const owner=string(source.repository,'担当リポジトリ',180);
+      if(byId.get(owner)?.kind!=='repository') throw Error('担当リポジトリには登録済みリポジトリのIDを指定してください。');
+      nodes[i].repository=owner;
+    }
+  });
+  const measured=new Set();
+  raw.connections.forEach((source,i)=>{
+    if(source.observe===undefined) return;
+    const edge=connections[i], key=JSON.stringify([edge.from,edge.to]);
+    if(source.observe!=='screen-api' || measured.has(key)) throw Error('画面からAPIへの観測対応は同じ向きに1件だけ指定できます。');
+    measured.add(key);edge.observe='screen-api';
+  });
+  const ids=new Set();
+  const flows=rows(raw.flows===undefined ? [] : raw.flows,'操作',100).map(f=>{
+    const id=string(f.id,'操作ID',180), name=string(f.name,'操作名',160);
+    if(ids.has(id)) throw Error('操作IDが重複しています。');ids.add(id);
+    const steps=rows(f.steps,'工程',100).map((s,i)=>{
+      const node=string(s.node,'工程の構成要素',180);
+      if(!byId.has(node)) throw Error('工程に未登録の構成要素があります。');
+      if(s.via===undefined) return {node};
+      const via=string(s.via,'工程間の接続',80), previous=i && f.steps[i-1].node.trim();
+      if(!i || connections.filter(e=>e.from===previous && e.to===node && e.label===via).length!==1)
+        throw Error('工程間の接続は直前の要素からの接続名を一意に指定してください。');
+      return {node,via};
+    });
+    if(!steps.length) throw Error('操作には最低1工程が必要です。');
+    return {id,name,steps};
+  });
+  return {flows};
 }
 
 function cloudMap(document, filename) {
