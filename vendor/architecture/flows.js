@@ -19,7 +19,7 @@ function freshId(items,prefix) {
 const laneNames={real:'実サーバー',mock:'差し替え',unknown:'分類不能'};
 const reachNames={observed:'観測あり',not_observed:'観測なし',unmeasured:'未計測'};
 
-export function createFlows({choose,edit}) {
+export function createFlows({choose,edit,focusMap}) {
   let map,byId,flow,index=0,report;
   function nodeRole(node) {return node.role || kindNames.get(node.kind);}
   function incoming() {
@@ -77,10 +77,6 @@ export function createFlows({choose,edit}) {
     }
     const current=track.querySelector('[aria-current=step]');
     if(focus) current.focus({preventScroll:true});
-    // Move the strip only; changing steps must not scroll the whole document.
-    const rect=current.getBoundingClientRect(), view=track.getBoundingClientRect();
-    if(rect.left<view.left) track.scrollLeft+=rect.left-view.left;
-    else if(rect.right>view.right) track.scrollLeft+=rect.right-view.right;
     el('flow-step').value=String(index);
     el('flow-prev').disabled=index===0;el('flow-next').disabled=index===flow.steps.length-1;
     stepInfo();
@@ -89,6 +85,8 @@ export function createFlows({choose,edit}) {
     el('no-flows').hidden=!!flow;el('flow-content').hidden=!flow;el('flow-switch').hidden=!flow;
     if(!flow) {el('flow-info').replaceChildren();el('flow-track').replaceChildren();return;}
     el('flow-choice').value=flow.id;
+    el('step-list').open=flow.steps.length<=5;
+    el('step-list-label').textContent=flow.steps.length<=5 ? '工程一覧（'+flow.steps.length+'件）' : '前後の工程を見る（全'+flow.steps.length+'件）';
     options(el('flow-step'),flow.steps.map((s,i)=>[String(i),(i+1)+' / '+flow.steps.length+'　'+byId.get(s.node).name]));
     renderStep();
   }
@@ -98,6 +96,7 @@ export function createFlows({choose,edit}) {
   el('flow-prev').addEventListener('click',()=>go(index-1));
   el('flow-next').addEventListener('click',()=>go(index+1));
   el('flow-step').addEventListener('change',e=>go(Number(e.target.value)));
+  el('flow-map').addEventListener('click',()=>{choose(flow.steps[index].node);focusMap();});
   el('flow-choice').addEventListener('change',e=>{
     flow=map.flows.find(f=>f.id===e.target.value);index=0;renderFlow();choose(flow.steps[0].node);
     el('edit-flow').value=flow.id;editorFields();

@@ -67,7 +67,13 @@ for (const width of [320,1280]) test(`100要素・100工程を幅 ${width} で�
   await writeFile(html,renderArchitecturePage({product:graph,startWithProduct:true}));
   await page.goto(pathToFileURL(html).href);
   await expect(page.locator("#zoom-value")).toHaveText("100%");
+  await page.locator("#jump-map").press("Enter");await expect(page.locator('.node[data-id="n0"]')).toBeFocused();
   await expect(page.locator("#flow-track button")).toHaveCount(5);
+  await expect(page.locator("#step-list")).not.toHaveAttribute("open","");
+  await page.locator("#step-list summary").click();
+  const rows=await page.locator("#flow-track button").evaluateAll(buttons=>buttons.map(b=>b.getBoundingClientRect().top));
+  expect(rows.every((y,i)=>i===0 || y>rows[i-1])).toBe(true);
+  await page.locator("#step-list summary").click();
   const labelHeight=await page.locator(".node-title").first().evaluate(n=>n.getBoundingClientRect().height);
   expect(labelHeight).toBeGreaterThanOrEqual(14);
   await page.locator("#fit-map").click();expect(parseInt(await page.locator("#zoom-value").innerText())).toBeLessThan(65);
@@ -81,6 +87,14 @@ for (const width of [320,1280]) test(`100要素・100工程を幅 ${width} で�
   expect(centered).toBe(true);
   await page.locator("#node-query").fill("独自の役割 42");await page.locator("#node-query").press("Enter");
   await expect(page.locator("#flow-step")).toHaveValue("42");
+  const panel=await page.locator(".map-panel").boundingBox(), detail=await page.locator("#detail").boundingBox();
+  expect(detail!.y).toBeGreaterThanOrEqual(panel!.y+panel!.height);
+  expect(detail!.x).toBeCloseTo(panel!.x);expect(detail!.width).toBeCloseTo(panel!.width);
+  await page.locator("#flow-map").press("Enter");
+  const selected=page.locator('.node[data-id="n42"]');
+  await expect(selected).toBeFocused();await selected.press("Enter");
+  await expect(page.locator("#detail")).toBeFocused();
+  await page.locator("#return").press("Enter");await expect(selected).toBeFocused();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
 

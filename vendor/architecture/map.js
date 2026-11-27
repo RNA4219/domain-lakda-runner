@@ -1,4 +1,4 @@
-/* global document, matchMedia, Option, ResizeObserver, location, window */
+/* global document, Option, ResizeObserver, location, window */
 import { parseFile, importDocuments, validateMap, MAX_BYTES, kindNames, severityNames } from '#lakda-map-model';
 import { createFlows } from '#lakda-map-flows';
 
@@ -32,6 +32,7 @@ function initial(nodes) {
 }
 
 const flows=createFlows({
+  focusMap,
   choose(id) {
     if(state.mode==='repos' && state.byId.get(id)?.kind!=='repository') { state.mode='all';state.selected=id;render(); }
     select(id);
@@ -54,6 +55,7 @@ function apply(result,sample=false,flowId,step=0) {
   $('nearby').checked=false;
   $('node-query').value='';
   $('workspace').hidden=false;
+    $('jump-map').hidden=false;
   $('error').hidden=true;
   $('reset').hidden=sample;
   $('name').textContent=state.map.name;
@@ -271,7 +273,7 @@ function draw(reset=false){
   const lanes=svg('g',{id:'lanes',visibility:offsets[state.mode].size?'hidden':'visible'});
   for(const z of chart.zones) if(z.label){
     lanes.append(svg('rect',{class:'lane',x:z.x,y:z.y,width:z.w,height:z.h,rx:9}));
-    const label=svg('text',{class:'lane-title',x:z.x+10,y:z.y+22},fit(z.label,z.w-20,13,true));
+    const label=svg('text',{class:'lane-title',x:z.x+10,y:z.y+22},fit(z.label,z.w-20,14,true));
     label.append(svg('title',{},z.label));lanes.append(label);
   }
   fragment.append(lanes);
@@ -300,10 +302,10 @@ function draw(reset=false){
     g.append(svg('rect',{class:'box',width:p.w,height:p.h,rx:8}));
     const color=n.kind==='repository'?'#68487a':n.kind==='store'?'#29676c':'#915031';
     g.append(svg('path',{class:'glyph',d:glyphs[n.kind],transform:'translate(9 8)',color}));
-    g.append(svg('text',{class:'node-type',x:32,y:23},fit(n.role || n.type || kindNames.get(n.kind),p.w-(findings.length?61:42),12)));
-    g.append(svg('text',{class:'node-title',x:11,y:48},fit(n.name,p.w-21,15,true)));
+    g.append(svg('text',{class:'node-type',x:32,y:23},fit(n.role || n.type || kindNames.get(n.kind),p.w-(findings.length?61:42),14)));
+    g.append(svg('text',{class:'node-title',x:11,y:48},fit(n.name,p.w-21,16,true)));
     if(findings.length){
-      g.append(svg('text',{class:'node-issue',x:11,y:68},fit('指摘　'+findings[0].title,p.w-21,12)));
+      g.append(svg('text',{class:'node-issue',x:11,y:68},fit('指摘　'+findings[0].title,p.w-21,14)));
       g.append(svg('circle',{class:'alert-icon',cx:p.w-13,cy:15,r:9}),svg('text',{class:'alert-text',x:p.w-13,y:19,'text-anchor':'middle'},'!'));
     }
     const visibleLabel=[...g.querySelectorAll('text')].map(t=>t.textContent).join(' ');
@@ -327,16 +329,23 @@ function select(id,showDetail=false) {
   if(camera.zoom<1) readMap();else reveal(nodesDrawn.get(id));
   flows.follow(id);
   $('status').textContent=state.byId.get(id).name+'、指摘'+issues(id).length+'件を選択しました。';
-  if(showDetail && matchMedia('(max-width:900px)').matches) {
-    $('detail').focus({preventScroll:true});$('detail').scrollIntoView({block:'start'});
-  }
+  if(showDetail) openDetail();
+}
+function openDetail() {
+  $('detail').focus({preventScroll:true});$('detail').scrollIntoView({block:'start'});
+}
+function focusMap() {
+  const target=diagram.querySelector('[aria-pressed="true"]');
+  (target ?? frame).focus({preventScroll:true});
+  if(target) reveal(target);
+  frame.scrollIntoView({block:'center'});
 }
 function selectWire(key,choices=[]) {
   if(!wiresDrawn.has(key)) return;
   selectedWire=key;wireChoices=choices;draw();details();
   $('choose').value='';
   $('status').textContent='接続を選択しました。'+$('detail-name').textContent;
-  if(matchMedia('(max-width:900px)').matches) $('detail').focus();
+  openDetail();
 }
 function showBehaviors() {
   $('mapped-behaviors').hidden=!state.coverage;
@@ -589,7 +598,9 @@ $('zoom-out').addEventListener('click',()=>zoomAt(camera.zoom*.8));
 $('fit-map').addEventListener('click',fitMap);
 $('read-map').addEventListener('click',readMap);
 $('reset-layout').addEventListener('click',()=>{offsets[state.mode].clear();draw();readMap();});
-$('return').addEventListener('click',()=>{const target=diagram.querySelector('[aria-pressed="true"]');target?.focus();frame.scrollIntoView({block:'center'});});
+$('open-detail').addEventListener('click',openDetail);
+$('return').addEventListener('click',focusMap);
+$('jump-map').addEventListener('click',focusMap);
 $('file').addEventListener('change',e=>{const files=[...e.target.files];e.target.value='';if(files.length) openFiles(files);});
 $('reset').addEventListener('click',()=>loadBundled());
 $('product-map').addEventListener('click',()=>loadBundled(true));
